@@ -111,15 +111,51 @@
   background-color: #e09d40;
 }
 #log-archive-stats-button {
-  background-color: #3a8c54;
+  background-color: #4a545e;
 }
 #log-archive-stats-button:hover {
-  background-color: #7b65a0;
+  background-color: #6c7886;
 }
 #log-archive-stats-button.active {
   background-color: #3a8c54;
   border-color: #4da669;
   color: #fff;
+}
+#log-archive-settings-button.active {
+  background-color: #8c6a3a;
+  border-color: #a6864d;
+}
+
+/* 设置页面样式 */
+.config-section {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+.config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.config-group label {
+  font-weight: bold;
+  color: #8af;
+  font-size: 0.9em;
+}
+.config-group input {
+  padding: 8px;
+  background: #2a3036;
+  border: 1px solid #4a545e;
+  color: white;
+  border-radius: 4px;
+}
+.config-actions {
+  margin-top: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
 }
 #log-archive-ui-toggle-button {
   position: fixed;
