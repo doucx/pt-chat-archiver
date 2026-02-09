@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] refactor(ui): 提取模板与分析逻辑至独立模块", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770665213.926127, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] feat(ui): implement pagination state and message slicing", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770665707.3154519, "duration_ms": 0}}

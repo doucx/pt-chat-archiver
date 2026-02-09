@@ -29,6 +29,12 @@ export function createUI(inMemoryChatState, callbacks) {
     deactivateLogger,
   } = callbacks;
 
+  const uiState = {
+    currentPage: 1,
+    pageSize: 1000,
+    totalPages: 1,
+    viewMode: 'log', // 'log' or 'stats'
+  };
   let isUIPaused = false;
 
   const container = document.createElement('div');
@@ -54,8 +60,13 @@ export function createUI(inMemoryChatState, callbacks) {
   const statsButton = document.getElementById('log-archive-stats-button');
   const pauseButton = document.getElementById('log-archive-pause-button');
   const cleanButton = document.getElementById('log-archive-clean-button');
-
-  let isStatsViewActive = false;
+  // Pagination elements
+  const paginationControls = document.getElementById('log-archive-ui-pagination-controls');
+  const pageFirstBtn = document.getElementById('page-first');
+  const pagePrevBtn = document.getElementById('page-prev');
+  const pageNextBtn = document.getElementById('page-next');
+  const pageLastBtn = document.getElementById('page-last');
+  const pageInfoSpan = document.getElementById('page-info');
 
   selfNameInput.value = localStorage.getItem(SELF_NAME_KEY) || '';
   selfNameInput.addEventListener('change', () => {
@@ -125,13 +136,31 @@ export function createUI(inMemoryChatState, callbacks) {
   }
 
   // --- UI Rendering ---
+  function updatePaginationControls() {
+    pageInfoSpan.textContent = `第 ${uiState.currentPage} / ${uiState.totalPages} 页`;
+    pageFirstBtn.disabled = uiState.currentPage === 1;
+    pagePrevBtn.disabled = uiState.currentPage === 1;
+    pageNextBtn.disabled = uiState.currentPage === uiState.totalPages;
+    pageLastBtn.disabled = uiState.currentPage === uiState.totalPages;
+  }
+
   function displayChatLog(messages, channelName) {
+    uiState.totalPages = Math.max(1, Math.ceil(messages.length / uiState.pageSize));
+    if (uiState.currentPage > uiState.totalPages) {
+      uiState.currentPage = uiState.totalPages;
+    }
+
+    const startIndex = (uiState.currentPage - 1) * uiState.pageSize;
+    const endIndex = startIndex + uiState.pageSize;
+    const paginatedMessages = messages.slice(startIndex, endIndex);
+
     updateTextareaAndPreserveSelection(() => {
       logDisplay.value =
-        messages && messages.length > 0
-          ? messages.map(formatMessageForDisplay).join('\n')
+        paginatedMessages.length > 0
+          ? paginatedMessages.map(formatMessageForDisplay).join('\n')
           : `--- 在频道 [${channelName}] 中没有记录 ---`;
     });
+    updatePaginationControls();
   }
 
   function displayStatistics(messages, channelName) {
@@ -143,9 +172,12 @@ export function createUI(inMemoryChatState, callbacks) {
   function renderCurrentView() {
     const selectedChannel = channelSelector.value;
     const messages = inMemoryChatState[selectedChannel] || [];
-    if (isStatsViewActive) {
+
+    if (uiState.viewMode === 'stats') {
+      paginationControls.style.display = 'none';
       displayStatistics(messages, selectedChannel);
     } else {
+      paginationControls.style.display = 'flex';
       displayChatLog(messages, selectedChannel);
     }
   }
@@ -182,7 +214,10 @@ export function createUI(inMemoryChatState, callbacks) {
   closeButton.addEventListener('click', () => {
     uiContainer.style.display = 'none';
   });
-  channelSelector.addEventListener('change', () => renderCurrentView());
+  channelSelector.addEventListener('change', () => {
+    uiState.currentPage = 1;
+    renderCurrentView();
+  });
   refreshButton.addEventListener('click', () => {
     scanAndMergeHistory();
     saveMessagesToStorage(inMemoryChatState);
@@ -204,11 +239,39 @@ export function createUI(inMemoryChatState, callbacks) {
     }
   });
   statsButton.addEventListener('click', () => {
-    isStatsViewActive = !isStatsViewActive;
-    statsButton.classList.toggle('active', isStatsViewActive);
-    statsButton.textContent = isStatsViewActive ? '查看记录' : '查看统计';
+    uiState.viewMode = uiState.viewMode === 'log' ? 'stats' : 'log';
+    const isStats = uiState.viewMode === 'stats';
+    statsButton.classList.toggle('active', isStats);
+    statsButton.textContent = isStats ? '查看记录' : '查看统计';
     renderCurrentView();
   });
+
+  // Pagination listeners
+  pageFirstBtn.addEventListener('click', () => {
+    if (uiState.currentPage > 1) {
+      uiState.currentPage = 1;
+      renderCurrentView();
+    }
+  });
+  pagePrevBtn.addEventListener('click', () => {
+    if (uiState.currentPage > 1) {
+      uiState.currentPage--;
+      renderCurrentView();
+    }
+  });
+  pageNextBtn.addEventListener('click', () => {
+    if (uiState.currentPage < uiState.totalPages) {
+      uiState.currentPage++;
+      renderCurrentView();
+    }
+  });
+  pageLastBtn.addEventListener('click', () => {
+    if (uiState.currentPage < uiState.totalPages) {
+      uiState.currentPage = uiState.totalPages;
+      renderCurrentView();
+    }
+  });
+
   copyButton.addEventListener('click', () => {
     if (logDisplay.value) {
       navigator.clipboard.writeText(logDisplay.value).then(() => {
@@ -246,7 +309,7 @@ export function createUI(inMemoryChatState, callbacks) {
       }
       scanAndMergeHistory();
       saveMessagesToStorage(inMemoryChatState);
-      isStatsViewActive = false;
+      uiState.viewMode = 'log';
       statsButton.classList.remove('active');
       statsButton.textContent = '查看统计';
       updateUI();
