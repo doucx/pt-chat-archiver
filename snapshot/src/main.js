@@ -72,7 +72,7 @@ import {
       const isoTimeApproximation = new Date(localDateString.replace(/-/g, '/')).toISOString();
 
       const messageData = extractUsefulData(element, selfName, isoTimeApproximation);
-      if (messageData && messageData.content) {
+      if (messageData?.content) {
         messageData.is_historical = true;
         messages.push(messageData);
       }
@@ -97,9 +97,9 @@ import {
         inMemoryChatState[channelName] = newMergedMessages;
         dataChanged = true;
         const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
-        newlyAddedHistoricalMessages.forEach((msg) => {
+        for (const msg of newlyAddedHistoricalMessages) {
           addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
-        });
+        }
       }
     }
     if (dataChanged && uiControls && !uiControls.isUIPaused()) {
@@ -123,7 +123,7 @@ import {
     const preciseTime = getISOTimestamp();
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
-    if (messageData && messageData.content) {
+    if (messageData?.content) {
       if (!inMemoryChatState[currentActiveChannel]) {
         inMemoryChatState[currentActiveChannel] = [];
       }

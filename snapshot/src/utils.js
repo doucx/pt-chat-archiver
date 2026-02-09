@@ -37,7 +37,7 @@ export function formatISOTimeForDisplay(isoString) {
   if (!isoString) return 'N/A';
   try {
     const date = new Date(isoString);
-    if (isNaN(date.getTime())) return '日期无效';
+    if (Number.isNaN(date.getTime())) return '日期无效';
 
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');

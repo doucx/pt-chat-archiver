@@ -100,7 +100,9 @@ export function createUI(inMemoryChatState, callbacks) {
         }
       }
       // Update the state by replacing it entirely
-      Object.keys(inMemoryChatState).forEach((key) => delete inMemoryChatState[key]);
+      for (const key of Object.keys(inMemoryChatState)) {
+        delete inMemoryChatState[key];
+      }
       Object.assign(inMemoryChatState, cleanedData);
 
       if (totalRemoved > 0) {
@@ -117,7 +119,8 @@ export function createUI(inMemoryChatState, callbacks) {
 
   function updateTextareaAndPreserveSelection(updateFn) {
     const isFocused = document.activeElement === logDisplay;
-    let selectionStart, selectionEnd;
+    let selectionStart;
+    let selectionEnd;
     if (isFocused) {
       selectionStart = logDisplay.selectionStart;
       selectionEnd = logDisplay.selectionEnd;
@@ -132,12 +135,12 @@ export function createUI(inMemoryChatState, callbacks) {
   function calculateTopTalkers(messages) {
     const counts = new Map();
     let totalMessagesInPeriod = 0;
-    messages.forEach((msg) => {
+    for (const msg of messages) {
       if (msg.sender && msg.sender !== 'System') {
         counts.set(msg.sender, (counts.get(msg.sender) || 0) + 1);
         totalMessagesInPeriod++;
       }
-    });
+    }
     const data = Array.from(counts.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
@@ -147,7 +150,7 @@ export function createUI(inMemoryChatState, callbacks) {
   function calculateHourlyActivity(messages) {
     const hourlyCounts = new Array(24).fill(0);
     let totalMessagesInPeriod = 0;
-    messages.forEach((msg) => {
+    for (const msg of messages) {
       try {
         const hour = new Date(msg.time).getHours();
         hourlyCounts[hour]++;
@@ -155,7 +158,7 @@ export function createUI(inMemoryChatState, callbacks) {
       } catch (e) {
         /* ignore */
       }
-    });
+    }
     const data = hourlyCounts
       .map((count, hour) => ({ hour, count }))
       .filter((item) => item.count > 0)
@@ -166,7 +169,7 @@ export function createUI(inMemoryChatState, callbacks) {
   function formatTopTalkers(results) {
     const { data, total } = results;
     const text = '\n\n===== 最活跃用户 (TOP 10) =====\n\n';
-    if (data.length === 0 || total === 0) return text + '无用户发言记录。';
+    if (data.length === 0 || total === 0) return `${text}无用户发言记录。`;
     return (
       text +
       data
@@ -182,7 +185,7 @@ export function createUI(inMemoryChatState, callbacks) {
   function formatHourlyActivity(results) {
     const { data, total } = results;
     const text = '\n\n===== 聊天峰值时间段 =====\n\n';
-    if (data.length === 0 || total === 0) return text + '无有效时间记录。';
+    if (data.length === 0 || total === 0) return `${text}无有效时间记录。`;
     return (
       text +
       data
@@ -190,10 +193,10 @@ export function createUI(inMemoryChatState, callbacks) {
           const hourStr = String(item.hour).padStart(2, '0');
           const nextHourStr = String((item.hour + 1) % 24).padStart(2, '0');
           const percentage = ((item.count / total) * 100).toFixed(1);
-          return (
-            `${hourStr}:00 - ${nextHourStr}:00 `.padEnd(16, ' ') +
-            `| ${item.count} 条消息 (${percentage}%)`
-          );
+          return `${`${hourStr}:00 - ${nextHourStr}:00 `.padEnd(
+            16,
+            ' ',
+          )}| ${item.count} 条消息 (${percentage}%)`;
         })
         .join('\n')
     );

@@ -139,14 +139,14 @@ export function cleanChannelRecords(records) {
       try {
         const startTime = new Date(records[i].time).getTime();
         const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
-        if (isNaN(startTime) || isNaN(endTime)) continue;
+        if (Number.isNaN(startTime) || Number.isNaN(endTime)) continue;
         if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
           for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
             is_in_burst[j] = true;
           }
         }
       } catch (e) {
-        continue;
+        // Biome: unnecessary continue
       }
     }
   }
@@ -191,14 +191,14 @@ export function detectTotalDuplicates(messagesByChannel) {
         try {
           const startTime = new Date(records[i].time).getTime();
           const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
-          if (isNaN(startTime) || isNaN(endTime)) continue;
+          if (Number.isNaN(startTime) || Number.isNaN(endTime)) continue;
           if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
             for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
               is_in_burst[j] = true;
             }
           }
         } catch (e) {
-          continue;
+          // Biome: unnecessary continue
         }
       }
     }

@@ -50,7 +50,7 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
 
   const hostname = window.location.hostname;
   const isMainServerMode = MAIN_SERVER_HOSTS.some(
-    (h) => hostname === h || hostname.endsWith('.' + h),
+    (h) => hostname === h || hostname.endsWith(`.${h}`),
   );
 
   if (isMainServerMode) {
@@ -74,9 +74,9 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
 
     // 通过克隆节点并移除无关部分来提取完整的消息文本，这种方法稳健且能保留上下文
     const container = chatLineElement.cloneNode(true);
-    container
-      .querySelectorAll('.chat-line-timestamp, .chat-line-lead')
-      .forEach((el) => el.remove());
+    for (const el of container.querySelectorAll('.chat-line-timestamp, .chat-line-lead')) {
+      el.remove();
+    }
     data.content = customTextContent(container).replace(/\s+/g, ' ').trim();
 
     const nameNode = chatLineElement.querySelector('.chat-line-name');
@@ -105,9 +105,10 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
       if (nameText) data.sender = nameText;
     }
     return data;
-  } else {
-    // --- 回落模式 (兼容私服) ---
-    const rawContent = customTextContent(chatLineElement);
+  }
+
+  // --- 回落模式 (兼容私服) ---
+  const rawContent = customTextContent(chatLineElement);
     if (!rawContent.trim()) return null;
 
     return {
@@ -116,9 +117,8 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
       type: '',
       sender: '',
       receiver: '',
-      content: rawContent.trim(),
-    };
-  }
+    content: rawContent.trim(),
+  };
 }
 
 /** 定位页面上的关键聊天元素。*/

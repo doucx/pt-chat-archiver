@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "biome format Capture: M constants.js, M main.js, M parser.js ... and 5 more files", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770662213.9957244, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] style: 根据 Biome 检查报告优化代码质量", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770662313.5290916, "duration_ms": 0}}
