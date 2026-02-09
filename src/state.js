@@ -1,4 +1,4 @@
-import { STORAGE_KEY_V5, OLD_STORAGE_KEY_V4 } from './constants.js';
+import { OLD_STORAGE_KEY_V4, STORAGE_KEY_V5 } from './constants.js';
 import { getISOTimestamp } from './utils.js';
 
 /**
@@ -8,13 +8,13 @@ export function migrateDataV4toV5() {
   const oldDataRaw = localStorage.getItem(OLD_STORAGE_KEY_V4);
   if (!oldDataRaw) return;
 
-  console.log("检测到旧版本(v4)数据，正在执行一次性迁移...");
+  console.log('检测到旧版本(v4)数据，正在执行一次性迁移...');
   try {
     const oldData = JSON.parse(oldDataRaw);
     const newData = {};
 
     for (const channel in oldData) {
-      newData[channel] = oldData[channel].map(msg => {
+      newData[channel] = oldData[channel].map((msg) => {
         const newMsg = { ...msg };
         try {
           const localDate = new Date(msg.time.replace(/-/g, '/'));
@@ -29,9 +29,9 @@ export function migrateDataV4toV5() {
 
     localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(newData));
     localStorage.removeItem(OLD_STORAGE_KEY_V4);
-    console.log("数据迁移成功！");
+    console.log('数据迁移成功！');
   } catch (error) {
-    console.error("数据迁移失败，旧数据可能已损坏，将予以保留。", error);
+    console.error('数据迁移失败，旧数据可能已损坏，将予以保留。', error);
   }
 }
 
@@ -41,13 +41,13 @@ export function migrateDataV4toV5() {
 export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
   if (!oldMessages || oldMessages.length === 0) return newMessages;
   if (!newMessages || newMessages.length === 0) return oldMessages;
-  const oldUserMessages = oldMessages.filter(msg => !msg.is_archiver);
-  const newUserMessages = newMessages.filter(msg => !msg.is_archiver);
+  const oldUserMessages = oldMessages.filter((msg) => !msg.is_archiver);
+  const newUserMessages = newMessages.filter((msg) => !msg.is_archiver);
   let overlapLength = 0;
   const maxPossibleOverlap = Math.min(oldUserMessages.length, newUserMessages.length);
   for (let i = maxPossibleOverlap; i > 0; i--) {
-    const suffixOfOld = oldUserMessages.slice(-i).map(msg => msg.content);
-    const prefixOfNew = newUserMessages.slice(0, i).map(msg => msg.content);
+    const suffixOfOld = oldUserMessages.slice(-i).map((msg) => msg.content);
+    const prefixOfNew = newUserMessages.slice(0, i).map((msg) => msg.content);
     if (JSON.stringify(suffixOfOld) === JSON.stringify(prefixOfNew)) {
       overlapLength = i;
       break;
@@ -56,18 +56,25 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
   let messagesToAdd;
   if (overlapLength > 0) {
     const lastOverlappingUserMessage = newUserMessages[overlapLength - 1];
-    const lastOverlappingIndexInNew = newMessages.findIndex(msg => msg === lastOverlappingUserMessage);
+    const lastOverlappingIndexInNew = newMessages.findIndex(
+      (msg) => msg === lastOverlappingUserMessage,
+    );
     messagesToAdd = newMessages.slice(lastOverlappingIndexInNew + 1);
   } else {
     messagesToAdd = newMessages;
   }
-  const discontinuityDetected = oldMessages.length > 0 && newMessages.length > 0 && overlapLength === 0;
+  const discontinuityDetected =
+    oldMessages.length > 0 && newMessages.length > 0 && overlapLength === 0;
   if (messagesToAdd.length === 0) return oldMessages;
   if (discontinuityDetected) {
     console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
     const discontinuityMark = {
-      time: getISOTimestamp(), type: 'system', sender: 'Archiver', receiver: 'System',
-      content: '[警告 - 此处可能存在记录丢失]', is_archiver: true
+      time: getISOTimestamp(),
+      type: 'system',
+      sender: 'Archiver',
+      receiver: 'System',
+      content: '[警告 - 此处可能存在记录丢失]',
+      is_archiver: true,
     };
     return oldMessages.concat([discontinuityMark], messagesToAdd);
   }
@@ -79,13 +86,14 @@ export function loadMessagesFromStorage() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY_V5)) || {};
   } catch (e) {
-    console.error('读取存档失败，数据已损坏。', e); return {};
+    console.error('读取存档失败，数据已损坏。', e);
+    return {};
   }
 }
 
 /** 将内存中的存档保存到 localStorage。*/
 export function saveMessagesToStorage(messagesObject) {
-  console.info('存档已保存到 localStorage')
+  console.info('存档已保存到 localStorage');
   localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(messagesObject));
 }
 
@@ -120,46 +128,48 @@ export function addMessageToSyntheticChannelIfNeeded(state, message, activeChann
  * @returns {{cleanedRecords: Array<object>, removedCount: number}} - 清理后的记录和被移除的记录数。
  */
 export function cleanChannelRecords(records) {
-    if (!records || records.length === 0) {
-        return { cleanedRecords: [], removedCount: 0 };
-    }
-    const BURST_COUNT_THRESHOLD = 20;
-    const BURST_TIME_THRESHOLD_MS = 1000;
-    const is_in_burst = new Array(records.length).fill(false);
-    if (records.length >= BURST_COUNT_THRESHOLD) {
-        for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
-            try {
-                const startTime = new Date(records[i].time).getTime();
-                const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
-                if (isNaN(startTime) || isNaN(endTime)) continue;
-                if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
-                    for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
-                        is_in_burst[j] = true;
-                    }
-                }
-            } catch (e) { continue; }
+  if (!records || records.length === 0) {
+    return { cleanedRecords: [], removedCount: 0 };
+  }
+  const BURST_COUNT_THRESHOLD = 20;
+  const BURST_TIME_THRESHOLD_MS = 1000;
+  const is_in_burst = new Array(records.length).fill(false);
+  if (records.length >= BURST_COUNT_THRESHOLD) {
+    for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
+      try {
+        const startTime = new Date(records[i].time).getTime();
+        const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
+        if (Number.isNaN(startTime) || Number.isNaN(endTime)) continue;
+        if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
+          for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
+            is_in_burst[j] = true;
+          }
         }
+      } catch (e) {
+        // Biome: unnecessary continue
+      }
     }
-    const cleanedRecords = [];
-    const seen_contents = new Set();
-    let removedCount = 0;
-    for (let i = 0; i < records.length; i++) {
-        const record = records[i];
-        const content = record.content;
-        const has_no_historical_flag = !record.is_historical;
-        const is_duplicate = content != null && seen_contents.has(content);
-        const in_burst = is_in_burst[i];
-        const should_delete = has_no_historical_flag && is_duplicate && in_burst;
-        if (!should_delete) {
-            cleanedRecords.push(record);
-        } else {
-            removedCount++;
-        }
-        if (content != null) {
-            seen_contents.add(content);
-        }
+  }
+  const cleanedRecords = [];
+  const seen_contents = new Set();
+  let removedCount = 0;
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    const content = record.content;
+    const has_no_historical_flag = !record.is_historical;
+    const is_duplicate = content != null && seen_contents.has(content);
+    const in_burst = is_in_burst[i];
+    const should_delete = has_no_historical_flag && is_duplicate && in_burst;
+    if (!should_delete) {
+      cleanedRecords.push(record);
+    } else {
+      removedCount++;
     }
-    return { cleanedRecords, removedCount };
+    if (content != null) {
+      seen_contents.add(content);
+    }
+  }
+  return { cleanedRecords, removedCount };
 }
 
 /**
@@ -168,42 +178,44 @@ export function cleanChannelRecords(records) {
  * @returns {number} - 可被清理的记录总数。
  */
 export function detectTotalDuplicates(messagesByChannel) {
-    let totalDuplicates = 0;
-    if (!messagesByChannel) return 0;
-    for (const channel in messagesByChannel) {
-        const records = messagesByChannel[channel];
-        if (!records || records.length === 0) continue;
-        const BURST_COUNT_THRESHOLD = 20;
-        const BURST_TIME_THRESHOLD_MS = 1000;
-        const is_in_burst = new Array(records.length).fill(false);
-        if (records.length >= BURST_COUNT_THRESHOLD) {
-            for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
-                try {
-                    const startTime = new Date(records[i].time).getTime();
-                    const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
-                    if (isNaN(startTime) || isNaN(endTime)) continue;
-                    if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
-                        for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
-                            is_in_burst[j] = true;
-                        }
-                    }
-                } catch (e) { continue; }
+  let totalDuplicates = 0;
+  if (!messagesByChannel) return 0;
+  for (const channel in messagesByChannel) {
+    const records = messagesByChannel[channel];
+    if (!records || records.length === 0) continue;
+    const BURST_COUNT_THRESHOLD = 20;
+    const BURST_TIME_THRESHOLD_MS = 1000;
+    const is_in_burst = new Array(records.length).fill(false);
+    if (records.length >= BURST_COUNT_THRESHOLD) {
+      for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
+        try {
+          const startTime = new Date(records[i].time).getTime();
+          const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
+          if (Number.isNaN(startTime) || Number.isNaN(endTime)) continue;
+          if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
+            for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
+              is_in_burst[j] = true;
             }
+          }
+        } catch (e) {
+          // Biome: unnecessary continue
         }
-        const seen_contents = new Set();
-        for (let i = 0; i < records.length; i++) {
-            const record = records[i];
-            const content = record.content;
-            const has_no_historical_flag = !record.is_historical;
-            const is_duplicate = content != null && seen_contents.has(content);
-            const in_burst = is_in_burst[i];
-            if (has_no_historical_flag && is_duplicate && in_burst) {
-                totalDuplicates++;
-            }
-            if (content != null) {
-                seen_contents.add(content);
-            }
-        }
+      }
     }
-    return totalDuplicates;
+    const seen_contents = new Set();
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      const content = record.content;
+      const has_no_historical_flag = !record.is_historical;
+      const is_duplicate = content != null && seen_contents.has(content);
+      const in_burst = is_in_burst[i];
+      if (has_no_historical_flag && is_duplicate && in_burst) {
+        totalDuplicates++;
+      }
+      if (content != null) {
+        seen_contents.add(content);
+      }
+    }
+  }
+  return totalDuplicates;
 }

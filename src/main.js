@@ -1,13 +1,29 @@
 import './style.css';
-import { STORAGE_KEY_V5, OLD_STORAGE_KEY_V4, SELF_NAME_KEY, STORAGE_WARNING_THRESHOLD_MB } from './constants.js';
-import { getStorageUsageInMB, debounce, getISOTimestamp, formatISOTimeForDisplay } from './utils.js';
-import { extractUsefulData, locateChatElements, findActiveTabByClass } from './parser.js';
-import { migrateDataV4toV5, mergeAndDeduplicateMessages, loadMessagesFromStorage, saveMessagesToStorage, addMessageToSyntheticChannelIfNeeded, cleanChannelRecords, detectTotalDuplicates } from './state.js';
+import {
+  OLD_STORAGE_KEY_V4,
+  SELF_NAME_KEY,
+  STORAGE_KEY_V5,
+  STORAGE_WARNING_THRESHOLD_MB,
+} from './constants.js';
+import { extractUsefulData, findActiveTabByClass, locateChatElements } from './parser.js';
+import {
+  addMessageToSyntheticChannelIfNeeded,
+  cleanChannelRecords,
+  detectTotalDuplicates,
+  loadMessagesFromStorage,
+  mergeAndDeduplicateMessages,
+  migrateDataV4toV5,
+  saveMessagesToStorage,
+} from './state.js';
 import { createUI } from './ui.js';
+import {
+  debounce,
+  formatISOTimeForDisplay,
+  getISOTimestamp,
+  getStorageUsageInMB,
+} from './utils.js';
 
-(function() {
-  'use strict';
-
+(() => {
   // --- 全局状态 ---
   let inMemoryChatState = {};
   let messageObserver = null;
@@ -33,7 +49,7 @@ import { createUI } from './ui.js';
     const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
     const messages = [];
     const chatLines = Array.from(elements.chatLog.children);
-    let currentDate = new Date();
+    const currentDate = new Date();
     let lastTimeParts = null;
 
     for (let i = chatLines.length - 1; i >= 0; i--) {
@@ -43,7 +59,11 @@ import { createUI } from './ui.js';
 
       const timeText = timeNode.textContent.trim();
       const [hours, minutes] = timeText.split(':').map(Number);
-      if (lastTimeParts && (hours > lastTimeParts.hours || (hours === lastTimeParts.hours && minutes > lastTimeParts.minutes))) {
+      if (
+        lastTimeParts &&
+        (hours > lastTimeParts.hours ||
+          (hours === lastTimeParts.hours && minutes > lastTimeParts.minutes))
+      ) {
         currentDate.setDate(currentDate.getDate() - 1);
       }
       lastTimeParts = { hours, minutes };
@@ -52,7 +72,7 @@ import { createUI } from './ui.js';
       const isoTimeApproximation = new Date(localDateString.replace(/-/g, '/')).toISOString();
 
       const messageData = extractUsefulData(element, selfName, isoTimeApproximation);
-      if (messageData && messageData.content) {
+      if (messageData?.content) {
         messageData.is_historical = true;
         messages.push(messageData);
       }
@@ -77,13 +97,13 @@ import { createUI } from './ui.js';
         inMemoryChatState[channelName] = newMergedMessages;
         dataChanged = true;
         const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
-        newlyAddedHistoricalMessages.forEach(msg => {
+        for (const msg of newlyAddedHistoricalMessages) {
           addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
-        });
+        }
       }
     }
     if (dataChanged && uiControls && !uiControls.isUIPaused()) {
-        uiControls.updateUI();
+      uiControls.updateUI();
     }
   }
 
@@ -103,15 +123,15 @@ import { createUI } from './ui.js';
     const preciseTime = getISOTimestamp();
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
-    if (messageData && messageData.content) {
+    if (messageData?.content) {
       if (!inMemoryChatState[currentActiveChannel]) {
         inMemoryChatState[currentActiveChannel] = [];
       }
       inMemoryChatState[currentActiveChannel].push(messageData);
       addMessageToSyntheticChannelIfNeeded(inMemoryChatState, messageData, currentActiveChannel);
-      
+
       if (uiControls && !uiControls.isUIPaused()) {
-          uiControls.updateUI();
+        uiControls.updateUI();
       }
     }
   }
@@ -122,7 +142,7 @@ import { createUI } from './ui.js';
   function activateLogger() {
     const { chatLog, tabs: tabsContainer } = locateChatElements();
     if (!chatLog || !tabsContainer || messageObserver) return;
-    
+
     isInitializingChat = true;
 
     const handleTabChange = () => {
@@ -139,7 +159,12 @@ import { createUI } from './ui.js';
 
     currentActiveChannel = findActiveTabByClass(tabsContainer.innerHTML);
     tabObserver = new MutationObserver(handleTabChange);
-    tabObserver.observe(tabsContainer, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    tabObserver.observe(tabsContainer, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class'],
+    });
 
     const finalizeInitialization = debounce(() => {
       scanAndMergeHistory();
@@ -185,15 +210,15 @@ import { createUI } from './ui.js';
     migrateDataV4toV5();
     inMemoryChatState = loadMessagesFromStorage();
     uiControls = createUI(inMemoryChatState, {
-        scanAndMergeHistory,
-        saveMessagesToStorage,
-        cleanChannelRecords,
-        detectTotalDuplicates,
-        deactivateLogger,
+      scanAndMergeHistory,
+      saveMessagesToStorage,
+      cleanChannelRecords,
+      detectTotalDuplicates,
+      deactivateLogger,
     });
 
     uiControls.checkStorageUsage();
-    
+
     const uiObserver = new MutationObserver(() => {
       const { chatLogContainer } = locateChatElements();
       if (chatLogContainer) {
@@ -216,13 +241,13 @@ import { createUI } from './ui.js';
 
     let lastDuplicateCount = -1;
     setInterval(() => {
-        const duplicateCount = detectTotalDuplicates(inMemoryChatState);
-        if (duplicateCount !== lastDuplicateCount) {
-            // This function is now internal to the UI module but can be triggered.
-            // For now, the UI will handle this itself periodically.
-            // If more direct control is needed, ui.js could expose a function for it.
-            lastDuplicateCount = duplicateCount;
-        }
+      const duplicateCount = detectTotalDuplicates(inMemoryChatState);
+      if (duplicateCount !== lastDuplicateCount) {
+        // This function is now internal to the UI module but can be triggered.
+        // For now, the UI will handle this itself periodically.
+        // If more direct control is needed, ui.js could expose a function for it.
+        lastDuplicateCount = duplicateCount;
+      }
     }, 5000);
 
     window.addEventListener('pagehide', () => saveMessagesToStorage(inMemoryChatState));

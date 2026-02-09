@@ -1,15 +1,19 @@
 {
   "name": "pt-chat-archiver",
   "private": true,
-  "version": "0.0.0",
+  "version": "5.5.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "watch": "vite build --watch",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "biome lint .",
+    "format": "biome format . --write",
+    "check": "biome check --write ."
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "vite": "^7.3.1",
     "vite-plugin-monkey": "^7.1.9"
   }
