@@ -1,83 +1,63 @@
-这是一个非常合理的 UX 改进。通过改变按钮的文本和颜色，用户可以直观地知道当前处于哪种视图模式。
+这是因为 `style.css` 中统计按钮的默认背景色被硬编码为了绿色（`#3a8c54`），这导致即便没有 `.active` 类，它看起来也像是“被激活”的。
 
-我将修改 `src/ui.js` 中的渲染逻辑，使得“统计”按钮在激活时显示为“📜 记录”并保持高亮颜色。
+我将修改 `style.css`，让统计按钮在默认状态下保持与其他按钮一致的深灰色，仅在切换到统计视图（`.active`）时才变绿高亮。
 
-## [WIP] style: 增强统计按钮的交互反馈与文本切换
+## [WIP] fix: 修正统计按钮在非激活状态下的高亮显示问题
+
+### 错误分析
+在 `style.css` 中，`#log-archive-stats-button` 的基础样式被设置为了绿色。由于 `.active` 类设置的也是同样的绿色背景，导致按钮在“统计”和“记录”文本切换时，视觉上的颜色反馈没有发生变化，始终处于高亮状态。
 
 ### 用户需求
-点击“统计”按钮进入统计视图后，按钮应变色并切换文本为“记录”，以便用户一键返回。
-
-### 评论
-这种模式切换（Toggle）的设计符合用户直觉，能有效减少顶栏按钮的冗余感。
+当页面显示“记录”时，统计按钮应显示为普通按钮颜色（灰色）；仅当用户点击并切换到“统计”视图时，按钮才变绿。
 
 ### 目标
-1.  修改 `src/ui.js` 中的 `renderCurrentView` 函数。
-2.  根据 `uiState.viewMode` 动态设置 `statsButton` 的 `textContent` 和 `.active` 类。
+1.  调整 `src/style.css`，将统计按钮的默认背景色改为标准按钮色（`#4a545e`）。
+2.  确保 `.active` 类能正确提供绿色高亮反馈。
 
 ### 标签
-#intent/tune #flow/ready #priority/low #comp/ui #scope/ux #ai/delegate #task/domain/ui #task/object/stats-button #task/action/refine #task/state/continue
+#intent/fix #flow/ready #priority/medium #comp/ui #scope/ux #ai/delegate #task/domain/ui #task/object/stats-button-style #task/action/fix #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 更新 `ui.js` 中的视图切换逻辑
+#### Acts 1: 修正统计按钮的 CSS 颜色定义
 
-我们将修改 `renderCurrentView` 函数中处理按钮状态的部分，并微调事件监听器。
+我们将统计按钮的基础背景色改为标准灰色，并保持 `.active` 状态为绿色。
 
 ~~~~~act
 patch_file
-src/ui.js
+src/style.css
 ~~~~~
-~~~~~javascript.old
-  // --- 渲染核心 ---
-  function renderCurrentView() {
-    const selectedChannel = channelSelector.value;
-    const messages = inMemoryChatState[selectedChannel] || [];
-
-    // 视图可见性切换
-    logView.style.display = uiState.viewMode === 'config' ? 'none' : 'flex';
-    configView.style.display = uiState.viewMode === 'config' ? 'flex' : 'none';
-    
-    // 按钮激活状态
-    statsButton.classList.toggle('active', uiState.viewMode === 'stats');
-    settingsButton.classList.toggle('active', uiState.viewMode === 'config');
-
-    if (uiState.viewMode === 'config') {
-      updateCleanButtonState(detectTotalDuplicates(inMemoryChatState));
-      return;
-    }
-
-    if (uiState.viewMode === 'stats') {
+~~~~~css.old
+#log-archive-stats-button {
+  background-color: #3a8c54;
+}
+#log-archive-stats-button:hover {
+  background-color: #7b65a0;
+}
+#log-archive-stats-button.active {
+  background-color: #3a8c54;
+  border-color: #4da669;
+  color: #fff;
+}
 ~~~~~
-~~~~~javascript.new
-  // --- 渲染核心 ---
-  function renderCurrentView() {
-    const selectedChannel = channelSelector.value;
-    const messages = inMemoryChatState[selectedChannel] || [];
-
-    // 视图可见性切换
-    logView.style.display = uiState.viewMode === 'config' ? 'none' : 'flex';
-    configView.style.display = uiState.viewMode === 'config' ? 'flex' : 'none';
-    
-    // 按钮激活状态与文本切换
-    const isStatsMode = uiState.viewMode === 'stats';
-    const isConfigMode = uiState.viewMode === 'config';
-
-    statsButton.classList.toggle('active', isStatsMode);
-    statsButton.textContent = isStatsMode ? '📜 记录' : '📊 统计';
-    
-    settingsButton.classList.toggle('active', isConfigMode);
-
-    if (isConfigMode) {
-      updateCleanButtonState(detectTotalDuplicates(inMemoryChatState));
-      return;
-    }
-
-    if (isStatsMode) {
+~~~~~css.new
+#log-archive-stats-button {
+  background-color: #4a545e;
+}
+#log-archive-stats-button:hover {
+  background-color: #6c7886;
+}
+#log-archive-stats-button.active {
+  background-color: #3a8c54;
+  border-color: #4da669;
+  color: #fff;
+}
 ~~~~~
 
 ### 下一步建议
-1.  **测试交互**: 点击“📊 统计”，确认它变成了“📜 记录”且颜色变为绿色（或 `style.css` 中定义的 `.active` 颜色）。
-2.  **验证一致性**: 进入设置页面时，确认统计按钮恢复为“📊 统计”且不带高亮。
-3.  **提交**: 功能确认无误后即可提交代码。
+1.  **刷新页面测试**:
+    *   默认状态：按钮显示“📊 统计”，颜色为灰色。
+    *   点击后：按钮显示“📜 记录”，颜色变为绿色。
+2.  **提交代码**: 视觉反馈确认正常后即可提交。

@@ -111,10 +111,10 @@
   background-color: #e09d40;
 }
 #log-archive-stats-button {
-  background-color: #3a8c54;
+  background-color: #4a545e;
 }
 #log-archive-stats-button:hover {
-  background-color: #7b65a0;
+  background-color: #6c7886;
 }
 #log-archive-stats-button.active {
   background-color: #3a8c54;
