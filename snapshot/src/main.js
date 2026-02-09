@@ -1,3 +1,5 @@
+import './style.css';
+
 (function() {
   'use strict';
 
@@ -548,34 +550,6 @@
    * 用户交互界面 (UI) 模块
    * =================================================================
    */  function createUI() {
-    GM_addStyle(`
-            #log-archive-ui-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 70vw; height: 80vh; background-color: rgba(0, 0, 0, 0.65); border: 2px solid #5a6673; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); z-index: 99999; display: none; flex-direction: column; padding: 15px; font-family: monospace; color: #e0e0e0; }
-            #log-archive-ui-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0; flex-wrap: wrap; gap: 10px; }
-            #log-archive-ui-header h2 { margin: 0; font-size: 1.2em; color: #8af; flex-shrink: 0; margin-right: 15px; }
-            #log-archive-ui-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-            #log-archive-ui-log-display { width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.2); border: 1px solid #444; color: #ddd; font-size: 0.9em; padding: 10px; white-space: pre-wrap; word-wrap: break-word; overflow-y: auto; flex-grow: 1; resize: none; }
-            .log-archive-ui-button, #log-archive-self-name-input { padding: 8px 12px; background-color: #4a545e; color: #fff; border: 1px solid #6c7886; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
-            .log-archive-ui-button:hover { background-color: #6c7886; }
-            #log-archive-self-name-input { cursor: text; background-color: #2a3036; }
-            #log-archive-refresh-button { background-color: #3a8c54; }
-            #log-archive-refresh-button:hover { background-color: #4da669; }
-            #log-archive-pause-button { background-color: #3a8c54; }
-            #log-archive-pause-button.paused { background-color: #c89632; border-color: #e0aa40; }
-            #log-archive-pause-button.paused:hover { background-color: #e0aa40; }
-            #log-archive-clear-button { background-color: #8c3a3a; }
-            #log-archive-clear-button:hover { background-color: #a64d4d; }
-            #log-archive-download-button { background-color: #3a6a8c; }
-            #log-archive-download-button:hover { background-color: #4d86a6; }
-            #log-archive-clean-button { background-color: #6a6a6a; transition: background-color 0.3s, color 0.3s; }
-            #log-archive-clean-button.active { background-color: #c88032; border-color: #e09d40; font-weight: bold; color: #fff; }
-            #log-archive-clean-button.active:hover { background-color: #e09d40; }
-            #log-archive-stats-button { background-color: #3a8c54; }
-            #log-archive-stats-button:hover { background-color: #7b65a0; }
-            #log-archive-stats-button.active { background-color: #3a8c54; border-color: #4da669; color: #fff; }
-            #log-archive-ui-toggle-button { position: fixed; bottom: 50px; right: 20px; width: 50px; height: 50px; background-color: #8af; color: #111; border-radius: 50%; border: none; font-size: 24px; line-height: 50px; text-align: center; cursor: pointer; z-index: 99998; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
-            #log-archive-storage-warning { color: #ffcc00; font-weight: bold; font-size: 0.9em; margin-left: 20px; flex-shrink: 0; }
-        `);
-
     let isUIPaused = false;
 
     const container = document.createElement('div');
