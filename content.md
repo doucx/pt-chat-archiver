@@ -1,62 +1,121 @@
-好的，我们已经成功完成了整个脚本的模块化重构。现在是时候将这个巨大的成果作为一个完整的、稳定的里程碑提交到版本控制中了。
+这是一个非常标准且优雅的需求。在 Vite 生态中，我们可以利用 `package.json` 作为事实来源，并通过 Vite 的 `define` 配置在构建时将版本号注入到代码中。同时，`vite-plugin-monkey` 可以直接引用这个变量来同步油猴脚本的元数据。
 
-## [COMMIT] refactor: 完成脚本的完全模块化重构
+我将生成一个计划来实现这一 SSOT（单点真理）架构。
+
+## [WIP] refactor: 实现版本号 SSOT 机制
 
 ### 用户需求
-将所有已完成的模块化拆分工作（包括样式、常量、工具函数、解析器、状态管理和 UI）作为一个原子性的提交，正式记录到 Git 历史中。
+将项目版本号统一在 `package.json` 中管理，并确保 `vite.config.js` (油猴元数据) 和 `src/ui.js` (界面显示) 在构建时能够自动获取该版本号，消除硬编码。
 
 ### 评论
-这是一次教科书式的重构。通过将一个数千行的单体脚本拆分为独立的、职责明确的模块（`parser`, `state`, `ui`），我们不仅极大地提升了代码的可读性和可维护性，还为未来的功能迭代和单元测试打下了坚实的基础。`main.js` 现在扮演着一个清晰的“控制器”角色，协调各个模块，结构非常优雅。
+这是一个良好的工程实践。通过 Vite 的 `define` 功能，我们可以将 node 环境中的变量“硬编码”到浏览器端的代码中，这既保证了运行时的性能，又维持了开发时的灵活性。
 
 ### 目标
-1.  将所有新建的模块文件和修改后的主文件添加到 Git 暂存区。
-2.  创建一个内容详尽的提交，总结这次重构的核心工作和价值。
+1.  将 `package.json` 的 `version` 更新为 `5.5.0`。
+2.  修改 `vite.config.js` 以导入 `package.json`，并配置 `define` 选项。
+3.  同步 `vite-plugin-monkey` 的 `version` 配置。
+4.  在 `src/ui.js` 中使用注入的全局常量 `__APP_VERSION__`。
 
 ### 基本原理
-`[COMMIT]` 计划用于将一系列经过验证的、逻辑上完整的变更持久化。这次提交标志着整个“模块化”宏任务的正式完成。
+1.  **注入**: 在 `vite.config.js` 中定义 `define: { __APP_VERSION__: JSON.stringify(pkg.version) }`。Vite 在打包时会扫描源代码，将所有的 `__APP_VERSION__` 标识符替换为字符串字面量 `"5.5.0"`。
+2.  **元数据同步**: 直接将从 `package.json` 读取的变量传递给 `monkey()` 插件的配置对象。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/core #concept/parser #concept/state #concept/ui #scope/core #scope/dx #ai/instruct #task/domain/refactoring #task/object/modularity #task/action/commit #task/state/end #task/status/completed
+#intent/refine #flow/ready #priority/medium #comp/build #comp/ui #concept/config #scope/dx #ai/instruct #task/domain/build-system #task/object/version-ssot #task/action/refactor #task/state/begin
 
 ---
 
 ### Script
 
-#### Acts 1: 提交所有重构变更
+#### Acts 1: 更新 `package.json` 版本号
 
-我们将所有新建和修改的文件添加到暂存区，并创建一个详细的提交。
+首先，我们将 `package.json` 中的版本号更新为目标版本。
 
 ~~~~~act
-git_add
-src/main.js
-src/constants.js
-src/utils.js
-src/parser.js
-src/state.js
+patch_file
+package.json
+~~~~~
+~~~~~json.old
+  "name": "pt-chat-archiver",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+~~~~~
+~~~~~json.new
+  "name": "pt-chat-archiver",
+  "private": true,
+  "version": "5.5.0",
+  "type": "module",
+~~~~~
+
+#### Acts 2: 配置 `vite.config.js` 进行注入与同步
+
+修改 Vite 配置，引入 `package.json` 并设置 `define` 常量，同时更新插件配置。
+
+~~~~~act
+patch_file
+vite.config.js
+~~~~~
+~~~~~javascript.old
+import { defineConfig } from 'vite';
+import monkey from 'vite-plugin-monkey';
+
+export default defineConfig({
+  plugins: [
+    monkey({
+      entry: 'src/main.js',
+      userscript: {
+        name: 'PonyTown Chat Archiver',
+        namespace: 'http://tampermonkey.net/',
+        version: '5.5.0',
+        description: '自动将 pony.town 的聊天记录保存到浏览器本地存储，并提供查看、复制、下载、数据统计和清除界面。',
+~~~~~
+~~~~~javascript.new
+import { defineConfig } from 'vite';
+import monkey from 'vite-plugin-monkey';
+import pkg from './package.json';
+
+export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
+  plugins: [
+    monkey({
+      entry: 'src/main.js',
+      userscript: {
+        name: 'PonyTown Chat Archiver',
+        namespace: 'http://tampermonkey.net/',
+        version: pkg.version,
+        description: '自动将 pony.town 的聊天记录保存到浏览器本地存储，并提供查看、复制、下载、数据统计和清除界面。',
+~~~~~
+
+#### Acts 3: 在 `src/ui.js` 中使用注入的版本常量
+
+将 UI 标题中的硬编码字符串替换为 `__APP_VERSION__`。在构建时，它会被自动替换。
+
+~~~~~act
+patch_file
 src/ui.js
-src/style.css
 ~~~~~
-
-~~~~~act
-git_commit
+~~~~~javascript.old
+    container.id = 'log-archive-ui-container';
+    container.innerHTML = `
+            <div id="log-archive-ui-header">
+                <h2>聊天记录存档 v5.5.0</h2>
+                <div id="log-archive-ui-controls">
+                    <input type="text" id="log-archive-self-name-input" placeholder="输入你的昵称...">
 ~~~~~
-~~~~~text
-refactor: Complete modularization of the script
-
-This major refactoring effort transforms the monolithic userscript into a modern, modular project. The core logic has been split into distinct, single-responsibility modules, significantly improving code clarity, maintainability, and future scalability.
-
-Key changes:
-- **`main.js`**: Now acts as the central controller, responsible for initializing modules, managing the script's lifecycle, and coordinating data flow. All direct DOM manipulation, state management, and UI rendering logic has been removed.
-- **`ui.js`**: A new module that encapsulates all UI creation, event handling, and rendering logic. It is initialized via dependency injection, receiving necessary state and callbacks from `main.js`.
-- **`state.js`**: A new module handling all data-related concerns, including loading from/saving to localStorage, data migration, merging, and cleaning logic.
-- **`parser.js`**: A new module that isolates all DOM parsing logic. Its responsibility is to read the game's chat elements and extract structured data, decoupling the core application from the specifics of the website's layout.
-- **`constants.js` & `utils.js`**: Global constants and generic helper functions have been extracted for better organization and reusability.
-- **`style.css`**: All UI styles have been moved from an inline `GM_addStyle` call to a dedicated CSS file, imported via Vite's asset pipeline.
-
-This new architecture establishes a clean separation of concerns, making the codebase easier to reason about, debug, and extend.
+~~~~~javascript.new
+    container.id = 'log-archive-ui-container';
+    container.innerHTML = `
+            <div id="log-archive-ui-header">
+                <h2>聊天记录存档 v${__APP_VERSION__}</h2>
+                <div id="log-archive-ui-controls">
+                    <input type="text" id="log-archive-self-name-input" placeholder="输入你的昵称...">
 ~~~~~
 
 ### 下一步建议
-- **添加新功能**: 现在你有了一个非常清晰的架构，可以轻松地添加新功能了。例如，为统计模块增加“每日发言趋势图”，或者支持导出为 Markdown 格式。
-- **编写测试**: 虽然对于油猴脚本来说比较复杂，但你可以考虑为 `state.js` 或 `parser.js` 中的纯函数编写单元测试，以确保核心逻辑的稳定性。
-- **持续优化**: 审查每个模块，看看是否有可以进一步提炼的地方。例如，`main.js` 中的 `setInterval` 也许可以被封装成一个更优雅的“后台服务”模块。
+- **执行构建验证**: 建议运行 `npm run build`，然后检查生成的 `dist/ponytown-chat-archiver.user.js` 文件。
+    - 检查开头的 `// @version` 是否为 `5.5.0`。
+    - 检查代码中渲染 UI 的部分，`v5.5.0` 是否已被正确填入。
+- **环境适配**: 这里的 `__APP_VERSION__` 是一个全局常量。如果你使用了 ESLint，可能需要将其加入 `globals` 配置中以避免未定义变量的警告。

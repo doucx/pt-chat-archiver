@@ -34,7 +34,7 @@ export function createUI(inMemoryChatState, callbacks) {
     container.id = 'log-archive-ui-container';
     container.innerHTML = `
             <div id="log-archive-ui-header">
-                <h2>聊天记录存档 v5.5.0</h2>
+                <h2>聊天记录存档 v${__APP_VERSION__}</h2>
                 <div id="log-archive-ui-controls">
                     <input type="text" id="log-archive-self-name-input" placeholder="输入你的昵称...">
                     <select id="log-archive-channel-selector" class="log-archive-ui-button"></select>
