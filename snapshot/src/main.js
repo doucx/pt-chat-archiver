@@ -1,9 +1,6 @@
 import './style.css';
 import { STORAGE_KEY_V5, OLD_STORAGE_KEY_V4, SELF_NAME_KEY, STORAGE_WARNING_THRESHOLD_MB } from './constants.js';
 import { getStorageUsageInMB, debounce, getISOTimestamp, formatISOTimeForDisplay } from './utils.js';
-import { SELF_NAME_KEY, STORAGE_KEY_V5 } from './constants.js';
-import { getISOTimestamp } from './utils.js';
-import { debounce } from './utils.js';
 import { extractUsefulData, locateChatElements, findActiveTabByClass } from './parser.js';
 import { migrateDataV4toV5, mergeAndDeduplicateMessages, loadMessagesFromStorage, saveMessagesToStorage, addMessageToSyntheticChannelIfNeeded, cleanChannelRecords, detectTotalDuplicates } from './state.js';
 import { createUI } from './ui.js';
