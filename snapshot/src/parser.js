@@ -109,14 +109,14 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
 
   // --- 回落模式 (兼容私服) ---
   const rawContent = customTextContent(chatLineElement);
-    if (!rawContent.trim()) return null;
+  if (!rawContent.trim()) return null;
 
-    return {
-      time: precomputedTime,
-      is_fallback: true,
-      type: '',
-      sender: '',
-      receiver: '',
+  return {
+    time: precomputedTime,
+    is_fallback: true,
+    type: '',
+    sender: '',
+    receiver: '',
     content: rawContent.trim(),
   };
 }
