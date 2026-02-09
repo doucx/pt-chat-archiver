@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M parser.js", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770662428.5498676, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix: 修复 Biome 检查出的 Lint 错误并优化配置", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770662435.1141357, "duration_ms": 0}}

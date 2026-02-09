@@ -256,12 +256,12 @@ export function createUI(inMemoryChatState, callbacks) {
     if (channels.length === 0) {
       channelSelector.innerHTML = '<option>无记录</option>';
     } else {
-      channels.forEach((channel) => {
+      for (const channel of channels) {
         const option = document.createElement('option');
         option.value = channel;
         option.textContent = `${channel} (${inMemoryChatState[channel].length})`;
         channelSelector.appendChild(option);
-      });
+      }
       channelSelector.value =
         previouslySelected && channels.includes(previouslySelected)
           ? previouslySelected
@@ -313,7 +313,9 @@ export function createUI(inMemoryChatState, callbacks) {
       navigator.clipboard.writeText(logDisplay.value).then(() => {
         const originalText = copyButton.textContent;
         copyButton.textContent = '已复制!';
-        setTimeout(() => (copyButton.textContent = originalText), 1500);
+        setTimeout(() => {
+          copyButton.textContent = originalText;
+        }, 1500);
       });
     }
   });
@@ -325,7 +327,9 @@ export function createUI(inMemoryChatState, callbacks) {
     navigator.clipboard.writeText(messages).then(() => {
       const originalText = copyAllButton.textContent;
       copyAllButton.textContent = '已复制!';
-      setTimeout(() => (copyAllButton.textContent = originalText), 1500);
+      setTimeout(() => {
+        copyAllButton.textContent = originalText;
+      }, 1500);
     });
   });
   clearButton.addEventListener('click', () => {
@@ -336,7 +340,9 @@ export function createUI(inMemoryChatState, callbacks) {
     ) {
       deactivateLogger();
       localStorage.removeItem(STORAGE_KEY_V5);
-      Object.keys(inMemoryChatState).forEach((key) => delete inMemoryChatState[key]);
+      for (const key of Object.keys(inMemoryChatState)) {
+        delete inMemoryChatState[key];
+      }
       scanAndMergeHistory();
       saveMessagesToStorage(inMemoryChatState);
       isStatsViewActive = false;
