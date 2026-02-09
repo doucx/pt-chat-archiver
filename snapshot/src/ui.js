@@ -102,7 +102,8 @@ export function createUI(inMemoryChatState, callbacks) {
 
   function updateTextareaAndPreserveSelection(updateFn) {
     const isFocused = document.activeElement === logDisplay;
-    let selectionStart, selectionEnd;
+    let selectionStart;
+    let selectionEnd;
     if (isFocused) {
       selectionStart = logDisplay.selectionStart;
       selectionEnd = logDisplay.selectionEnd;
@@ -183,12 +184,12 @@ export function createUI(inMemoryChatState, callbacks) {
     if (channels.length === 0) {
       channelSelector.innerHTML = '<option>无记录</option>';
     } else {
-      channels.forEach((ch) => {
+      for (const ch of channels) {
         const opt = document.createElement('option');
         opt.value = ch;
         opt.textContent = `${ch} (${inMemoryChatState[ch].length})`;
         channelSelector.appendChild(opt);
-      });
+      }
       if (prev && channels.includes(prev)) {
         channelSelector.value = prev;
       }
@@ -205,7 +206,7 @@ export function createUI(inMemoryChatState, callbacks) {
 
   pageSizeInput.addEventListener('change', () => {
     const val = Number.parseInt(pageSizeInput.value, 10);
-    if (!isNaN(val) && val >= 10) {
+    if (!Number.isNaN(val) && val >= 10) {
       uiState.pageSize = val;
       saveConfig();
       if (uiState.viewMode === 'log') renderCurrentView();
@@ -354,7 +355,9 @@ export function createUI(inMemoryChatState, callbacks) {
     ) {
       deactivateLogger();
       localStorage.removeItem(STORAGE_KEY_V5);
-      Object.keys(inMemoryChatState).forEach((key) => delete inMemoryChatState[key]);
+      for (const key of Object.keys(inMemoryChatState)) {
+        delete inMemoryChatState[key];
+      }
       scanAndMergeHistory();
       saveMessagesToStorage(inMemoryChatState);
       uiState.viewMode = 'log';
