@@ -7,9 +7,13 @@
     "dev": "vite",
     "watch": "vite build --watch",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "biome lint .",
+    "format": "biome format . --write",
+    "check": "biome check --apply ."
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "vite": "^7.3.1",
     "vite-plugin-monkey": "^7.1.9"
   }

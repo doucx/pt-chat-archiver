@@ -1,137 +1,123 @@
-你的想法完全正确，这正是工程上的最佳实践。将版本号集中在 `package.json` 中作为单一事实源 (SSOT)，然后通过构建工具在不同环境（构建配置和客户端代码）中使用它，可以确保版本号的一致性，并简化发布流程。
+在 JavaScript 生态中，最接近 Python **Ruff** 的工具是 **Biome**。
 
-Vite 的 `define` 配置项就是为此类需求设计的。它可以在构建时将一个值作为全局常量注入到你的客户端代码中。
+### 核心推荐：Biome
 
-我将为你生成一个计划来实现这个重构。
+**Biome** (前身是 Rome) 的设计理念与 Ruff 非常相似：
+1.  **极速**: 使用 Rust 编写，速度极快。
+2.  **全能**: 它是一个“单二合一”工具，同时处理 **Linting (静态检查)** 和 **Formatting (代码格式化)**，不需要像传统 JS 项目那样安装 ESLint + Prettier 的复杂组合。
+3.  **零配置/易配置**: 默认规则非常平衡，配置文件简洁。
 
-## [WIP] refactor: 将版本号统一至 package.json 作为单一事实源 (SSOT)
+此外，传统的行业标准方案是 **ESLint** (检查逻辑错误) + **Prettier** (强制统一格式)，但它们配置较重且运行较慢。考虑到你追求类似 Ruff 的体验，我建议为项目集成 Biome。
+
+---
+
+## [WIP] feat: 集成 Biome 作为项目的代码质量检查与格式化工具
 
 ### 用户需求
 
-用户希望将项目版本号 `5.5.0` 统一管理在 `package.json` 文件中，并让 `vite.config.js` 和 `src/ui.js` 两个文件都从这个单一来源消费该版本号，消除硬编码。
+用户希望为 JS 项目引入类似 Python Ruff 的静态检查和格式化工具，以提升代码质量和开发效率。
 
 ### 评论
 
-这是一个非常标准的最佳实践。将版本号等元数据集中在 `package.json` 中，可以确保版本号在用户脚本元信息和 UI 显示之间保持同步，极大地提高了项目的可维护性，并降低了手动更新多处版本号时出错的风险。
+对于这种小而精的 Userscript 项目，Biome 是完美的选择。它不需要安装几十个插件（像 ESLint 那样），也不需要处理 Linter 和 Formatter 之间的冲突，且运行速度几乎是瞬时的。
 
 ### 目标
 
-1.  在 `package.json` 中添加 `version` 字段。
-2.  修改 `vite.config.js`，使其从 `package.json` 读取版本号用于 `userscript` 配置。
-3.  在 `vite.config.js` 中使用 `define` 选项，将版本号作为一个全局常量注入到客户端代码中。
-4.  修改 `src/ui.js`，使用这个被注入的全局常量来显示版本号，而不是硬编码。
+1.  在项目中安装 `biome`。
+2.  初始化 `biome.json` 配置文件。
+3.  在 `package.json` 中添加相应的脚本，以便通过 `npm run lint` 和 `npm run format` 进行操作。
 
 ### 基本原理
 
-核心在于利用 Vite 的 `define` 配置项。我们首先将 `package.json` 作为常规的 JSON 模块导入到 `vite.config.js`（这是一个 Node.js 环境，所以可以直接读取文件）。然后，我们定义一个全局常量，例如 `__APP_VERSION__`，并将其值设置为从 `package.json` 中读取的版本号字符串。
-
-Vite 在构建时会执行全局文本替换，将代码中所有的 `__APP_VERSION__` 替换为其实际值（例如 `"5.5.0"`）。这样，客户端代码 `src/ui.js` 就能像使用一个普通的 JavaScript 变量一样使用它，而无需知道它的值是在构建时被注入的。
+我们将利用 `npm` 安装 Biome 核心包。通过 `biome.json` 我们可以一站式配置代码风格（如使用单引号、不使用分号等）和检查规则。这不仅能统一项目的代码风格，还能在构建前发现潜在的 Bug。
 
 ### 标签
 
-#intent/refine #flow/ready #priority/medium #comp/build #scope/dx #ai/instruct #task/domain/tooling #task/object/versioning #task/action/refactor #task/state/begin
+#intent/tooling #flow/ready #priority/medium #comp/build #scope/dx #ai/instruct #task/domain/tooling #task/object/biome-integration #task/action/setup #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 将版本号写入 `package.json`
+#### Acts 1: 安装 Biome 并配置项目脚本
 
-首先，我们在 `package.json` 中正式定义版本号。
+我们首先修改 `package.json`，添加 `devDependencies` 和运行脚本。
 
 ~~~~~act
 patch_file
 package.json
 ~~~~~
 ~~~~~json.old
-{
-  "name": "pt-chat-archiver",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "watch": "vite build --watch",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1",
+    "vite-plugin-monkey": "^7.1.9"
+  }
+}
 ~~~~~
 ~~~~~json.new
-{
-  "name": "pt-chat-archiver",
-  "private": true,
-  "version": "5.5.0",
-  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "watch": "vite build --watch",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "biome lint .",
+    "format": "biome format . --write",
+    "check": "biome check --apply ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "vite": "^7.3.1",
+    "vite-plugin-monkey": "^7.1.9"
+  }
+}
 ~~~~~
 
-#### Acts 2: 更新构建配置以使用和注入版本号
+#### Acts 2: 初始化 Biome 配置文件
 
-接下来，我们修改 `vite.config.js`。它将导入 `package.json` 来获取版本号，一方面用于 userscript 的头部信息，另一方面通过 `define` 注入到前端代码中。
+我们将创建一个基础的 `biome.json`。我根据一般 JS 习惯配置了单引号和分号规则。
 
 ~~~~~act
 write_file
-vite.config.js
+biome.json
 ~~~~~
-~~~~~javascript
-import { defineConfig } from 'vite';
-import monkey from 'vite-plugin-monkey';
-import packageJson from './package.json';
-
-// https://vitejs.dev/config/
-export default defineConfig({
-  define: {
-    __APP_VERSION__: JSON.stringify(packageJson.version),
+~~~~~json
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "organizeImports": {
+    "enabled": true
   },
-  plugins: [
-    monkey({
-      entry: 'src/main.js',
-      userscript: {
-        name: 'PonyTown Chat Archiver',
-        namespace: 'http://tampermonkey.net/',
-        version: packageJson.version,
-        description: '自动将 pony.town 的聊天记录保存到浏览器本地存储，并提供查看、复制、下载、数据统计和清除界面。',
-        author: 'doucx',
-        match: [
-          'https://pony.town/*',
-          'https://*.pony.town/*'
-        ],
-        grant: ['GM_addStyle'],
-        license: 'MIT',
-        'run-at': 'document-idle',
-      },
-      build: {
-        fileName: 'ponytown-chat-archiver.user.js',
-      },
-    }),
-  ],
-});
-~~~~~
-
-#### Acts 3: 更新 UI 代码以消费注入的版本号
-
-最后，我们修改 `src/ui.js`，让它使用我们新注入的 `__APP_VERSION__` 全局常量。
-
-~~~~~act
-patch_file
-src/ui.js
-~~~~~
-~~~~~javascript.old
-    container.id = 'log-archive-ui-container';
-    container.innerHTML = `
-            <div id="log-archive-ui-header">
-                <h2>聊天记录存档 v5.5.0</h2>
-                <div id="log-archive-ui-controls">
-                    <input type="text" id="log-archive-self-name-input" placeholder="输入你的昵称...">
-~~~~~
-~~~~~javascript.new
-    container.id = 'log-archive-ui-container';
-    container.innerHTML = `
-            <div id="log-archive-ui-header">
-                <h2>聊天记录存档 v${__APP_VERSION__}</h2>
-                <div id="log-archive-ui-controls">
-                    <input type="text" id="log-archive-self-name-input" placeholder="输入你的昵称...">
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "formatWithErrors": false,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 100,
+    "attributePosition": "auto"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semiColons": "always"
+    }
+  }
+}
 ~~~~~
 
 ### 下一步建议
 
-1.  **执行构建**: 运行 `npm run build` 或你配置的构建命令。
-2.  **验证结果**:
-    *   检查生成的 `ponytown-chat-archiver.user.js` 文件，确认其头部的 `@version` 是否是 `5.5.0`。
-    *   在生成的代码中搜索，确认 `聊天记录存档 v5.5.0` 已经被替换为 `聊天记录存档 v${__APP_VERSION__}` 的编译后结果，即 `聊天记录存档 v"5.5.0"` 或类似内容。
-    *   在浏览器中安装并运行新脚本，确认 UI 界面上显示的版本号是正确的。
-
-这样，未来你只需要更新 `package.json` 中的版本号，整个项目的版本信息就会自动同步。
+1.  **运行检查**: 执行 `npm run check`。这会同时进行代码检查、导入优化和自动修复一些简单的格式问题。
+2.  **编辑器支持**: 如果你使用 VS Code，建议搜索并安装 **Biome** 扩展，它可以实现“保存时自动格式化”，体验非常接近 Python 中配置了 Ruff 的环境。
+3.  **处理警告**: Biome 可能会对现有代码中的一些潜在问题（如未定义的全局变量、console 调用等）发出警告，你可以根据提示进行微调。
