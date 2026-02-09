@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] chore: 移除冗余的刷新按钮", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770668300.4843185, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] feat: 在设置页面显示实时存储占用信息", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770668359.0513804, "duration_ms": 0}}

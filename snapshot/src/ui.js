@@ -78,6 +78,7 @@ export function createUI(inMemoryChatState, callbacks) {
   // 配置页控件
   const selfNameInput = document.getElementById('log-archive-self-name-input');
   const pageSizeInput = document.getElementById('log-archive-page-size-input');
+  const configStorageInfo = document.getElementById('log-archive-config-storage-info');
   const cleanButton = document.getElementById('log-archive-clean-button');
   const copyAllButton = document.getElementById('log-archive-copy-all-button');
   const clearButton = document.getElementById('log-archive-clear-button');
@@ -140,6 +141,8 @@ export function createUI(inMemoryChatState, callbacks) {
     settingsButton.classList.toggle('active', isConfigMode);
 
     if (isConfigMode) {
+      const usageMB = getStorageUsageInMB();
+      configStorageInfo.textContent = `当前本地存储占用: ${usageMB.toFixed(2)} MB / 5.00 MB`;
       updateCleanButtonState(detectTotalDuplicates(inMemoryChatState));
       return;
     }
