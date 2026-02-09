@@ -23,7 +23,7 @@ export const getMainContainerHTML = (version) => `
             <div id="log-archive-ui-pagination-controls" style="margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;">
                 <button id="page-first" class="log-archive-ui-button">«</button>
                 <button id="page-prev" class="log-archive-ui-button">‹</button>
-                <span id="page-info" style="font-weight: bold; color: #a0c8ff;"></span>
+                <span id="page-info" class="info-text-primary"></span>
                 <button id="page-next" class="log-archive-ui-button">›</button>
                 <button id="page-last" class="log-archive-ui-button">»</button>
             </div>
@@ -42,7 +42,7 @@ export const getMainContainerHTML = (version) => `
             </div>
             <div class="config-group">
                 <label>维护操作</label>
-                <div id="log-archive-config-storage-info" style="color: #a0c8ff; font-size: 0.85em; margin-bottom: 5px;"></div>
+                <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 5px;"></div>
                 <div class="config-actions">
                     <button id="log-archive-clean-button" class="log-archive-ui-button">清理重复记录</button>
                     <button id="log-archive-copy-all-button" class="log-archive-ui-button">导出原始数据 (JSON)</button>

@@ -1,21 +1,41 @@
+/* 核心色彩体系 */
 #log-archive-ui-container {
+  --color-primary: #8af;
+  --color-primary-hover: #a0c8ff;
+  --color-bg: rgba(26, 32, 38, 0.95);
+  --color-surface: #2a3036;
+  --color-surface-hover: #363d44;
+  --color-border: #4a545e;
+  --color-text: #e0e0e0;
+  --color-text-dim: #a0a0a0;
+
+  --color-success: #3a8c54;
+  --color-success-hover: #4da669;
+  --color-warning: #c89632;
+  --color-warning-hover: #e0aa40;
+  --color-danger: #8c3a3a;
+  --color-danger-hover: #a64d4d;
+  --color-info: #3a6a8c;
+  --color-info-hover: #4d86a6;
+
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   width: 70vw;
   height: 80vh;
-  background-color: rgba(0, 0, 0, 0.65);
-  border: 2px solid #5a6673;
+  background-color: var(--color-bg);
+  border: 2px solid var(--color-border);
   border-radius: 8px;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
   z-index: 99999;
   display: none;
   flex-direction: column;
   padding: 15px;
   font-family: monospace;
-  color: #e0e0e0;
+  color: var(--color-text);
 }
+
 #log-archive-ui-header {
   display: flex;
   justify-content: space-between;
@@ -25,25 +45,28 @@
   flex-wrap: wrap;
   gap: 10px;
 }
+
 #log-archive-ui-header h2 {
   margin: 0;
   font-size: 1.2em;
-  color: #8af;
+  color: var(--color-primary);
   flex-shrink: 0;
   margin-right: 15px;
 }
+
 #log-archive-ui-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
 }
+
 #log-archive-ui-log-display {
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.2);
-  border: 1px solid #444;
-  color: #ddd;
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
   font-size: 0.9em;
   padding: 10px;
   white-space: pre-wrap;
@@ -51,119 +74,120 @@
   overflow-y: auto;
   flex-grow: 1;
   resize: none;
+  border-radius: 4px;
 }
+
+/* 按钮通用样式 */
 .log-archive-ui-button,
 #log-archive-self-name-input {
   padding: 8px 12px;
-  background-color: #4a545e;
+  background-color: var(--color-surface);
   color: #fff;
-  border: 1px solid #6c7886;
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.2s;
-}
-.log-archive-ui-button:hover {
-  background-color: #6c7886;
-}
-#log-archive-self-name-input {
-  cursor: text;
-  background-color: #2a3036;
-}
-#log-archive-refresh-button {
-  background-color: #3a8c54;
-}
-#log-archive-refresh-button:hover {
-  background-color: #4da669;
-}
-#log-archive-pause-button {
-  background-color: #3a8c54;
-}
-#log-archive-pause-button.paused {
-  background-color: #c89632;
-  border-color: #e0aa40;
-}
-#log-archive-pause-button.paused:hover {
-  background-color: #e0aa40;
-}
-#log-archive-clear-button {
-  background-color: #8c3a3a;
-}
-#log-archive-clear-button:hover {
-  background-color: #a64d4d;
-}
-#log-archive-download-button {
-  background-color: #3a6a8c;
-}
-#log-archive-download-button:hover {
-  background-color: #4d86a6;
-}
-#log-archive-clean-button {
-  background-color: #6a6a6a;
-  transition: background-color 0.3s, color 0.3s;
-}
-#log-archive-clean-button.active {
-  background-color: #c88032;
-  border-color: #e09d40;
-  font-weight: bold;
-  color: #fff;
-}
-#log-archive-clean-button.active:hover {
-  background-color: #e09d40;
-}
-#log-archive-stats-button {
-  background-color: #4a545e;
-}
-#log-archive-stats-button:hover {
-  background-color: #6c7886;
-}
-#log-archive-stats-button.active {
-  background-color: #3a8c54;
-  border-color: #4da669;
-  color: #fff;
-}
-#log-archive-settings-button.active {
-  background-color: #8c6a3a;
-  border-color: #a6864d;
+  transition: all 0.2s;
+  font-size: 0.9em;
 }
 
-/* 设置页面样式 */
+.log-archive-ui-button:hover {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-text-dim);
+}
+
+.log-archive-ui-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 特定语义按钮 */
+#log-archive-pause-button {
+  background-color: var(--color-success);
+}
+#log-archive-pause-button:hover {
+  background-color: var(--color-success-hover);
+}
+#log-archive-pause-button.paused {
+  background-color: var(--color-warning);
+}
+#log-archive-pause-button.paused:hover {
+  background-color: var(--color-warning-hover);
+}
+
+#log-archive-stats-button.active {
+  background-color: var(--color-success);
+}
+#log-archive-settings-button.active {
+  background-color: var(--color-warning);
+  border-color: var(--color-warning-hover);
+}
+
+#log-archive-clear-button {
+  background-color: var(--color-danger);
+}
+#log-archive-clear-button:hover {
+  background-color: var(--color-danger-hover);
+}
+
+#log-archive-download-button {
+  background-color: var(--color-info);
+}
+#log-archive-download-button:hover {
+  background-color: var(--color-info-hover);
+}
+
+#log-archive-clean-button.active {
+  background-color: var(--color-warning);
+  font-weight: bold;
+}
+
+/* 分页与信息 */
+.info-text-primary {
+  color: var(--color-primary-hover);
+  font-weight: bold;
+}
+.info-text-dim {
+  color: var(--color-text-dim);
+  font-size: 0.85em;
+}
+
+/* 设置视图 */
 .config-section {
-  padding: 20px;
+  padding: 10px 20px;
   display: flex;
   flex-direction: column;
   gap: 20px;
   overflow-y: auto;
 }
+
 .config-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+
 .config-group label {
   font-weight: bold;
-  color: #8af;
+  color: var(--color-primary);
   font-size: 0.9em;
 }
+
 .config-group input {
   padding: 8px;
-  background: #2a3036;
-  border: 1px solid #4a545e;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   color: white;
   border-radius: 4px;
 }
-.config-actions {
-  margin-top: 5px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-}
+
+/* 切换按钮 */
 #log-archive-ui-toggle-button {
   position: fixed;
   bottom: 50px;
   right: 20px;
   width: 50px;
   height: 50px;
-  background-color: #8af;
+  background-color: var(--color-primary);
   color: #111;
   border-radius: 50%;
   border: none;
@@ -172,12 +196,32 @@
   text-align: center;
   cursor: pointer;
   z-index: 99998;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s;
 }
+
+#log-archive-ui-toggle-button:hover {
+  transform: scale(1.1);
+  background-color: var(--color-primary-hover);
+}
+
 #log-archive-storage-warning {
   color: #ffcc00;
   font-weight: bold;
   font-size: 0.9em;
   margin-left: 20px;
   flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
+  }
 }
