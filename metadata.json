@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] refactor: 提取状态管理与持久化逻辑至 state.js", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770650102.1605833, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] refactor: 提取 UI 渲染与交互逻辑至 ui.js", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770650736.1839843, "duration_ms": 0}}
