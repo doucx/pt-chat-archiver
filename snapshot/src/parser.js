@@ -5,27 +5,37 @@ function isCharacterInPrivateUseArea(char) {
   if (!char) return false;
   const codePoint = char.codePointAt(0);
   if (codePoint === undefined) return false;
-  const isInPUA = (codePoint >= 0xE000 && codePoint <= 0xF8FF);
-  const isInSupPUA_A = (codePoint >= 0xF0000 && codePoint <= 0xFFFFD);
-  const isInSupPUA_B = (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
+  const isInPUA = codePoint >= 0xe000 && codePoint <= 0xf8ff;
+  const isInSupPUA_A = codePoint >= 0xf0000 && codePoint <= 0xffffd;
+  const isInSupPUA_B = codePoint >= 0x100000 && codePoint <= 0x10fffd;
   return isInPUA || isInSupPUA_A || isInSupPUA_B;
 }
 
 /** 递归地从 DOM 节点中提取可见文本，并正确处理 Emoji 图片。*/
 function customTextContent(node) {
   if (!node) return '';
-  if (node.nodeType === Node.TEXT_NODE) { return node.textContent; }
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent;
+  }
   if (node.nodeType === Node.ELEMENT_NODE) {
-    if (node.style.display === 'none') { return ''; }
+    if (node.style.display === 'none') {
+      return '';
+    }
     if (node.tagName === 'IMG' && node.classList.contains('pixelart')) {
       const alt = node.alt || '';
       const label = node.getAttribute('aria-label');
-      if (alt && !isCharacterInPrivateUseArea(alt)) { return alt; }
-      if (label) { return `:${label}:`; }
+      if (alt && !isCharacterInPrivateUseArea(alt)) {
+        return alt;
+      }
+      if (label) {
+        return `:${label}:`;
+      }
       return '';
     }
     let text = '';
-    for (const child of node.childNodes) { text += customTextContent(child); }
+    for (const child of node.childNodes) {
+      text += customTextContent(child);
+    }
     return text;
   }
   return '';
@@ -39,11 +49,19 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
   if (!chatLineElement || !precomputedTime) return null;
 
   const hostname = window.location.hostname;
-  const isMainServerMode = MAIN_SERVER_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
+  const isMainServerMode = MAIN_SERVER_HOSTS.some(
+    (h) => hostname === h || hostname.endsWith('.' + h),
+  );
 
   if (isMainServerMode) {
     // --- 主服务器精细解析模式 ---
-    const data = { time: precomputedTime, type: 'unknown', sender: 'System', receiver: 'Local', content: '' };
+    const data = {
+      time: precomputedTime,
+      type: 'unknown',
+      sender: 'System',
+      receiver: 'Local',
+      content: '',
+    };
     const cl = chatLineElement.classList;
     if (cl.contains('chat-line-whisper-thinking')) data.type = 'whisper-think';
     else if (cl.contains('chat-line-whisper')) data.type = 'whisper';
@@ -56,11 +74,17 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
 
     // 通过克隆节点并移除无关部分来提取完整的消息文本，这种方法稳健且能保留上下文
     const container = chatLineElement.cloneNode(true);
-    container.querySelectorAll('.chat-line-timestamp, .chat-line-lead').forEach(el => el.remove());
+    container
+      .querySelectorAll('.chat-line-timestamp, .chat-line-lead')
+      .forEach((el) => el.remove());
     data.content = customTextContent(container).replace(/\s+/g, ' ').trim();
 
     const nameNode = chatLineElement.querySelector('.chat-line-name');
-    const nameText = nameNode ? customTextContent(nameNode).replace(/^\[|\]$/g, '').trim() : null;
+    const nameText = nameNode
+      ? customTextContent(nameNode)
+          .replace(/^\[|\]$/g, '')
+          .trim()
+      : null;
 
     if (data.type === 'system') return data;
 
@@ -81,7 +105,6 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
       if (nameText) data.sender = nameText;
     }
     return data;
-
   } else {
     // --- 回落模式 (兼容私服) ---
     const rawContent = customTextContent(chatLineElement);
@@ -90,8 +113,10 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
     return {
       time: precomputedTime,
       is_fallback: true,
-      type: '', sender: '', receiver: '',
-      content: rawContent.trim()
+      type: '',
+      sender: '',
+      receiver: '',
+      content: rawContent.trim(),
     };
   }
 }
@@ -102,7 +127,7 @@ export function locateChatElements() {
     tabs: document.querySelector('.chat-log-tabs'),
     chatLog: document.querySelector('.chat-log-scroll-inner'),
     chatLine: document.querySelector('.chat-line'),
-    chatLogContainer: document.querySelector('.chat-log')
+    chatLogContainer: document.querySelector('.chat-log'),
   };
 }
 
