@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] feat(ui): 引入分页功能以解决超大记录下的性能卡顿", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770666322.9764621, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] feat: 添加专用的配置视图", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770667487.8644524, "duration_ms": 0}}

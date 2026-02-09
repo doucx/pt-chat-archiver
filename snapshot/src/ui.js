@@ -1,5 +1,5 @@
 import { generateStatisticsText } from './analysis.js';
-import { SELF_NAME_KEY, STORAGE_KEY_V5 } from './constants.js';
+import { CONFIG_KEY, SELF_NAME_KEY, STORAGE_KEY_V5 } from './constants.js';
 import { TOGGLE_BUTTON_ICON, getMainContainerHTML } from './templates.js';
 import { formatISOTimeForDisplay, getStorageUsageInMB } from './utils.js';
 
@@ -20,6 +20,24 @@ function updateCleanButtonState(count) {
   }
 }
 
+function loadConfig() {
+  try {
+    const configRaw = localStorage.getItem(CONFIG_KEY);
+    const defaults = { pageSize: 1000 };
+    if (configRaw) {
+      return { ...defaults, ...JSON.parse(configRaw) };
+    }
+    return defaults;
+  } catch (e) {
+    console.error('Failed to load config, using defaults.', e);
+    return { pageSize: 1000 };
+  }
+}
+
+function saveConfig(configObject) {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(configObject));
+}
+
 export function createUI(inMemoryChatState, callbacks) {
   const {
     scanAndMergeHistory,
@@ -29,9 +47,13 @@ export function createUI(inMemoryChatState, callbacks) {
     deactivateLogger,
   } = callbacks;
 
+  const configState = loadConfig();
+
   const uiState = {
     currentPage: 1,
-    pageSize: 1000,
+    get pageSize() {
+      return configState.pageSize;
+    },
     totalPages: 1,
     viewMode: 'log', // 'log' or 'stats'
   };
@@ -47,6 +69,7 @@ export function createUI(inMemoryChatState, callbacks) {
   toggleButton.textContent = TOGGLE_BUTTON_ICON;
   document.body.appendChild(toggleButton);
 
+  // --- Element Selectors ---
   const uiContainer = document.getElementById('log-archive-ui-container');
   const channelSelector = document.getElementById('log-archive-channel-selector');
   const logDisplay = document.getElementById('log-archive-ui-log-display');
@@ -60,7 +83,9 @@ export function createUI(inMemoryChatState, callbacks) {
   const statsButton = document.getElementById('log-archive-stats-button');
   const pauseButton = document.getElementById('log-archive-pause-button');
   const cleanButton = document.getElementById('log-archive-clean-button');
-  // Pagination elements
+  const settingsButton = document.getElementById('log-archive-settings-button');
+  const configBackButton = document.getElementById('log-archive-config-back-button');
+  const pageSizeInput = document.getElementById('log-archive-page-size-input');
   const paginationControls = document.getElementById('log-archive-ui-pagination-controls');
   const pageFirstBtn = document.getElementById('page-first');
   const pagePrevBtn = document.getElementById('page-prev');
@@ -68,9 +93,22 @@ export function createUI(inMemoryChatState, callbacks) {
   const pageLastBtn = document.getElementById('page-last');
   const pageInfoSpan = document.getElementById('page-info');
 
+  // --- Initialize Config UI ---
   selfNameInput.value = localStorage.getItem(SELF_NAME_KEY) || '';
-  selfNameInput.addEventListener('change', () => {
+  pageSizeInput.value = configState.pageSize;
+
+  selfNameInput.addEventListener('input', () => {
     localStorage.setItem(SELF_NAME_KEY, selfNameInput.value.trim());
+  });
+
+  pageSizeInput.addEventListener('input', () => {
+    const newSize = parseInt(pageSizeInput.value, 10);
+    if (!Number.isNaN(newSize) && newSize >= 100 && newSize <= 10000) {
+      configState.pageSize = newSize;
+      saveConfig(configState);
+      uiState.currentPage = 1; // Reset to first page
+      renderCurrentView(); // Re-render with new page size
+    }
   });
 
   cleanButton.addEventListener('click', () => {
@@ -114,8 +152,7 @@ export function createUI(inMemoryChatState, callbacks) {
 
   function updateTextareaAndPreserveSelection(updateFn) {
     const isFocused = document.activeElement === logDisplay;
-    let selectionStart;
-    let selectionEnd;
+    let selectionStart, selectionEnd;
     if (isFocused) {
       selectionStart = logDisplay.selectionStart;
       selectionEnd = logDisplay.selectionEnd;
@@ -213,6 +250,12 @@ export function createUI(inMemoryChatState, callbacks) {
   });
   closeButton.addEventListener('click', () => {
     uiContainer.style.display = 'none';
+  });
+  settingsButton.addEventListener('click', () => {
+    uiContainer.classList.add('config-active');
+  });
+  configBackButton.addEventListener('click', () => {
+    uiContainer.classList.remove('config-active');
   });
   channelSelector.addEventListener('change', () => {
     uiState.currentPage = 1;

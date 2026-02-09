@@ -145,3 +145,38 @@
   margin-left: 20px;
   flex-shrink: 0;
 }
+
+/* --- Config View --- */
+#log-archive-config-view {
+  display: none; /* Hidden by default */
+  flex-direction: column;
+  gap: 15px;
+  padding: 20px;
+  background-color: rgba(10, 10, 10, 0.3);
+  border-radius: 5px;
+  height: 100%;
+}
+#log-archive-ui-container.config-active #log-archive-main-view {
+  display: none;
+}
+#log-archive-ui-container.config-active #log-archive-config-view {
+  display: flex;
+}
+.config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.config-section label {
+  font-weight: bold;
+  color: #a0c8ff;
+}
+.config-section input[type="text"],
+.config-section input[type="number"] {
+  padding: 8px;
+  background-color: #2a3036;
+  border: 1px solid #6c7886;
+  border-radius: 4px;
+  color: #e0e0e0;
+  max-width: 300px;
+}

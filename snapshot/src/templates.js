@@ -7,7 +7,6 @@ export const getMainContainerHTML = (version) => `
     <div id="log-archive-ui-header">
         <h2>聊天记录存档 v${version}</h2>
         <div id="log-archive-ui-controls">
-            <input type="text" id="log-archive-self-name-input" placeholder="输入你的昵称...">
             <select id="log-archive-channel-selector" class="log-archive-ui-button"></select>
             <button id="log-archive-refresh-button" class="log-archive-ui-button">刷新</button>
             <button id="log-archive-pause-button" class="log-archive-ui-button">⏸️ </button>
@@ -16,18 +15,42 @@ export const getMainContainerHTML = (version) => `
             <button id="log-archive-copy-all-button" class="log-archive-ui-button">复制(JSON)</button>
             <button id="log-archive-download-button" class="log-archive-ui-button">下载</button>
             <button id="log-archive-clean-button" class="log-archive-ui-button">清理重复</button>
-            <button id="log-archive-clear-button" class="log-archive-ui-button">清空</button>
+            <button id="log-archive-settings-button" class="log-archive-ui-button">⚙️ 设置</button>
             <button id="log-archive-close-button" class="log-archive-ui-button">关闭</button>
         </div>
     </div>
-    <div id="log-archive-ui-pagination-controls" style="margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;">
-        <button id="page-first" class="log-archive-ui-button">« 第一页</button>
-        <button id="page-prev" class="log-archive-ui-button">‹ 上一页</button>
-        <span id="page-info" style="font-weight: bold; color: #a0c8ff;"></span>
-        <button id="page-next" class="log-archive-ui-button">下一页 ›</button>
-        <button id="page-last" class="log-archive-ui-button">最后一页 »</button>
+
+    <!-- Main Log View -->
+    <div id="log-archive-main-view" style="display: flex; flex-direction: column; height: 100%; min-height: 0;">
+      <div id="log-archive-ui-pagination-controls" style="margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;">
+          <button id="page-first" class="log-archive-ui-button">« 第一页</button>
+          <button id="page-prev" class="log-archive-ui-button">‹ 上一页</button>
+          <span id="page-info" style="font-weight: bold; color: #a0c8ff;"></span>
+          <button id="page-next" class="log-archive-ui-button">下一页 ›</button>
+          <button id="page-last" class="log-archive-ui-button">最后一页 »</button>
+      </div>
+      <textarea id="log-archive-ui-log-display" readonly style="margin-top: 10px; flex-grow: 1;"></textarea>
     </div>
-    <textarea id="log-archive-ui-log-display" readonly style="margin-top: 10px;"></textarea>
+
+    <!-- Configuration View -->
+    <div id="log-archive-config-view">
+        <h3>设置</h3>
+        <div class="config-section">
+            <label for="log-archive-self-name-input">你的昵称 (用于私聊方向判断)</label>
+            <input type="text" id="log-archive-self-name-input" placeholder="输入你的昵称...">
+        </div>
+        <div class="config-section">
+            <label for="log-archive-page-size-input">每页显示条目数</label>
+            <input type="number" id="log-archive-page-size-input" min="100" max="10000" step="100">
+        </div>
+        <div class="config-section">
+            <label>危险操作</label>
+            <button id="log-archive-clear-button" class="log-archive-ui-button">清空所有本地存档</button>
+        </div>
+        <div style="margin-top: auto; display: flex; justify-content: flex-end;">
+            <button id="log-archive-config-back-button" class="log-archive-ui-button">返回</button>
+        </div>
+    </div>
 `;
 
 export const TOGGLE_BUTTON_ICON = '📜';
