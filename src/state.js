@@ -121,5 +121,3 @@ export function addMessageToSyntheticChannelIfNeeded(state, message, activeChann
     console.log(`消息已自动复制到合成频道 [${syntheticChannelName}]`);
   }
 }
-
-

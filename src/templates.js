@@ -20,7 +20,14 @@ export const getMainContainerHTML = (version) => `
             <button id="log-archive-close-button" class="log-archive-ui-button">关闭</button>
         </div>
     </div>
-    <textarea id="log-archive-ui-log-display" readonly></textarea>
+    <div id="log-archive-ui-pagination-controls" style="margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;">
+        <button id="page-first" class="log-archive-ui-button">« 第一页</button>
+        <button id="page-prev" class="log-archive-ui-button">‹ 上一页</button>
+        <span id="page-info" style="font-weight: bold; color: #a0c8ff;"></span>
+        <button id="page-next" class="log-archive-ui-button">下一页 ›</button>
+        <button id="page-last" class="log-archive-ui-button">最后一页 »</button>
+    </div>
+    <textarea id="log-archive-ui-log-display" readonly style="margin-top: 10px;"></textarea>
 `;
 
 export const TOGGLE_BUTTON_ICON = '📜';
