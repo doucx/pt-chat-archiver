@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] chore: unify versioning and integrate Biome for code quality", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770662540.8066216, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M package-lock.json, M package.json", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770664617.2128148, "duration_ms": 0}}
