@@ -1,4 +1,6 @@
+import { generateStatisticsText } from './analysis.js';
 import { SELF_NAME_KEY, STORAGE_KEY_V5 } from './constants.js';
+import { getMainContainerHTML, TOGGLE_BUTTON_ICON } from './templates.js';
 import { formatISOTimeForDisplay, getStorageUsageInMB } from './utils.js';
 
 /**
@@ -31,30 +33,12 @@ export function createUI(inMemoryChatState, callbacks) {
 
   const container = document.createElement('div');
   container.id = 'log-archive-ui-container';
-  container.innerHTML = `
-            <div id="log-archive-ui-header">
-                <h2>聊天记录存档 v${__APP_VERSION__}</h2>
-                <div id="log-archive-ui-controls">
-                    <input type="text" id="log-archive-self-name-input" placeholder="输入你的昵称...">
-                    <select id="log-archive-channel-selector" class="log-archive-ui-button"></select>
-                    <button id="log-archive-refresh-button" class="log-archive-ui-button">刷新</button>
-                    <button id="log-archive-pause-button" class="log-archive-ui-button">⏸️ </button>
-                    <button id="log-archive-stats-button" class="log-archive-ui-button">查看统计</button>
-                    <button id="log-archive-copy-button" class="log-archive-ui-button">复制</button>
-                    <button id="log-archive-copy-all-button" class="log-archive-ui-button">复制(JSON)</button>
-                    <button id="log-archive-download-button" class="log-archive-ui-button">下载</button>
-                    <button id="log-archive-clean-button" class="log-archive-ui-button">清理重复</button>
-                    <button id="log-archive-clear-button" class="log-archive-ui-button">清空</button>
-                    <button id="log-archive-close-button" class="log-archive-ui-button">关闭</button>
-                </div>
-            </div>
-            <textarea id="log-archive-ui-log-display" readonly></textarea>
-        `;
+  container.innerHTML = getMainContainerHTML(__APP_VERSION__);
   document.body.appendChild(container);
 
   const toggleButton = document.createElement('div');
   toggleButton.id = 'log-archive-ui-toggle-button';
-  toggleButton.textContent = '📜';
+  toggleButton.textContent = TOGGLE_BUTTON_ICON;
   document.body.appendChild(toggleButton);
 
   const uiContainer = document.getElementById('log-archive-ui-container');
@@ -129,89 +113,6 @@ export function createUI(inMemoryChatState, callbacks) {
     if (isFocused) {
       logDisplay.setSelectionRange(selectionStart, selectionEnd);
     }
-  }
-
-  // --- Data Statistics & Formatting ---
-  function calculateTopTalkers(messages) {
-    const counts = new Map();
-    let totalMessagesInPeriod = 0;
-    for (const msg of messages) {
-      if (msg.sender && msg.sender !== 'System') {
-        counts.set(msg.sender, (counts.get(msg.sender) || 0) + 1);
-        totalMessagesInPeriod++;
-      }
-    }
-    const data = Array.from(counts.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-    return { data, total: totalMessagesInPeriod };
-  }
-
-  function calculateHourlyActivity(messages) {
-    const hourlyCounts = new Array(24).fill(0);
-    let totalMessagesInPeriod = 0;
-    for (const msg of messages) {
-      try {
-        const hour = new Date(msg.time).getHours();
-        hourlyCounts[hour]++;
-        totalMessagesInPeriod++;
-      } catch (e) {
-        /* ignore */
-      }
-    }
-    const data = hourlyCounts
-      .map((count, hour) => ({ hour, count }))
-      .filter((item) => item.count > 0)
-      .sort((a, b) => b.count - a.count);
-    return { data, total: totalMessagesInPeriod };
-  }
-
-  function formatTopTalkers(results) {
-    const { data, total } = results;
-    const text = '\n\n===== 最活跃用户 (TOP 10) =====\n\n';
-    if (data.length === 0 || total === 0) return `${text}无用户发言记录。`;
-    return (
-      text +
-      data
-        .slice(0, 10)
-        .map((item) => {
-          const percentage = ((item.count / total) * 100).toFixed(1);
-          return `${item.name.padEnd(20, ' ')} | ${item.count} 条消息 (${percentage}%)`;
-        })
-        .join('\n')
-    );
-  }
-
-  function formatHourlyActivity(results) {
-    const { data, total } = results;
-    const text = '\n\n===== 聊天峰值时间段 =====\n\n';
-    if (data.length === 0 || total === 0) return `${text}无有效时间记录。`;
-    return (
-      text +
-      data
-        .map((item) => {
-          const hourStr = String(item.hour).padStart(2, '0');
-          const nextHourStr = String((item.hour + 1) % 24).padStart(2, '0');
-          const percentage = ((item.count / total) * 100).toFixed(1);
-          return `${`${hourStr}:00 - ${nextHourStr}:00 `.padEnd(
-            16,
-            ' ',
-          )}| ${item.count} 条消息 (${percentage}%)`;
-        })
-        .join('\n')
-    );
-  }
-
-  function generateStatisticsText(messages, channelName) {
-    if (!messages || messages.length === 0)
-      return `--- 在频道 [${channelName}] 中没有记录可供统计 ---`;
-    const filteredMessages = messages.filter((msg) => !msg.is_fallback && !msg.is_archiver);
-    if (filteredMessages.length === 0)
-      return `--- 在频道 [${channelName}] 中没有可供精细统计的用户消息 ---`;
-    let output = `--- [${channelName}] 频道统计报告 (分析 ${filteredMessages.length} 条消息) ---\n`;
-    output += formatTopTalkers(calculateTopTalkers(filteredMessages));
-    output += formatHourlyActivity(calculateHourlyActivity(filteredMessages));
-    return output;
   }
 
   function formatMessageForDisplay(msg) {

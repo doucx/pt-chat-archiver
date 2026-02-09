@@ -1,4 +1,5 @@
 import './style.css';
+import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
 import {
   OLD_STORAGE_KEY_V4,
   SELF_NAME_KEY,
@@ -8,8 +9,6 @@ import {
 import { extractUsefulData, findActiveTabByClass, locateChatElements } from './parser.js';
 import {
   addMessageToSyntheticChannelIfNeeded,
-  cleanChannelRecords,
-  detectTotalDuplicates,
   loadMessagesFromStorage,
   mergeAndDeduplicateMessages,
   migrateDataV4toV5,
