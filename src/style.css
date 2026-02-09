@@ -2,7 +2,7 @@
 #log-archive-ui-container {
   --color-primary: #8af;
   --color-primary-hover: #a0c8ff;
-  --color-bg: rgba(26, 32, 38, 0.95);
+  --color-bg: rgba(26, 32, 38, 0.7);
   --color-surface: #2a3036;
   --color-surface-hover: #363d44;
   --color-border: #4a545e;
