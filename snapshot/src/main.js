@@ -2,6 +2,7 @@ import './style.css';
 import { STORAGE_KEY_V5, OLD_STORAGE_KEY_V4, SELF_NAME_KEY, STORAGE_WARNING_THRESHOLD_MB } from './constants.js';
 import { getStorageUsageInMB, debounce, getISOTimestamp, formatISOTimeForDisplay } from './utils.js';
 import { extractUsefulData, locateChatElements, findActiveTabByClass } from './parser.js';
+import { migrateDataV4toV5, mergeAndDeduplicateMessages, loadMessagesFromStorage, saveMessagesToStorage, addMessageToSyntheticChannelIfNeeded, cleanChannelRecords, detectTotalDuplicates } from './state.js';
 
 (function() {
   'use strict';
@@ -39,89 +40,9 @@ import { extractUsefulData, locateChatElements, findActiveTabByClass } from './p
   
   /*
    * =================================================================
-   * 数据迁移模块
-   * =================================================================
-   */
-  /**
-   * 检查并执行一次性的数据迁移，将 v4 版本的数据转换为 v5 格式。
-   * 主要处理时间戳格式的转换，并将所有旧数据标记为历史记录。
-   */
-  function migrateDataV4toV5() {
-    const oldDataRaw = localStorage.getItem(OLD_STORAGE_KEY_V4);
-    if (!oldDataRaw) return;
-
-    console.log("检测到旧版本(v4)数据，正在执行一次性迁移...");
-    try {
-      const oldData = JSON.parse(oldDataRaw);
-      const newData = {};
-
-      for (const channel in oldData) {
-        newData[channel] = oldData[channel].map(msg => {
-          const newMsg = { ...msg };
-          try {
-            // v4 的时间格式 "YYYY-MM-DD HH:MM" 是本地时间，我们将其近似转换为 ISO 格式的 UTC 时间
-            const localDate = new Date(msg.time.replace(/-/g, '/'));
-            newMsg.time = localDate.toISOString();
-          } catch (e) {
-            newMsg.time = new Date().toISOString(); // 转换失败时使用当前时间作为备用
-          }
-          newMsg.is_historical = true;
-          return newMsg;
-        });
-      }
-
-      localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(newData));
-      localStorage.removeItem(OLD_STORAGE_KEY_V4);
-      console.log("数据迁移成功！");
-    } catch (error) {
-      console.error("数据迁移失败，旧数据可能已损坏，将予以保留。", error);
-    }
-  }
-
-  /*
-   * =================================================================
    * 核心功能模块
    * =================================================================
    */
-
-  // --- 状态管理与持久化 ---
-
-  /** 智能合并消息数组，用于处理聊天记录不连续的情况，例如在UI重现后。*/
-  function mergeAndDeduplicateMessages(oldMessages, newMessages) {
-    if (!oldMessages || oldMessages.length === 0) return newMessages;
-    if (!newMessages || newMessages.length === 0) return oldMessages;
-    const oldUserMessages = oldMessages.filter(msg => !msg.is_archiver);
-    const newUserMessages = newMessages.filter(msg => !msg.is_archiver);
-    let overlapLength = 0;
-    const maxPossibleOverlap = Math.min(oldUserMessages.length, newUserMessages.length);
-    for (let i = maxPossibleOverlap; i > 0; i--) {
-      const suffixOfOld = oldUserMessages.slice(-i).map(msg => msg.content);
-      const prefixOfNew = newUserMessages.slice(0, i).map(msg => msg.content);
-      if (JSON.stringify(suffixOfOld) === JSON.stringify(prefixOfNew)) {
-        overlapLength = i;
-        break;
-      }
-    }
-    let messagesToAdd;
-    if (overlapLength > 0) {
-      const lastOverlappingUserMessage = newUserMessages[overlapLength - 1];
-      const lastOverlappingIndexInNew = newMessages.findIndex(msg => msg === lastOverlappingUserMessage);
-      messagesToAdd = newMessages.slice(lastOverlappingIndexInNew + 1);
-    } else {
-      messagesToAdd = newMessages;
-    }
-    const discontinuityDetected = oldMessages.length > 0 && newMessages.length > 0 && overlapLength === 0;
-    if (messagesToAdd.length === 0) return oldMessages;
-    if (discontinuityDetected) {
-      console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
-      const discontinuityMark = {
-        time: getISOTimestamp(), type: 'system', sender: 'Archiver', receiver: 'System',
-        content: '[警告 - 此处可能存在记录丢失]', is_archiver: true
-      };
-      return oldMessages.concat([discontinuityMark], messagesToAdd);
-    }
-    return oldMessages.concat(messagesToAdd);
-  }
 
   /** 扫描聊天框中已存在的消息，时间戳根据UI显示的 `HH:MM` 进行估算。*/
   function extractHistoricalChatState() {
@@ -188,7 +109,7 @@ import { extractUsefulData, locateChatElements, findActiveTabByClass } from './p
         const newlyAddedHistoricalMessages = newMergedMessages.slice(-messagesAddedCount);
         newlyAddedHistoricalMessages.forEach(msg => {
           // 注意：这里的 channelName 就是当时扫描时的活跃频道
-          addMessageToSyntheticChannelIfNeeded(msg, channelName);
+          addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
         });
 
         // 使用新的日志格式
@@ -211,163 +132,7 @@ import { extractUsefulData, locateChatElements, findActiveTabByClass } from './p
     }
   }
 
-  /** 从 localStorage 加载存档。*/
-  function loadMessagesFromStorage() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY_V5)) || {};
-    } catch (e) {
-      console.error('读取存档失败，数据已损坏。', e); return {};
-    }
-  }
-
-  /** 将内存中的存档保存到 localStorage。*/
-  function saveMessagesToStorage(messagesObject) {
-    console.info('存档已保存到 localStorage')
-    localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(messagesObject));
-  }
-
-  /**
-   * (新功能) 根据条件将消息添加到合成频道。
-   * 如果当前活跃频道是 'Local'，并且消息是 party 或 whisper 类型，
-   * 则将其复制一份到 'Party-Local' 或 'Whisper-Local' 频道。
-   * @param {object} message - 消息数据对象。
-   * @param {string} activeChannel - 消息产生时所在的活跃频道。
-   */
-  function addMessageToSyntheticChannelIfNeeded(message, activeChannel) {
-    // 核心条件：当且仅当在 'Local' 频道时才触发
-    if (activeChannel !== 'Local') {
-      return;
-    }
-
-    let syntheticChannelName = null;
-    if (message.type.includes('party')) {
-      syntheticChannelName = 'Party-Local';
-    } else if (message.type.includes('whisper')) {
-      syntheticChannelName = 'Whisper-Local';
-    }
-
-    // 如果是 party 或 whisper 消息，则执行添加操作
-    if (syntheticChannelName) {
-      if (!inMemoryChatState[syntheticChannelName]) {
-        inMemoryChatState[syntheticChannelName] = [];
-      }
-      // 创建消息的副本以避免任何潜在的引用问题
-      inMemoryChatState[syntheticChannelName].push({ ...message });
-      console.log(`消息已自动复制到合成频道 [${syntheticChannelName}]`);
-    }
-  }
-
-  // --- 【新增】数据清理模块 ---
-  
-      /**
-       * 根据 Python 脚本的逻辑，清理一个频道记录中的重复数据。
-       * @param {Array<object>} records - 一个频道的聊天记录数组。
-       * @returns {{cleanedRecords: Array<object>, removedCount: number}} - 清理后的记录和被移除的记录数。
-       */
-      function cleanChannelRecords(records) {
-          if (!records || records.length === 0) {
-              return { cleanedRecords: [], removedCount: 0 };
-          }
-  
-          const BURST_COUNT_THRESHOLD = 20;
-          const BURST_TIME_THRESHOLD_MS = 1000; // 1 second
-  
-          const is_in_burst = new Array(records.length).fill(false);
-          if (records.length >= BURST_COUNT_THRESHOLD) {
-              for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
-                  try {
-                      const startTime = new Date(records[i].time).getTime();
-                      const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
-                      if (isNaN(startTime) || isNaN(endTime)) continue;
-  
-                      if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
-                          for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
-                              is_in_burst[j] = true;
-                          }
-                      }
-                  } catch (e) { continue; }
-              }
-          }
-  
-          const cleanedRecords = [];
-          const seen_contents = new Set();
-          let removedCount = 0;
-  
-          for (let i = 0; i < records.length; i++) {
-              const record = records[i];
-              const content = record.content;
-              const has_no_historical_flag = !record.is_historical;
-              const is_duplicate = content != null && seen_contents.has(content);
-              const in_burst = is_in_burst[i];
-              const should_delete = has_no_historical_flag && is_duplicate && in_burst;
-  
-              if (!should_delete) {
-                  cleanedRecords.push(record);
-              } else {
-                  removedCount++;
-              }
-  
-              if (content != null) {
-                  seen_contents.add(content);
-              }
-          }
-          return { cleanedRecords, removedCount };
-      }
-  
-      /**
-       * 检测所有频道中可被清理的重复记录总数。
-       * @param {object} messagesByChannel - 包含所有频道消息的对象。
-       * @returns {number} - 可被清理的记录总数。
-       */
-      function detectTotalDuplicates(messagesByChannel) {
-          let totalDuplicates = 0;
-          if (!messagesByChannel) return 0;
-  
-          for (const channel in messagesByChannel) {
-              const records = messagesByChannel[channel];
-              if (!records || records.length === 0) continue;
-  
-              const BURST_COUNT_THRESHOLD = 20;
-              const BURST_TIME_THRESHOLD_MS = 1000;
-  
-              const is_in_burst = new Array(records.length).fill(false);
-              if (records.length >= BURST_COUNT_THRESHOLD) {
-                  for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
-                      try {
-                          const startTime = new Date(records[i].time).getTime();
-                          const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
-                          if (isNaN(startTime) || isNaN(endTime)) continue;
-                          if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
-                              for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
-                                  is_in_burst[j] = true;
-                              }
-                          }
-                      } catch (e) { continue; }
-                  }
-              }
-  
-              const seen_contents = new Set();
-              for (let i = 0; i < records.length; i++) {
-                  const record = records[i];
-                  const content = record.content;
-                  const has_no_historical_flag = !record.is_historical;
-                  const is_duplicate = content != null && seen_contents.has(content);
-                  const in_burst = is_in_burst[i];
-  
-                  if (has_no_historical_flag && is_duplicate && in_burst) {
-                      totalDuplicates++;
-                  }
-  
-                  if (content != null) {
-                      seen_contents.add(content);
-                  }
-              }
-          }
-          return totalDuplicates;
-      }
-  
-  
-      /*
+  /*
    * =================================================================
    * 用户交互界面 (UI) 模块
    * =================================================================
@@ -812,7 +577,7 @@ import { extractUsefulData, locateChatElements, findActiveTabByClass } from './p
         inMemoryChatState[currentActiveChannel] = [];
       }
       inMemoryChatState[currentActiveChannel].push(messageData);
-      addMessageToSyntheticChannelIfNeeded(messageData, currentActiveChannel);
+      addMessageToSyntheticChannelIfNeeded(inMemoryChatState, messageData, currentActiveChannel);
     }
 
     const uiContainer = document.getElementById('log-archive-ui-container');

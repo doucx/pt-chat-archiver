@@ -1,180 +1,315 @@
-好的，我们来执行这次核心重构。将所有与 DOM 交互和解析相关的代码封装起来，是使这个脚本变得健壮和易于维护的关键一步。
+好的，测试通过。我们来处理下一个核心模块：状态管理。
 
 ---
 
-## [WIP] refactor: 提取 DOM 解析逻辑至 parser.js
+## [WIP] refactor: 提取状态管理与持久化逻辑至 state.js
 
 ### 用户需求
-将 `src/main.js` 中所有负责读取、解析和从 DOM 中提取信息的函数，全部迁移到一个新的模块 `src/parser.js` 中。
+将 `src/main.js` 中负责数据迁移、合并、加载、存储和清理的函数提取到一个新的 `src/state.js` 模块中，以实现业务逻辑和状态操作的分离。
 
 ### 评论
-这是本次重构中最重要的一步。通过将“如何读取屏幕”的逻辑（解析器）与“如何处理数据”的逻辑（主流程）分离，我们极大地降低了代码的耦合度。如果未来 PonyTown 更新了 UI 布局，我们只需要修改 `parser.js` 这个文件，而无需触碰核心的状态管理和业务逻辑，这使得维护成本大大降低。
+这是实现“关注点分离” (Separation of Concerns) 的关键步骤。通过将所有直接操作数据（无论是内存中的 `inMemoryChatState` 还是 `localStorage`）的逻辑封装到 `state.js` 中，`main.js` 就演变成了更高层次的“控制器”，只负责协调 UI、解析器和状态模块，而不关心数据具体是如何被处理的。这使得代码更容易测试和推理。
 
 ### 目标
-1.  创建 `src/parser.js` 文件。
-2.  将 `isCharacterInPrivateUseArea`, `customTextContent`, `extractUsefulData`, `locateChatElements`, 和 `findActiveTabByClass` 函数移动到新文件中并导出。
-3.  更新 `src/main.js`，移除这些函数的本地定义，并通过 `import` 语句从 `parser.js` 引入它们。
+1.  创建 `src/state.js` 文件，并将 `migrateDataV4toV5`, `mergeAndDeduplicateMessages`, `loadMessagesFromStorage`, `saveMessagesToStorage`, `addMessageToSyntheticChannelIfNeeded`, `cleanChannelRecords`, `detectTotalDuplicates` 等函数移入。
+2.  对 `addMessageToSyntheticChannelIfNeeded` 进行轻微重构，使其不再依赖全局变量，而是通过参数接收 state 对象，增强其模块独立性。
+3.  更新 `src/main.js`，移除这些函数的定义，并从新模块中导入它们。
 
 ### 基本原理
-我们将所有与 DOM 结构紧密相关的代码隔离到一个“解析层”。该层对外提供一个稳定的接口（例如 `extractUsefulData`），主程序调用这个接口获取结构化数据，而无需关心数据是如何从复杂的 DOM 树中被提取出来的。
+我们正在将应用划分为不同的逻辑层。`state.js` 将成为我们的“服务层”或“模型层”，专门负责处理数据的完整性、持久性和业务规则。主文件 `main.js` 作为“应用层”，调用服务来完成任务。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/core #concept/parser #scope/core #ai/instruct #task/domain/refactoring #task/object/modularity #task/action/extraction #task/state/continue
+#intent/refine #flow/ready #priority/high #comp/core #concept/state #scope/core #ai/instruct #task/domain/refactoring #task/object/modularity #task/action/extraction #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 创建解析器模块
+#### Acts 1: 创建状态管理模块
 
-我们创建一个新文件 `src/parser.js`，并将所有相关的 DOM 解析函数放入其中。
+我们创建 `src/state.js`，并将所有与数据状态直接相关的函数移入。注意 `addMessageToSyntheticChannelIfNeeded` 的签名已被修改，以接收 `state` 对象作为第一个参数。
 
 ~~~~~act
 write_file
-src/parser.js
+src/state.js
 ~~~~~
 ~~~~~javascript
-import { MAIN_SERVER_HOSTS } from './constants.js';
+import { STORAGE_KEY_V5, OLD_STORAGE_KEY_V4 } from './constants.js';
+import { getISOTimestamp } from './utils.js';
 
-/** 判断一个字符的 Unicode 码点是否位于私有使用区。*/
-function isCharacterInPrivateUseArea(char) {
-  if (!char) return false;
-  const codePoint = char.codePointAt(0);
-  if (codePoint === undefined) return false;
-  const isInPUA = (codePoint >= 0xE000 && codePoint <= 0xF8FF);
-  const isInSupPUA_A = (codePoint >= 0xF0000 && codePoint <= 0xFFFFD);
-  const isInSupPUA_B = (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
-  return isInPUA || isInSupPUA_A || isInSupPUA_B;
-}
+/**
+ * 检查并执行一次性的数据迁移，将 v4 版本的数据转换为 v5 格式。
+ */
+export function migrateDataV4toV5() {
+  const oldDataRaw = localStorage.getItem(OLD_STORAGE_KEY_V4);
+  if (!oldDataRaw) return;
 
-/** 递归地从 DOM 节点中提取可见文本，并正确处理 Emoji 图片。*/
-function customTextContent(node) {
-  if (!node) return '';
-  if (node.nodeType === Node.TEXT_NODE) { return node.textContent; }
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    if (node.style.display === 'none') { return ''; }
-    if (node.tagName === 'IMG' && node.classList.contains('pixelart')) {
-      const alt = node.alt || '';
-      const label = node.getAttribute('aria-label');
-      if (alt && !isCharacterInPrivateUseArea(alt)) { return alt; }
-      if (label) { return `:${label}:`; }
-      return '';
+  console.log("检测到旧版本(v4)数据，正在执行一次性迁移...");
+  try {
+    const oldData = JSON.parse(oldDataRaw);
+    const newData = {};
+
+    for (const channel in oldData) {
+      newData[channel] = oldData[channel].map(msg => {
+        const newMsg = { ...msg };
+        try {
+          const localDate = new Date(msg.time.replace(/-/g, '/'));
+          newMsg.time = localDate.toISOString();
+        } catch (e) {
+          newMsg.time = new Date().toISOString();
+        }
+        newMsg.is_historical = true;
+        return newMsg;
+      });
     }
-    let text = '';
-    for (const child of node.childNodes) { text += customTextContent(child); }
-    return text;
+
+    localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(newData));
+    localStorage.removeItem(OLD_STORAGE_KEY_V4);
+    console.log("数据迁移成功！");
+  } catch (error) {
+    console.error("数据迁移失败，旧数据可能已损坏，将予以保留。", error);
   }
-  return '';
 }
 
 /**
- * 双模解析引擎：从聊天行元素中提取结构化信息。
- * 根据当前域名自动选择精细解析（主服务器）或回落（私服）模式。
+ * 智能合并消息数组，用于处理聊天记录不连续的情况。
  */
-export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
-  if (!chatLineElement || !precomputedTime) return null;
-
-  const hostname = window.location.hostname;
-  const isMainServerMode = MAIN_SERVER_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
-
-  if (isMainServerMode) {
-    // --- 主服务器精细解析模式 ---
-    const data = { time: precomputedTime, type: 'unknown', sender: 'System', receiver: 'Local', content: '' };
-    const cl = chatLineElement.classList;
-    if (cl.contains('chat-line-whisper-thinking')) data.type = 'whisper-think';
-    else if (cl.contains('chat-line-whisper')) data.type = 'whisper';
-    else if (cl.contains('chat-line-party-thinking')) data.type = 'party-think';
-    else if (cl.contains('chat-line-party')) data.type = 'party';
-    else if (cl.contains('chat-line-thinking')) data.type = 'think';
-    else if (cl.contains('chat-line-meta-line')) data.type = 'system';
-    else if (cl.contains('chat-line-announcement')) data.type = 'announcement';
-    else if (cl.contains('chat-line')) data.type = 'say';
-
-    // 通过克隆节点并移除无关部分来提取完整的消息文本，这种方法稳健且能保留上下文
-    const container = chatLineElement.cloneNode(true);
-    container.querySelectorAll('.chat-line-timestamp, .chat-line-lead').forEach(el => el.remove());
-    data.content = customTextContent(container).replace(/\s+/g, ' ').trim();
-
-    const nameNode = chatLineElement.querySelector('.chat-line-name');
-    const nameText = nameNode ? customTextContent(nameNode).replace(/^\[|\]$/g, '').trim() : null;
-
-    if (data.type === 'system') return data;
-
-    if (data.type.includes('party')) {
-      data.receiver = 'Party';
-      if (nameText) data.sender = nameText;
-    } else if (data.type.includes('whisper')) {
-      // 基于完整的消息内容判断私聊方向
-      if (data.content.startsWith('To ') || data.content.startsWith('Thinks to ')) {
-        data.sender = selfName || 'Me (未设置)';
-        data.receiver = nameText || 'Unknown';
-      } else {
-        data.sender = nameText || 'Unknown';
-        data.receiver = selfName || 'Me (未设置)';
-      }
-    } else {
-      data.receiver = 'Local';
-      if (nameText) data.sender = nameText;
+export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
+  if (!oldMessages || oldMessages.length === 0) return newMessages;
+  if (!newMessages || newMessages.length === 0) return oldMessages;
+  const oldUserMessages = oldMessages.filter(msg => !msg.is_archiver);
+  const newUserMessages = newMessages.filter(msg => !msg.is_archiver);
+  let overlapLength = 0;
+  const maxPossibleOverlap = Math.min(oldUserMessages.length, newUserMessages.length);
+  for (let i = maxPossibleOverlap; i > 0; i--) {
+    const suffixOfOld = oldUserMessages.slice(-i).map(msg => msg.content);
+    const prefixOfNew = newUserMessages.slice(0, i).map(msg => msg.content);
+    if (JSON.stringify(suffixOfOld) === JSON.stringify(prefixOfNew)) {
+      overlapLength = i;
+      break;
     }
-    return data;
-
+  }
+  let messagesToAdd;
+  if (overlapLength > 0) {
+    const lastOverlappingUserMessage = newUserMessages[overlapLength - 1];
+    const lastOverlappingIndexInNew = newMessages.findIndex(msg => msg === lastOverlappingUserMessage);
+    messagesToAdd = newMessages.slice(lastOverlappingIndexInNew + 1);
   } else {
-    // --- 回落模式 (兼容私服) ---
-    const rawContent = customTextContent(chatLineElement);
-    if (!rawContent.trim()) return null;
-
-    return {
-      time: precomputedTime,
-      is_fallback: true,
-      type: '', sender: '', receiver: '',
-      content: rawContent.trim()
+    messagesToAdd = newMessages;
+  }
+  const discontinuityDetected = oldMessages.length > 0 && newMessages.length > 0 && overlapLength === 0;
+  if (messagesToAdd.length === 0) return oldMessages;
+  if (discontinuityDetected) {
+    console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
+    const discontinuityMark = {
+      time: getISOTimestamp(), type: 'system', sender: 'Archiver', receiver: 'System',
+      content: '[警告 - 此处可能存在记录丢失]', is_archiver: true
     };
+    return oldMessages.concat([discontinuityMark], messagesToAdd);
+  }
+  return oldMessages.concat(messagesToAdd);
+}
+
+/** 从 localStorage 加载存档。*/
+export function loadMessagesFromStorage() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY_V5)) || {};
+  } catch (e) {
+    console.error('读取存档失败，数据已损坏。', e); return {};
   }
 }
 
-/** 定位页面上的关键聊天元素。*/
-export function locateChatElements() {
-  return {
-    tabs: document.querySelector('.chat-log-tabs'),
-    chatLog: document.querySelector('.chat-log-scroll-inner'),
-    chatLine: document.querySelector('.chat-line'),
-    chatLogContainer: document.querySelector('.chat-log')
-  };
+/** 将内存中的存档保存到 localStorage。*/
+export function saveMessagesToStorage(messagesObject) {
+  console.info('存档已保存到 localStorage')
+  localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(messagesObject));
 }
 
-/** 从 tabs 元素的 HTML 中解析出当前活跃的标签页名称。*/
-export function findActiveTabByClass(htmlString) {
-  if (!htmlString) return null;
-  const container = document.createElement('div');
-  container.innerHTML = htmlString;
-  const activeTab = container.querySelector('a.chat-log-tab.active');
-  return activeTab ? activeTab.textContent.trim() : null;
+/**
+ * 根据条件将消息添加到合成频道。
+ * @param {object} state - 脚本的内存状态对象 (inMemoryChatState)。
+ * @param {object} message - 消息数据对象。
+ * @param {string} activeChannel - 消息产生时所在的活跃频道。
+ */
+export function addMessageToSyntheticChannelIfNeeded(state, message, activeChannel) {
+  if (activeChannel !== 'Local') {
+    return;
+  }
+  let syntheticChannelName = null;
+  if (message.type.includes('party')) {
+    syntheticChannelName = 'Party-Local';
+  } else if (message.type.includes('whisper')) {
+    syntheticChannelName = 'Whisper-Local';
+  }
+  if (syntheticChannelName) {
+    if (!state[syntheticChannelName]) {
+      state[syntheticChannelName] = [];
+    }
+    state[syntheticChannelName].push({ ...message });
+    console.log(`消息已自动复制到合成频道 [${syntheticChannelName}]`);
+  }
+}
+
+/**
+ * 清理一个频道记录中的重复数据。
+ * @param {Array<object>} records - 一个频道的聊天记录数组。
+ * @returns {{cleanedRecords: Array<object>, removedCount: number}} - 清理后的记录和被移除的记录数。
+ */
+export function cleanChannelRecords(records) {
+    if (!records || records.length === 0) {
+        return { cleanedRecords: [], removedCount: 0 };
+    }
+    const BURST_COUNT_THRESHOLD = 20;
+    const BURST_TIME_THRESHOLD_MS = 1000;
+    const is_in_burst = new Array(records.length).fill(false);
+    if (records.length >= BURST_COUNT_THRESHOLD) {
+        for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
+            try {
+                const startTime = new Date(records[i].time).getTime();
+                const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
+                if (isNaN(startTime) || isNaN(endTime)) continue;
+                if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
+                    for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
+                        is_in_burst[j] = true;
+                    }
+                }
+            } catch (e) { continue; }
+        }
+    }
+    const cleanedRecords = [];
+    const seen_contents = new Set();
+    let removedCount = 0;
+    for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        const content = record.content;
+        const has_no_historical_flag = !record.is_historical;
+        const is_duplicate = content != null && seen_contents.has(content);
+        const in_burst = is_in_burst[i];
+        const should_delete = has_no_historical_flag && is_duplicate && in_burst;
+        if (!should_delete) {
+            cleanedRecords.push(record);
+        } else {
+            removedCount++;
+        }
+        if (content != null) {
+            seen_contents.add(content);
+        }
+    }
+    return { cleanedRecords, removedCount };
+}
+
+/**
+ * 检测所有频道中可被清理的重复记录总数。
+ * @param {object} messagesByChannel - 包含所有频道消息的对象。
+ * @returns {number} - 可被清理的记录总数。
+ */
+export function detectTotalDuplicates(messagesByChannel) {
+    let totalDuplicates = 0;
+    if (!messagesByChannel) return 0;
+    for (const channel in messagesByChannel) {
+        const records = messagesByChannel[channel];
+        if (!records || records.length === 0) continue;
+        const BURST_COUNT_THRESHOLD = 20;
+        const BURST_TIME_THRESHOLD_MS = 1000;
+        const is_in_burst = new Array(records.length).fill(false);
+        if (records.length >= BURST_COUNT_THRESHOLD) {
+            for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
+                try {
+                    const startTime = new Date(records[i].time).getTime();
+                    const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
+                    if (isNaN(startTime) || isNaN(endTime)) continue;
+                    if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
+                        for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
+                            is_in_burst[j] = true;
+                        }
+                    }
+                } catch (e) { continue; }
+            }
+        }
+        const seen_contents = new Set();
+        for (let i = 0; i < records.length; i++) {
+            const record = records[i];
+            const content = record.content;
+            const has_no_historical_flag = !record.is_historical;
+            const is_duplicate = content != null && seen_contents.has(content);
+            const in_burst = is_in_burst[i];
+            if (has_no_historical_flag && is_duplicate && in_burst) {
+                totalDuplicates++;
+            }
+            if (content != null) {
+                seen_contents.add(content);
+            }
+        }
+    }
+    return totalDuplicates;
 }
 ~~~~~
 
-#### Acts 2: 更新主入口文件以使用新模块
+#### Acts 2: 更新主入口文件以使用状态模块
 
-我们在 `src/main.js` 的顶部添加新的 `import` 语句，并移除旧的函数定义。
+现在，我们清理 `src/main.js`，让它依赖于新创建的 `state.js` 模块。
 
 ~~~~~act
 patch_file
 src/main.js
 ~~~~~
 ~~~~~javascript.old
-import './style.css';
-import { STORAGE_KEY_V5, OLD_STORAGE_KEY_V4, SELF_NAME_KEY, STORAGE_WARNING_THRESHOLD_MB, MAIN_SERVER_HOSTS } from './constants.js';
-import { getStorageUsageInMB, debounce, getISOTimestamp, formatISOTimeForDisplay } from './utils.js';
-
-(function() {
-~~~~~
-~~~~~javascript.new
-import './style.css';
-import { STORAGE_KEY_V5, OLD_STORAGE_KEY_V4, SELF_NAME_KEY, STORAGE_WARNING_THRESHOLD_MB } from './constants.js';
-import { getStorageUsageInMB, debounce, getISOTimestamp, formatISOTimeForDisplay } from './utils.js';
 import { extractUsefulData, locateChatElements, findActiveTabByClass } from './parser.js';
 
 (function() {
 ~~~~~
+~~~~~javascript.new
+import { extractUsefulData, locateChatElements, findActiveTabByClass } from './parser.js';
+import { migrateDataV4toV5, mergeAndDeduplicateMessages, loadMessagesFromStorage, saveMessagesToStorage, addMessageToSyntheticChannelIfNeeded, cleanChannelRecords, detectTotalDuplicates } from './state.js';
+
+(function() {
+~~~~~
+
+~~~~~act
+patch_file
+src/main.js
+~~~~~
+~~~~~javascript.old
+        const newlyAddedHistoricalMessages = newMergedMessages.slice(-messagesAddedCount);
+        newlyAddedHistoricalMessages.forEach(msg => {
+          // 注意：这里的 channelName 就是当时扫描时的活跃频道
+          addMessageToSyntheticChannelIfNeeded(msg, channelName);
+        });
+
+        // 使用新的日志格式
+~~~~~
+~~~~~javascript.new
+        const newlyAddedHistoricalMessages = newMergedMessages.slice(-messagesAddedCount);
+        newlyAddedHistoricalMessages.forEach(msg => {
+          // 注意：这里的 channelName 就是当时扫描时的活跃频道
+          addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
+        });
+
+        // 使用新的日志格式
+~~~~~
+
+~~~~~act
+patch_file
+src/main.js
+~~~~~
+~~~~~javascript.old
+    if (messageData && messageData.content) {
+      if (!inMemoryChatState[currentActiveChannel]) {
+        inMemoryChatState[currentActiveChannel] = [];
+      }
+      inMemoryChatState[currentActiveChannel].push(messageData);
+      addMessageToSyntheticChannelIfNeeded(messageData, currentActiveChannel);
+    }
+~~~~~
+~~~~~javascript.new
+    if (messageData && messageData.content) {
+      if (!inMemoryChatState[currentActiveChannel]) {
+        inMemoryChatState[currentActiveChannel] = [];
+      }
+      inMemoryChatState[currentActiveChannel].push(messageData);
+      addMessageToSyntheticChannelIfNeeded(inMemoryChatState, messageData, currentActiveChannel);
+    }
+~~~~~
 
 ~~~~~act
 patch_file
@@ -183,128 +318,339 @@ src/main.js
 ~~~~~javascript.old
   /*
    * =================================================================
+   * 数据迁移模块
+   * =================================================================
+   */
+  /**
+   * 检查并执行一次性的数据迁移，将 v4 版本的数据转换为 v5 格式。
+   * 主要处理时间戳格式的转换，并将所有旧数据标记为历史记录。
+   */
+  function migrateDataV4toV5() {
+    const oldDataRaw = localStorage.getItem(OLD_STORAGE_KEY_V4);
+    if (!oldDataRaw) return;
+
+    console.log("检测到旧版本(v4)数据，正在执行一次性迁移...");
+    try {
+      const oldData = JSON.parse(oldDataRaw);
+      const newData = {};
+
+      for (const channel in oldData) {
+        newData[channel] = oldData[channel].map(msg => {
+          const newMsg = { ...msg };
+          try {
+            // v4 的时间格式 "YYYY-MM-DD HH:MM" 是本地时间，我们将其近似转换为 ISO 格式的 UTC 时间
+            const localDate = new Date(msg.time.replace(/-/g, '/'));
+            newMsg.time = localDate.toISOString();
+          } catch (e) {
+            newMsg.time = new Date().toISOString(); // 转换失败时使用当前时间作为备用
+          }
+          newMsg.is_historical = true;
+          return newMsg;
+        });
+      }
+
+      localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(newData));
+      localStorage.removeItem(OLD_STORAGE_KEY_V4);
+      console.log("数据迁移成功！");
+    } catch (error) {
+      console.error("数据迁移失败，旧数据可能已损坏，将予以保留。", error);
+    }
+  }
+
+  /*
+   * =================================================================
    * 核心功能模块
    * =================================================================
    */
 
-  // --- DOM 解析 ---
+  // --- 状态管理与持久化 ---
 
-  /** 判断一个字符的 Unicode 码点是否位于私有使用区。*/
-  function isCharacterInPrivateUseArea(char) {
-    if (!char) return false;
-    const codePoint = char.codePointAt(0);
-    if (codePoint === undefined) return false;
-    const isInPUA = (codePoint >= 0xE000 && codePoint <= 0xF8FF);
-    const isInSupPUA_A = (codePoint >= 0xF0000 && codePoint <= 0xFFFFD);
-    const isInSupPUA_B = (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
-    return isInPUA || isInSupPUA_A || isInSupPUA_B;
+  /** 智能合并消息数组，用于处理聊天记录不连续的情况，例如在UI重现后。*/
+  function mergeAndDeduplicateMessages(oldMessages, newMessages) {
+    if (!oldMessages || oldMessages.length === 0) return newMessages;
+    if (!newMessages || newMessages.length === 0) return oldMessages;
+    const oldUserMessages = oldMessages.filter(msg => !msg.is_archiver);
+    const newUserMessages = newMessages.filter(msg => !msg.is_archiver);
+    let overlapLength = 0;
+    const maxPossibleOverlap = Math.min(oldUserMessages.length, newUserMessages.length);
+    for (let i = maxPossibleOverlap; i > 0; i--) {
+      const suffixOfOld = oldUserMessages.slice(-i).map(msg => msg.content);
+      const prefixOfNew = newUserMessages.slice(0, i).map(msg => msg.content);
+      if (JSON.stringify(suffixOfOld) === JSON.stringify(prefixOfNew)) {
+        overlapLength = i;
+        break;
+      }
+    }
+    let messagesToAdd;
+    if (overlapLength > 0) {
+      const lastOverlappingUserMessage = newUserMessages[overlapLength - 1];
+      const lastOverlappingIndexInNew = newMessages.findIndex(msg => msg === lastOverlappingUserMessage);
+      messagesToAdd = newMessages.slice(lastOverlappingIndexInNew + 1);
+    } else {
+      messagesToAdd = newMessages;
+    }
+    const discontinuityDetected = oldMessages.length > 0 && newMessages.length > 0 && overlapLength === 0;
+    if (messagesToAdd.length === 0) return oldMessages;
+    if (discontinuityDetected) {
+      console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
+      const discontinuityMark = {
+        time: getISOTimestamp(), type: 'system', sender: 'Archiver', receiver: 'System',
+        content: '[警告 - 此处可能存在记录丢失]', is_archiver: true
+      };
+      return oldMessages.concat([discontinuityMark], messagesToAdd);
+    }
+    return oldMessages.concat(messagesToAdd);
   }
 
-  /** 递归地从 DOM 节点中提取可见文本，并正确处理 Emoji 图片。*/
-  function customTextContent(node) {
-    if (!node) return '';
-    if (node.nodeType === Node.TEXT_NODE) { return node.textContent; }
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      if (node.style.display === 'none') { return ''; }
-      if (node.tagName === 'IMG' && node.classList.contains('pixelart')) {
-        const alt = node.alt || '';
-        const label = node.getAttribute('aria-label');
-        if (alt && !isCharacterInPrivateUseArea(alt)) { return alt; }
-        if (label) { return `:${label}:`; }
-        return '';
+  /** 扫描聊天框中已存在的消息，时间戳根据UI显示的 `HH:MM` 进行估算。*/
+  function extractHistoricalChatState() {
+    const elements = locateChatElements();
+    if (!elements.tabs || !elements.chatLog) return { current_tab: null, messages: [] };
+
+    const current_tab = findActiveTabByClass(elements.tabs.innerHTML);
+    const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
+    const messages = [];
+    const chatLines = Array.from(elements.chatLog.children);
+    let currentDate = new Date();
+    let lastTimeParts = null;
+
+    for (let i = chatLines.length - 1; i >= 0; i--) {
+      const element = chatLines[i];
+      const timeNode = element.querySelector('.chat-line-timestamp');
+      if (!timeNode || !timeNode.textContent.includes(':')) continue;
+
+      const timeText = timeNode.textContent.trim();
+      const [hours, minutes] = timeText.split(':').map(Number);
+      // 处理跨天的情况
+      if (lastTimeParts && (hours > lastTimeParts.hours || (hours === lastTimeParts.hours && minutes > lastTimeParts.minutes))) {
+        currentDate.setDate(currentDate.getDate() - 1);
       }
-      let text = '';
-      for (const child of node.childNodes) { text += customTextContent(child); }
-      return text;
+      lastTimeParts = { hours, minutes };
+
+      const localDateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')} ${timeText}`;
+      const isoTimeApproximation = new Date(localDateString.replace(/-/g, '/')).toISOString();
+
+      const messageData = extractUsefulData(element, selfName, isoTimeApproximation);
+      if (messageData && messageData.content) {
+        messageData.is_historical = true; // 标记为历史消息
+        messages.push(messageData);
+      }
     }
-    return '';
+    messages.reverse();
+    return { current_tab, messages };
   }
 
   /**
-   * 双模解析引擎：从聊天行元素中提取结构化信息。
-   * 根据当前域名自动选择精细解析（主服务器）或回落（私服）模式。
+   * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
+   * 这是一个可被多处调用的核心同步功能。
    */
-  function extractUsefulData(chatLineElement, selfName, precomputedTime) {
-    if (!chatLineElement || !precomputedTime) return null;
+  function scanAndMergeHistory() {
+    console.log("正在扫描并合并历史消息...");
+    const historicalState = extractHistoricalChatState();
+    let dataChanged = false;
 
-    const hostname = window.location.hostname;
-    const isMainServerMode = MAIN_SERVER_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h));
+    if (historicalState.current_tab && historicalState.messages.length > 0) {
+      const channelName = historicalState.current_tab;
+      const messagesScannedCount = historicalState.messages.length; // Y: 检查了的历史记录总数
 
-    if (isMainServerMode) {
-      // --- 主服务器精细解析模式 ---
-      const data = { time: precomputedTime, type: 'unknown', sender: 'System', receiver: 'Local', content: '' };
-      const cl = chatLineElement.classList;
-      if (cl.contains('chat-line-whisper-thinking')) data.type = 'whisper-think';
-      else if (cl.contains('chat-line-whisper')) data.type = 'whisper';
-      else if (cl.contains('chat-line-party-thinking')) data.type = 'party-think';
-      else if (cl.contains('chat-line-party')) data.type = 'party';
-      else if (cl.contains('chat-line-thinking')) data.type = 'think';
-      else if (cl.contains('chat-line-meta-line')) data.type = 'system';
-      else if (cl.contains('chat-line-announcement')) data.type = 'announcement';
-      else if (cl.contains('chat-line')) data.type = 'say';
+      const oldMessages = inMemoryChatState[channelName] || [];
+      const oldMessageCount = oldMessages.length;
 
-      // 通过克隆节点并移除无关部分来提取完整的消息文本，这种方法稳健且能保留上下文
-      const container = chatLineElement.cloneNode(true);
-      container.querySelectorAll('.chat-line-timestamp, .chat-line-lead').forEach(el => el.remove());
-      data.content = customTextContent(container).replace(/\s+/g, ' ').trim();
+      const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
+      const newMessageCount = newMergedMessages.length;
 
-      const nameNode = chatLineElement.querySelector('.chat-line-name');
-      const nameText = nameNode ? customTextContent(nameNode).replace(/^\[|\]$/g, '').trim() : null;
+      const messagesAddedCount = newMessageCount - oldMessageCount; // X: 有效合并的新记录数
 
-      if (data.type === 'system') return data;
+      if (messagesAddedCount > 0) {
+        inMemoryChatState[channelName] = newMergedMessages;
+        dataChanged = true;
+        const newlyAddedHistoricalMessages = newMergedMessages.slice(-messagesAddedCount);
+        newlyAddedHistoricalMessages.forEach(msg => {
+          // 注意：这里的 channelName 就是当时扫描时的活跃频道
+          addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
+        });
 
-      if (data.type.includes('party')) {
-        data.receiver = 'Party';
-        if (nameText) data.sender = nameText;
-      } else if (data.type.includes('whisper')) {
-        // 基于完整的消息内容判断私聊方向
-        if (data.content.startsWith('To ') || data.content.startsWith('Thinks to ')) {
-          data.sender = selfName || 'Me (未设置)';
-          data.receiver = nameText || 'Unknown';
-        } else {
-          data.sender = nameText || 'Unknown';
-          data.receiver = selfName || 'Me (未设置)';
-        }
+        // 使用新的日志格式
+        console.log(`历史扫描 [${channelName}]: 合并了 ${messagesAddedCount}/${messagesScannedCount} 条新记录。`);
       } else {
-        data.receiver = 'Local';
-        if (nameText) data.sender = nameText;
+        console.log(`历史扫描 [${channelName}]: 检查了 ${messagesScannedCount} 条记录，无新增内容。`);
       }
-      return data;
+    }
 
-    } else {
-      // --- 回落模式 (兼容私服) ---
-      const rawContent = customTextContent(chatLineElement);
-      if (!rawContent.trim()) return null;
-
-      return {
-        time: precomputedTime,
-        is_fallback: true,
-        type: '', sender: '', receiver: '',
-        content: rawContent.trim()
-      };
+    // 如果数据有变动，且UI是打开的，则刷新UI
+    if (dataChanged) {
+      const uiContainer = document.getElementById('log-archive-ui-container');
+      const isUIPaused = uiContainer && uiContainer.querySelector('#log-archive-pause-button').textContent.includes('▶️');
+      if (uiContainer && uiContainer.style.display === 'flex' && !isUIPaused) {
+        const { updateUI: uiUpdateFn } = document.getElementById('log-archive-ui-container')._uiFunctions || {};
+        if (uiUpdateFn) {
+          uiUpdateFn(inMemoryChatState);
+        }
+      }
     }
   }
 
-  /** 定位页面上的关键聊天元素。*/
-  function locateChatElements() {
-    return {
-      tabs: document.querySelector('.chat-log-tabs'),
-      chatLog: document.querySelector('.chat-log-scroll-inner'),
-      chatLine: document.querySelector('.chat-line'),
-      chatLogContainer: document.querySelector('.chat-log')
-    };
+  /** 从 localStorage 加载存档。*/
+  function loadMessagesFromStorage() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_V5)) || {};
+    } catch (e) {
+      console.error('读取存档失败，数据已损坏。', e); return {};
+    }
   }
 
-  /** 从 tabs 元素的 HTML 中解析出当前活跃的标签页名称。*/
-  function findActiveTabByClass(htmlString) {
-    if (!htmlString) return null;
-    const container = document.createElement('div');
-    container.innerHTML = htmlString;
-    const activeTab = container.querySelector('a.chat-log-tab.active');
-    return activeTab ? activeTab.textContent.trim() : null;
+  /** 将内存中的存档保存到 localStorage。*/
+  function saveMessagesToStorage(messagesObject) {
+    console.info('存档已保存到 localStorage')
+    localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(messagesObject));
   }
 
-  // --- 状态管理与持久化 ---
+  /**
+   * (新功能) 根据条件将消息添加到合成频道。
+   * 如果当前活跃频道是 'Local'，并且消息是 party 或 whisper 类型，
+   * 则将其复制一份到 'Party-Local' 或 'Whisper-Local' 频道。
+   * @param {object} message - 消息数据对象。
+   * @param {string} activeChannel - 消息产生时所在的活跃频道。
+   */
+  function addMessageToSyntheticChannelIfNeeded(message, activeChannel) {
+    // 核心条件：当且仅当在 'Local' 频道时才触发
+    if (activeChannel !== 'Local') {
+      return;
+    }
+
+    let syntheticChannelName = null;
+    if (message.type.includes('party')) {
+      syntheticChannelName = 'Party-Local';
+    } else if (message.type.includes('whisper')) {
+      syntheticChannelName = 'Whisper-Local';
+    }
+
+    // 如果是 party 或 whisper 消息，则执行添加操作
+    if (syntheticChannelName) {
+      if (!inMemoryChatState[syntheticChannelName]) {
+        inMemoryChatState[syntheticChannelName] = [];
+      }
+      // 创建消息的副本以避免任何潜在的引用问题
+      inMemoryChatState[syntheticChannelName].push({ ...message });
+      console.log(`消息已自动复制到合成频道 [${syntheticChannelName}]`);
+    }
+  }
+
+  // --- 【新增】数据清理模块 ---
+  
+      /**
+       * 根据 Python 脚本的逻辑，清理一个频道记录中的重复数据。
+       * @param {Array<object>} records - 一个频道的聊天记录数组。
+       * @returns {{cleanedRecords: Array<object>, removedCount: number}} - 清理后的记录和被移除的记录数。
+       */
+      function cleanChannelRecords(records) {
+          if (!records || records.length === 0) {
+              return { cleanedRecords: [], removedCount: 0 };
+          }
+  
+          const BURST_COUNT_THRESHOLD = 20;
+          const BURST_TIME_THRESHOLD_MS = 1000; // 1 second
+  
+          const is_in_burst = new Array(records.length).fill(false);
+          if (records.length >= BURST_COUNT_THRESHOLD) {
+              for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
+                  try {
+                      const startTime = new Date(records[i].time).getTime();
+                      const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
+                      if (isNaN(startTime) || isNaN(endTime)) continue;
+  
+                      if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
+                          for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
+                              is_in_burst[j] = true;
+                          }
+                      }
+                  } catch (e) { continue; }
+              }
+          }
+  
+          const cleanedRecords = [];
+          const seen_contents = new Set();
+          let removedCount = 0;
+  
+          for (let i = 0; i < records.length; i++) {
+              const record = records[i];
+              const content = record.content;
+              const has_no_historical_flag = !record.is_historical;
+              const is_duplicate = content != null && seen_contents.has(content);
+              const in_burst = is_in_burst[i];
+              const should_delete = has_no_historical_flag && is_duplicate && in_burst;
+  
+              if (!should_delete) {
+                  cleanedRecords.push(record);
+              } else {
+                  removedCount++;
+              }
+  
+              if (content != null) {
+                  seen_contents.add(content);
+              }
+          }
+          return { cleanedRecords, removedCount };
+      }
+  
+      /**
+       * 检测所有频道中可被清理的重复记录总数。
+       * @param {object} messagesByChannel - 包含所有频道消息的对象。
+       * @returns {number} - 可被清理的记录总数。
+       */
+      function detectTotalDuplicates(messagesByChannel) {
+          let totalDuplicates = 0;
+          if (!messagesByChannel) return 0;
+  
+          for (const channel in messagesByChannel) {
+              const records = messagesByChannel[channel];
+              if (!records || records.length === 0) continue;
+  
+              const BURST_COUNT_THRESHOLD = 20;
+              const BURST_TIME_THRESHOLD_MS = 1000;
+  
+              const is_in_burst = new Array(records.length).fill(false);
+              if (records.length >= BURST_COUNT_THRESHOLD) {
+                  for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
+                      try {
+                          const startTime = new Date(records[i].time).getTime();
+                          const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
+                          if (isNaN(startTime) || isNaN(endTime)) continue;
+                          if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
+                              for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
+                                  is_in_burst[j] = true;
+                              }
+                          }
+                      } catch (e) { continue; }
+                  }
+              }
+  
+              const seen_contents = new Set();
+              for (let i = 0; i < records.length; i++) {
+                  const record = records[i];
+                  const content = record.content;
+                  const has_no_historical_flag = !record.is_historical;
+                  const is_duplicate = content != null && seen_contents.has(content);
+                  const in_burst = is_in_burst[i];
+  
+                  if (has_no_historical_flag && is_duplicate && in_burst) {
+                      totalDuplicates++;
+                  }
+  
+                  if (content != null) {
+                      seen_contents.add(content);
+                  }
+              }
+          }
+          return totalDuplicates;
+      }
+  
+  
+      /*
+   * =================================================================
+   * 用户交互界面 (UI) 模块
+   * =================================================================
+   */
 ~~~~~
 ~~~~~javascript.new
   /*
@@ -313,11 +659,103 @@ src/main.js
    * =================================================================
    */
 
-  // --- 状态管理与持久化 ---
+  /** 扫描聊天框中已存在的消息，时间戳根据UI显示的 `HH:MM` 进行估算。*/
+  function extractHistoricalChatState() {
+    const elements = locateChatElements();
+    if (!elements.tabs || !elements.chatLog) return { current_tab: null, messages: [] };
+
+    const current_tab = findActiveTabByClass(elements.tabs.innerHTML);
+    const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
+    const messages = [];
+    const chatLines = Array.from(elements.chatLog.children);
+    let currentDate = new Date();
+    let lastTimeParts = null;
+
+    for (let i = chatLines.length - 1; i >= 0; i--) {
+      const element = chatLines[i];
+      const timeNode = element.querySelector('.chat-line-timestamp');
+      if (!timeNode || !timeNode.textContent.includes(':')) continue;
+
+      const timeText = timeNode.textContent.trim();
+      const [hours, minutes] = timeText.split(':').map(Number);
+      // 处理跨天的情况
+      if (lastTimeParts && (hours > lastTimeParts.hours || (hours === lastTimeParts.hours && minutes > lastTimeParts.minutes))) {
+        currentDate.setDate(currentDate.getDate() - 1);
+      }
+      lastTimeParts = { hours, minutes };
+
+      const localDateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')} ${timeText}`;
+      const isoTimeApproximation = new Date(localDateString.replace(/-/g, '/')).toISOString();
+
+      const messageData = extractUsefulData(element, selfName, isoTimeApproximation);
+      if (messageData && messageData.content) {
+        messageData.is_historical = true; // 标记为历史消息
+        messages.push(messageData);
+      }
+    }
+    messages.reverse();
+    return { current_tab, messages };
+  }
+
+  /**
+   * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
+   * 这是一个可被多处调用的核心同步功能。
+   */
+  function scanAndMergeHistory() {
+    console.log("正在扫描并合并历史消息...");
+    const historicalState = extractHistoricalChatState();
+    let dataChanged = false;
+
+    if (historicalState.current_tab && historicalState.messages.length > 0) {
+      const channelName = historicalState.current_tab;
+      const messagesScannedCount = historicalState.messages.length; // Y: 检查了的历史记录总数
+
+      const oldMessages = inMemoryChatState[channelName] || [];
+      const oldMessageCount = oldMessages.length;
+
+      const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
+      const newMessageCount = newMergedMessages.length;
+
+      const messagesAddedCount = newMessageCount - oldMessageCount; // X: 有效合并的新记录数
+
+      if (messagesAddedCount > 0) {
+        inMemoryChatState[channelName] = newMergedMessages;
+        dataChanged = true;
+        const newlyAddedHistoricalMessages = newMergedMessages.slice(-messagesAddedCount);
+        newlyAddedHistoricalMessages.forEach(msg => {
+          // 注意：这里的 channelName 就是当时扫描时的活跃频道
+          addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
+        });
+
+        // 使用新的日志格式
+        console.log(`历史扫描 [${channelName}]: 合并了 ${messagesAddedCount}/${messagesScannedCount} 条新记录。`);
+      } else {
+        console.log(`历史扫描 [${channelName}]: 检查了 ${messagesScannedCount} 条记录，无新增内容。`);
+      }
+    }
+
+    // 如果数据有变动，且UI是打开的，则刷新UI
+    if (dataChanged) {
+      const uiContainer = document.getElementById('log-archive-ui-container');
+      const isUIPaused = uiContainer && uiContainer.querySelector('#log-archive-pause-button').textContent.includes('▶️');
+      if (uiContainer && uiContainer.style.display === 'flex' && !isUIPaused) {
+        const { updateUI: uiUpdateFn } = document.getElementById('log-archive-ui-container')._uiFunctions || {};
+        if (uiUpdateFn) {
+          uiUpdateFn(inMemoryChatState);
+        }
+      }
+    }
+  }
+
+  /*
+   * =================================================================
+   * 用户交互界面 (UI) 模块
+   * =================================================================
+   */
 ~~~~~
 
 ### 下一步建议
-- **功能验证**: 和之前一样，请运行 `npm run watch` 并刷新页面，确保聊天记录的捕获、解析和历史回溯功能完全正常。
-- **拆分状态管理**: 验证通过后，下一步的最佳选择是提取**状态管理与持久化**相关的函数。这包括 `mergeAndDeduplicateMessages`, `loadMessagesFromStorage`, `saveMessagesToStorage` 等，我们可以将它们放入 `src/state.js` 或 `src/store.js`。
+- **代码审查与验证**: 这是个大改动，请务必运行 `npm run watch` 并仔细测试脚本的各项功能，特别是：数据迁移（如果还有旧数据）、历史记录合并、实时记录、合成频道以及数据清理功能是否都正常。
+- **拆分 UI 模块**: 当你确认一切正常后，我们将进行最后一步大拆分：将庞大的 `createUI` 函数及其所有相关的辅助函数（如统计、格式化）提取到 `src/ui.js` 中。这将是我们模块化重构的收官之作。
 
-**等你完成测试后，我们就可以继续。**
+**请在测试完成后通知我。**
