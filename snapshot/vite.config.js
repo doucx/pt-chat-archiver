@@ -19,6 +19,9 @@ export default defineConfig({
         license: 'MIT',
         'run-at': 'document-idle',
       },
+      server: {
+        mountGmApi: true,
+      },
       build: {
         fileName: 'ponytown-chat-archiver.user.js',
       },
