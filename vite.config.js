@@ -11,7 +11,7 @@ export default defineConfig({
     monkey({
       entry: 'src/main.js',
       userscript: {
-        name: 'PonyTown Chat Archiver',
+        name: 'PonyTown 网页聊天记录存档器',
         namespace: 'http://tampermonkey.net/',
         version: packageJson.version,
         description:
