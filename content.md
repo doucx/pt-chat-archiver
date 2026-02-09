@@ -1,133 +1,301 @@
-你的分析非常准确。Biome 报告的这些错误虽然大多属于代码风格和最佳实践范畴（Linting），但修复它们能显著提升代码的健壮性、可读性以及性能（例如 `for...of` 在某些引擎下比 `forEach` 更优，且 `Number.isNaN` 比全局 `isNaN` 更安全，因为它不进行隐式类型转换）。
+这是一个非常棒的建议。目前 UI 的颜色散落在各个 CSS 类甚至 JavaScript 模板的行内样式中，缺乏统一的视觉语言，也不利于后期维护。
 
-我将根据报告中的建议，对 `src/ui.js` 进行针对性的修复。
+我将通过引入 **CSS 变量 (Custom Properties)** 来重构整个色彩体系。我们将定义一套核心调色板（基于 PonyTown 的深色风格），并确保所有组件都引用这些变量。
 
-## [WIP] fix: 修复 src/ui.js 中的 Biome lint 错误
-
-### 错误分析
-
-根据 `npm run check` 的输出，`src/ui.js` 中存在以下四处不符合规范的地方：
-
-1.  **变量声明风格 (`useSingleVarDeclarator`)**: 在第 105 行，`selectionStart` 和 `selectionEnd` 被声明在同一行。规范建议将它们分开声明，以提高可读性。
-2.  **迭代器性能 (`noForEach`)**: 在第 186 行和 357 行，使用了 `Array.prototype.forEach`。规范建议优先使用 `for...of` 循环，这在处理大数组时通常具有更好的性能，且能更自然地处理异步或中断逻辑。
-3.  **全局函数安全 (`noGlobalIsNan`)**: 在第 208 行使用了全局的 `isNaN`。全局 `isNaN` 会对参数进行隐式类型转换（例如 `isNaN('hello')` 为 `true`），这可能导致非预期的结果。改用 `Number.isNaN` 更为严谨。
+## [WIP] style: 统一 UI 色彩体系并引入 CSS 变量
 
 ### 用户需求
-修复 `src/ui.js` 中的 lint 报错，使项目通过 `npm run check` 的质量检查。
+统一 UI 的视觉风格，解决颜色不一致的问题，并提高样式的可维护性。
 
 ### 评论
-这些修改是基础的代码清理工作，有助于保持项目代码库的整洁和专业。遵循这些最佳实践可以减少潜在的边缘情况 bug（特别是 `isNaN` 的部分）。
+使用 CSS 变量是现代 Web 开发的标准做法。它不仅能确保视觉的一致性，还允许我们未来轻松地实现“皮肤”切换（如明亮模式或自定义主题）。
 
 ### 目标
-1. 分拆 `let` 变量声明。
-2. 将 `forEach` 替换为 `for...of`。
-3. 将全局 `isNaN` 替换为 `Number.isNaN`。
+1.  在 `src/style.css` 中定义全局色彩变量（Primary, Success, Warning, Danger, Background 等）。
+2.  重构 `src/style.css`，移除硬编码的十六进制颜色值。
+3.  清理 `src/templates.js` 中的行内颜色样式，将其移至 CSS。
+4.  确保所有交互状态（Hover, Active, Paused）遵循统一的亮度变化规则。
 
 ### 基本原理
-按照 Biome 的官方推荐进行重构。`for...of` 提供了比 `forEach` 更清晰的语义，且避免了闭包带来的开销。`Number.isNaN` 是 ES6 引入的更安全的方法。
+我们将建立一个以 `#8af` (PonyTown 标志性的浅蓝色) 为核心的调色板。背景将使用深灰色 (`#1a2026`)，并辅以半透明层级，以保持与游戏界面的和谐。通过 CSS 变量，我们可以一次性修改全局的主题色。
 
 ### 标签
-#intent/fix #flow/ready #priority/medium #comp/ui #concept/ui #scope/dx #ai/refine #task/domain/ui #task/object/lint-fix #task/action/refactor #task/state/begin
+#intent/tune #flow/ready #priority/medium #comp/ui #concept/ui #scope/ux #ai/refine #task/domain/ui #task/object/theme-system #task/action/refactor #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 修复 `src/ui.js` 中的所有 lint 报错
+#### Acts 1: 定义色彩变量并重构 `src/style.css`
 
-我们将逐一应用 Biome 报告中提到的 4 处修改。
+我们将引入变量集，并重写现有的样式规则。
+
+~~~~~act
+write_file
+src/style.css
+~~~~~
+~~~~~css
+/* 核心色彩体系 */
+#log-archive-ui-container {
+  --color-primary: #8af;
+  --color-primary-hover: #a0c8ff;
+  --color-bg: rgba(26, 32, 38, 0.95);
+  --color-surface: #2a3036;
+  --color-surface-hover: #363d44;
+  --color-border: #4a545e;
+  --color-text: #e0e0e0;
+  --color-text-dim: #a0a0a0;
+  
+  --color-success: #3a8c54;
+  --color-success-hover: #4da669;
+  --color-warning: #c89632;
+  --color-warning-hover: #e0aa40;
+  --color-danger: #8c3a3a;
+  --color-danger-hover: #a64d4d;
+  --color-info: #3a6a8c;
+  --color-info-hover: #4d86a6;
+
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 70vw;
+  height: 80vh;
+  background-color: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+  z-index: 99999;
+  display: none;
+  flex-direction: column;
+  padding: 15px;
+  font-family: monospace;
+  color: var(--color-text);
+}
+
+#log-archive-ui-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+#log-archive-ui-header h2 {
+  margin: 0;
+  font-size: 1.2em;
+  color: var(--color-primary);
+  flex-shrink: 0;
+  margin-right: 15px;
+}
+
+#log-archive-ui-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+#log-archive-ui-log-display {
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 0.9em;
+  padding: 10px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-y: auto;
+  flex-grow: 1;
+  resize: none;
+  border-radius: 4px;
+}
+
+/* 按钮通用样式 */
+.log-archive-ui-button,
+#log-archive-self-name-input {
+  padding: 8px 12px;
+  background-color: var(--color-surface);
+  color: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9em;
+}
+
+.log-archive-ui-button:hover {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-text-dim);
+}
+
+.log-archive-ui-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 特定语义按钮 */
+#log-archive-pause-button { background-color: var(--color-success); }
+#log-archive-pause-button:hover { background-color: var(--color-success-hover); }
+#log-archive-pause-button.paused { background-color: var(--color-warning); }
+#log-archive-pause-button.paused:hover { background-color: var(--color-warning-hover); }
+
+#log-archive-stats-button.active { background-color: var(--color-success); }
+#log-archive-settings-button.active { background-color: var(--color-warning); border-color: var(--color-warning-hover); }
+
+#log-archive-clear-button { background-color: var(--color-danger); }
+#log-archive-clear-button:hover { background-color: var(--color-danger-hover); }
+
+#log-archive-download-button { background-color: var(--color-info); }
+#log-archive-download-button:hover { background-color: var(--color-info-hover); }
+
+#log-archive-clean-button.active {
+  background-color: var(--color-warning);
+  font-weight: bold;
+}
+
+/* 分页与信息 */
+.info-text-primary { color: var(--color-primary-hover); font-weight: bold; }
+.info-text-dim { color: var(--color-text-dim); font-size: 0.85em; }
+
+/* 设置视图 */
+.config-section {
+  padding: 10px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-group label {
+  font-weight: bold;
+  color: var(--color-primary);
+  font-size: 0.9em;
+}
+
+.config-group input {
+  padding: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: white;
+  border-radius: 4px;
+}
+
+/* 切换按钮 */
+#log-archive-ui-toggle-button {
+  position: fixed;
+  bottom: 50px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  background-color: var(--color-primary);
+  color: #111;
+  border-radius: 50%;
+  border: none;
+  font-size: 24px;
+  line-height: 50px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 99998;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s;
+}
+
+#log-archive-ui-toggle-button:hover {
+  transform: scale(1.1);
+  background-color: var(--color-primary-hover);
+}
+
+#log-archive-storage-warning {
+  color: #ffcc00;
+  font-weight: bold;
+  font-size: 0.9em;
+  margin-left: 20px;
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+~~~~~
+
+#### Acts 2: 移除 `src/templates.js` 中的行内颜色
+
+我们将使用在 Act 1 中定义的新 CSS 类。
 
 ~~~~~act
 patch_file
-src/ui.js
+src/templates.js
 ~~~~~
 ~~~~~javascript.old
-  function updateTextareaAndPreserveSelection(updateFn) {
-    const isFocused = document.activeElement === logDisplay;
-    let selectionStart, selectionEnd;
-    if (isFocused) {
-      selectionStart = logDisplay.selectionStart;
-~~~~~
-~~~~~javascript.new
-  function updateTextareaAndPreserveSelection(updateFn) {
-    const isFocused = document.activeElement === logDisplay;
-    let selectionStart;
-    let selectionEnd;
-    if (isFocused) {
-      selectionStart = logDisplay.selectionStart;
-~~~~~
+        <div id="log-archive-log-view" style="display: flex; flex-direction: column; height: 100%;">
+            <div id="log-archive-ui-pagination-controls" style="margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;">
+                <button id="page-first" class="log-archive-ui-button">«</button>
+                <button id="page-prev" class="log-archive-ui-button">‹</button>
+                <span id="page-info" style="font-weight: bold; color: #a0c8ff;"></span>
+                <button id="page-next" class="log-archive-ui-button">›</button>
+                <button id="page-last" class="log-archive-ui-button">»</button>
+            </div>
+            <textarea id="log-archive-ui-log-display" readonly style="margin-top: 10px; flex-grow: 1;"></textarea>
+        </div>
 
-~~~~~act
-patch_file
-src/ui.js
-~~~~~
-~~~~~javascript.old
-    if (channels.length === 0) {
-      channelSelector.innerHTML = '<option>无记录</option>';
-    } else {
-      channels.forEach((ch) => {
-        const opt = document.createElement('option');
-        opt.value = ch;
-        opt.textContent = `${ch} (${inMemoryChatState[ch].length})`;
-        channelSelector.appendChild(opt);
-      });
-      if (prev && channels.includes(prev)) {
+        <!-- 设置视图 -->
+        <div id="log-archive-config-view" class="config-section" style="display: none;">
+            <div class="config-group">
+                <label>用户昵称</label>
+                <input type="text" id="log-archive-self-name-input" placeholder="用于识别私聊方向...">
+            </div>
+            <div class="config-group">
+                <label>分页大小 (每页消息条数)</label>
+                <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
+            </div>
+            <div class="config-group">
+                <label>维护操作</label>
+                <div id="log-archive-config-storage-info" style="color: #a0c8ff; font-size: 0.85em; margin-bottom: 5px;"></div>
+                <div class="config-actions">
 ~~~~~
 ~~~~~javascript.new
-    if (channels.length === 0) {
-      channelSelector.innerHTML = '<option>无记录</option>';
-    } else {
-      for (const ch of channels) {
-        const opt = document.createElement('option');
-        opt.value = ch;
-        opt.textContent = `${ch} (${inMemoryChatState[ch].length})`;
-        channelSelector.appendChild(opt);
-      }
-      if (prev && channels.includes(prev)) {
-~~~~~
+        <div id="log-archive-log-view" style="display: flex; flex-direction: column; height: 100%;">
+            <div id="log-archive-ui-pagination-controls" style="margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;">
+                <button id="page-first" class="log-archive-ui-button">«</button>
+                <button id="page-prev" class="log-archive-ui-button">‹</button>
+                <span id="page-info" class="info-text-primary"></span>
+                <button id="page-next" class="log-archive-ui-button">›</button>
+                <button id="page-last" class="log-archive-ui-button">»</button>
+            </div>
+            <textarea id="log-archive-ui-log-display" readonly style="margin-top: 10px; flex-grow: 1;"></textarea>
+        </div>
 
-~~~~~act
-patch_file
-src/ui.js
-~~~~~
-~~~~~javascript.old
-  pageSizeInput.addEventListener('change', () => {
-    const val = Number.parseInt(pageSizeInput.value, 10);
-    if (!isNaN(val) && val >= 10) {
-      uiState.pageSize = val;
-      saveConfig();
-~~~~~
-~~~~~javascript.new
-  pageSizeInput.addEventListener('change', () => {
-    const val = Number.parseInt(pageSizeInput.value, 10);
-    if (!Number.isNaN(val) && val >= 10) {
-      uiState.pageSize = val;
-      saveConfig();
-~~~~~
-
-~~~~~act
-patch_file
-src/ui.js
-~~~~~
-~~~~~javascript.old
-      deactivateLogger();
-      localStorage.removeItem(STORAGE_KEY_V5);
-      Object.keys(inMemoryChatState).forEach((key) => delete inMemoryChatState[key]);
-      scanAndMergeHistory();
-      saveMessagesToStorage(inMemoryChatState);
-~~~~~
-~~~~~javascript.new
-      deactivateLogger();
-      localStorage.removeItem(STORAGE_KEY_V5);
-      for (const key of Object.keys(inMemoryChatState)) {
-        delete inMemoryChatState[key];
-      }
-      scanAndMergeHistory();
-      saveMessagesToStorage(inMemoryChatState);
+        <!-- 设置视图 -->
+        <div id="log-archive-config-view" class="config-section" style="display: none;">
+            <div class="config-group">
+                <label>用户昵称</label>
+                <input type="text" id="log-archive-self-name-input" placeholder="用于识别私聊方向...">
+            </div>
+            <div class="config-group">
+                <label>分页大小 (每页消息条数)</label>
+                <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
+            </div>
+            <div class="config-group">
+                <label>维护操作</label>
+                <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 5px;"></div>
+                <div class="config-actions">
 ~~~~~
 
 ### 下一步建议
 
-1.  **验证**: 再次运行 `npm run check` 确保所有报错已消除。
-2.  **提交**: 如果检查通过，可以将这些修改作为一个 `[COMMIT]` 提交到仓库。
-3.  **持续检查**: 考虑在 Git Hook (如 husky) 中加入 `biome check`，防止未来引入类似的代码风格问题。
+1.  **视觉校对**: 打开脚本界面，检查按钮的 Hover 状态和 Active 状态是否符合预期。
+2.  **清理 lint**: 建议同时应用上一回合中的 Biome lint 修复，以确保代码库在视觉和逻辑上都达到了最佳状态。
+3.  **响应式优化**: 目前宽度固定为 `70vw`，可以考虑针对更窄的屏幕（如手机端 PonyTown）做一些微调。

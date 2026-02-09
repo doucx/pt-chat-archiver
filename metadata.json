@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修复 src/ui.js 中的 Biome lint 错误", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770668598.0316305, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] style: 统一 UI 色彩体系并引入 CSS 变量", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770668783.4206572, "duration_ms": 0}}
