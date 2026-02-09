@@ -1,18 +1,11 @@
 import './style.css';
+import { STORAGE_KEY_V5, OLD_STORAGE_KEY_V4, SELF_NAME_KEY, STORAGE_WARNING_THRESHOLD_MB, MAIN_SERVER_HOSTS } from './constants.js';
+import { getStorageUsageInMB, debounce, getISOTimestamp, formatISOTimeForDisplay } from './utils.js';
 
 (function() {
   'use strict';
 
   // --- 全局配置与状态 ---
-  const STORAGE_KEY_V5 = 'chatLogArchive_v5';
-  const OLD_STORAGE_KEY_V4 = 'chatLogArchive_v4';
-  const SELF_NAME_KEY = 'chatLogArchiver_selfName';
-
-  const STORAGE_WARNING_THRESHOLD_MB = 3.5; // 存储警告阈值 (MB)
-
-  // 定义被视为主服务器的域名列表，以启用精细化解析
-  const MAIN_SERVER_HOSTS = ['pony.town'];
-
   // 内存缓存，作为脚本运行期间所有聊天记录的单一数据源
   let inMemoryChatState = {};
   // 消息监听器的实例，用于跟踪其状态
@@ -84,66 +77,11 @@ import './style.css';
     }
   }
 
-  /**
-   * 计算脚本在 localStorage 中的存储占用空间。
-   * @returns {number} - 占用的空间大小，单位是 MB。
-   */
-  function getStorageUsageInMB() {
-    const data = localStorage.getItem(STORAGE_KEY_V5);
-    if (!data) return 0;
-    // 使用 Blob 来精确计算字符串的字节大小
-    const sizeInBytes = new Blob([data]).size;
-    return sizeInBytes / (1024 * 1024);
-  }
-
   /*
    * =================================================================
    * 核心功能模块
    * =================================================================
    */
-
-  /**
-   * 防抖函数。
-   * 当一个函数在短时间内被连续调用时，此函数可以确保它只在最后一次调用之后的一段“冷静期”后执行一次。
-   * @param {Function} func - 需要进行防抖处理的函数。
-   * @param {number} wait - “冷静期”的毫秒数。
-   * @returns {Function} - 返回一个新的、经过防抖处理的函数。
-   */
-  function debounce(func, wait) {
-    let timeout;
-    return function(...args) {
-      const context = this;
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(context, args), wait);
-    };
-  }
-
-  // --- 时间与数据格式化 ---
-
-  /** 获取当前时间的 ISO 8601 UTC 标准格式字符串。*/
-  function getISOTimestamp() {
-    return new Date().toISOString();
-  }
-
-  /** 在UI界面中，将ISO UTC时间字符串格式化为用户本地时区的可读格式。*/
-  function formatISOTimeForDisplay(isoString) {
-    if (!isoString) return 'N/A';
-    try {
-      const date = new Date(isoString);
-      if (isNaN(date.getTime())) return '日期无效';
-
-      const year = date.getFullYear();
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const day = date.getDate().toString().padStart(2, '0');
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      const seconds = date.getSeconds().toString().padStart(2, '0');
-
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    } catch (e) {
-      return '日期无效';
-    }
-  }
 
   // --- DOM 解析 ---
 
