@@ -8,7 +8,6 @@ export const getMainContainerHTML = (version) => `
         <h2>聊天记录存档 v${version}</h2>
         <div id="log-archive-ui-controls">
             <select id="log-archive-channel-selector" class="log-archive-ui-button"></select>
-            <button id="log-archive-refresh-button" class="log-archive-ui-button">刷新</button>
             <button id="log-archive-pause-button" class="log-archive-ui-button">⏸️ </button>
             <button id="log-archive-stats-button" class="log-archive-ui-button">📊 统计</button>
             <button id="log-archive-settings-button" class="log-archive-ui-button">⚙️ 设置</button>

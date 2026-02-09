@@ -70,7 +70,6 @@ export function createUI(inMemoryChatState, callbacks) {
   const logDisplay = document.getElementById('log-archive-ui-log-display');
   const copyButton = document.getElementById('log-archive-copy-button');
   const closeButton = document.getElementById('log-archive-close-button');
-  const refreshButton = document.getElementById('log-archive-refresh-button');
   const downloadButton = document.getElementById('log-archive-download-button');
   const statsButton = document.getElementById('log-archive-stats-button');
   const settingsButton = document.getElementById('log-archive-settings-button');
@@ -221,12 +220,6 @@ export function createUI(inMemoryChatState, callbacks) {
   });
 
   // 顶栏通用操作
-  refreshButton.addEventListener('click', () => {
-    scanAndMergeHistory();
-    saveMessagesToStorage(inMemoryChatState);
-    updateUI();
-  });
-
   pauseButton.addEventListener('click', () => {
     isUIPaused = !isUIPaused;
     pauseButton.classList.toggle('paused', isUIPaused);

@@ -1,63 +1,102 @@
-这是因为 `style.css` 中统计按钮的默认背景色被硬编码为了绿色（`#3a8c54`），这导致即便没有 `.active` 类，它看起来也像是“被激活”的。
+好的，既然目前系统已经能够很好地自动处理消息合并，手动刷新按钮确实显得冗余了。
 
-我将修改 `style.css`，让统计按钮在默认状态下保持与其他按钮一致的深灰色，仅在切换到统计视图（`.active`）时才变绿高亮。
+我将从模板中移除该按钮，并清理 `ui.js` 中相关的引用和事件绑定。
 
-## [WIP] fix: 修正统计按钮在非激活状态下的高亮显示问题
-
-### 错误分析
-在 `style.css` 中，`#log-archive-stats-button` 的基础样式被设置为了绿色。由于 `.active` 类设置的也是同样的绿色背景，导致按钮在“统计”和“记录”文本切换时，视觉上的颜色反馈没有发生变化，始终处于高亮状态。
+## [WIP] chore: 移除冗余的刷新按钮
 
 ### 用户需求
-当页面显示“记录”时，统计按钮应显示为普通按钮颜色（灰色）；仅当用户点击并切换到“统计”视图时，按钮才变绿。
+删除 UI 顶栏中的“刷新”按钮。
+
+### 评论
+系统目前通过 `MutationObserver` 和 `scanAndMergeHistory` 逻辑已经实现了较好的自动化更新，且进入 UI 时会自动执行同步，手动刷新按钮的维护价值已不高。
 
 ### 目标
-1.  调整 `src/style.css`，将统计按钮的默认背景色改为标准按钮色（`#4a545e`）。
-2.  确保 `.active` 类能正确提供绿色高亮反馈。
+1.  从 `src/templates.js` 的 HTML 模板中移除 `log-archive-refresh-button`。
+2.  从 `src/ui.js` 中移除对该按钮的 DOM 引用和点击事件监听器。
 
 ### 标签
-#intent/fix #flow/ready #priority/medium #comp/ui #scope/ux #ai/delegate #task/domain/ui #task/object/stats-button-style #task/action/fix #task/state/continue
+#intent/refine #flow/ready #priority/low #comp/ui #scope/ux #ai/delegate #task/domain/ui #task/object/refresh-button #task/action/cleanup #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 修正统计按钮的 CSS 颜色定义
-
-我们将统计按钮的基础背景色改为标准灰色，并保持 `.active` 状态为绿色。
+#### Acts 1: 从模板中移除按钮
 
 ~~~~~act
 patch_file
-src/style.css
+src/templates.js
 ~~~~~
-~~~~~css.old
-#log-archive-stats-button {
-  background-color: #3a8c54;
-}
-#log-archive-stats-button:hover {
-  background-color: #7b65a0;
-}
-#log-archive-stats-button.active {
-  background-color: #3a8c54;
-  border-color: #4da669;
-  color: #fff;
-}
+~~~~~html.old
+        <div id="log-archive-ui-controls">
+            <select id="log-archive-channel-selector" class="log-archive-ui-button"></select>
+            <button id="log-archive-refresh-button" class="log-archive-ui-button">刷新</button>
+            <button id="log-archive-pause-button" class="log-archive-ui-button">⏸️ </button>
+            <button id="log-archive-stats-button" class="log-archive-ui-button">📊 统计</button>
 ~~~~~
-~~~~~css.new
-#log-archive-stats-button {
-  background-color: #4a545e;
-}
-#log-archive-stats-button:hover {
-  background-color: #6c7886;
-}
-#log-archive-stats-button.active {
-  background-color: #3a8c54;
-  border-color: #4da669;
-  color: #fff;
-}
+~~~~~html.new
+        <div id="log-archive-ui-controls">
+            <select id="log-archive-channel-selector" class="log-archive-ui-button"></select>
+            <button id="log-archive-pause-button" class="log-archive-ui-button">⏸️ </button>
+            <button id="log-archive-stats-button" class="log-archive-ui-button">📊 统计</button>
+~~~~~
+
+#### Acts 2: 从 `ui.js` 中清理逻辑
+
+移除 DOM 引用和事件监听代码。
+
+~~~~~act
+patch_file
+src/ui.js
+~~~~~
+~~~~~javascript.old
+  const channelSelector = document.getElementById('log-archive-channel-selector');
+  const logDisplay = document.getElementById('log-archive-ui-log-display');
+  const copyButton = document.getElementById('log-archive-copy-button');
+  const closeButton = document.getElementById('log-archive-close-button');
+  const refreshButton = document.getElementById('log-archive-refresh-button');
+  const downloadButton = document.getElementById('log-archive-download-button');
+  const statsButton = document.getElementById('log-archive-stats-button');
+~~~~~
+~~~~~javascript.new
+  const channelSelector = document.getElementById('log-archive-channel-selector');
+  const logDisplay = document.getElementById('log-archive-ui-log-display');
+  const copyButton = document.getElementById('log-archive-copy-button');
+  const closeButton = document.getElementById('log-archive-close-button');
+  const downloadButton = document.getElementById('log-archive-download-button');
+  const statsButton = document.getElementById('log-archive-stats-button');
+~~~~~
+
+~~~~~act
+patch_file
+src/ui.js
+~~~~~
+~~~~~javascript.old
+  statsButton.addEventListener('click', () => {
+    uiState.viewMode = uiState.viewMode === 'stats' ? 'log' : 'stats';
+    renderCurrentView();
+  });
+
+  // 顶栏通用操作
+  refreshButton.addEventListener('click', () => {
+    scanAndMergeHistory();
+    saveMessagesToStorage(inMemoryChatState);
+    updateUI();
+  });
+
+  pauseButton.addEventListener('click', () => {
+~~~~~
+~~~~~javascript.new
+  statsButton.addEventListener('click', () => {
+    uiState.viewMode = uiState.viewMode === 'stats' ? 'log' : 'stats';
+    renderCurrentView();
+  });
+
+  // 顶栏通用操作
+  pauseButton.addEventListener('click', () => {
 ~~~~~
 
 ### 下一步建议
-1.  **刷新页面测试**:
-    *   默认状态：按钮显示“📊 统计”，颜色为灰色。
-    *   点击后：按钮显示“📜 记录”，颜色变为绿色。
-2.  **提交代码**: 视觉反馈确认正常后即可提交。
+1.  **检查 UI**: 确认刷新按钮已消失，且顶栏布局依然整齐。
+2.  **验证核心流程**: 确认由于移除按钮没有引起脚本报错（JS Error），且其他按钮功能正常。
+3.  **最终提交**: 建议执行 `git commit` 将这一系列 UI 改进永久化。

@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修正统计按钮在非激活状态下的高亮显示问题", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770668128.6864936, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] chore: 移除冗余的刷新按钮", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770668300.4843185, "duration_ms": 0}}
