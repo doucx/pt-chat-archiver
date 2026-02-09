@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 解决 PonyTown 严格 CSP 导致无法加载本地开发脚本的问题", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770642829.8630843, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] feat: 初始化 Vite + Monkey 构建系统并迁移原始脚本", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770643290.2661362, "duration_ms": 0}}
