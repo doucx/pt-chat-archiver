@@ -1,4 +1,5 @@
 import { SELF_NAME_KEY, STORAGE_KEY_V5 } from './constants.js';
+import { getMainContainerHTML, TOGGLE_BUTTON_ICON } from './templates.js';
 import { formatISOTimeForDisplay, getStorageUsageInMB } from './utils.js';
 
 /**
@@ -31,30 +32,12 @@ export function createUI(inMemoryChatState, callbacks) {
 
   const container = document.createElement('div');
   container.id = 'log-archive-ui-container';
-  container.innerHTML = `
-            <div id="log-archive-ui-header">
-                <h2>聊天记录存档 v${__APP_VERSION__}</h2>
-                <div id="log-archive-ui-controls">
-                    <input type="text" id="log-archive-self-name-input" placeholder="输入你的昵称...">
-                    <select id="log-archive-channel-selector" class="log-archive-ui-button"></select>
-                    <button id="log-archive-refresh-button" class="log-archive-ui-button">刷新</button>
-                    <button id="log-archive-pause-button" class="log-archive-ui-button">⏸️ </button>
-                    <button id="log-archive-stats-button" class="log-archive-ui-button">查看统计</button>
-                    <button id="log-archive-copy-button" class="log-archive-ui-button">复制</button>
-                    <button id="log-archive-copy-all-button" class="log-archive-ui-button">复制(JSON)</button>
-                    <button id="log-archive-download-button" class="log-archive-ui-button">下载</button>
-                    <button id="log-archive-clean-button" class="log-archive-ui-button">清理重复</button>
-                    <button id="log-archive-clear-button" class="log-archive-ui-button">清空</button>
-                    <button id="log-archive-close-button" class="log-archive-ui-button">关闭</button>
-                </div>
-            </div>
-            <textarea id="log-archive-ui-log-display" readonly></textarea>
-        `;
+  container.innerHTML = getMainContainerHTML(__APP_VERSION__);
   document.body.appendChild(container);
 
   const toggleButton = document.createElement('div');
   toggleButton.id = 'log-archive-ui-toggle-button';
-  toggleButton.textContent = '📜';
+  toggleButton.textContent = TOGGLE_BUTTON_ICON;
   document.body.appendChild(toggleButton);
 
   const uiContainer = document.getElementById('log-archive-ui-container');

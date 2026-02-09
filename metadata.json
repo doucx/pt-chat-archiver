@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M package-lock.json, M package.json", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770664617.2128148, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] refactor(ui): 将 HTML 模板提取到独立模块", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770664624.4458337, "duration_ms": 0}}
