@@ -131,16 +131,21 @@ export function createUI(inMemoryChatState, callbacks) {
     logView.style.display = uiState.viewMode === 'config' ? 'none' : 'flex';
     configView.style.display = uiState.viewMode === 'config' ? 'flex' : 'none';
     
-    // 按钮激活状态
-    statsButton.classList.toggle('active', uiState.viewMode === 'stats');
-    settingsButton.classList.toggle('active', uiState.viewMode === 'config');
+    // 按钮激活状态与文本切换
+    const isStatsMode = uiState.viewMode === 'stats';
+    const isConfigMode = uiState.viewMode === 'config';
 
-    if (uiState.viewMode === 'config') {
+    statsButton.classList.toggle('active', isStatsMode);
+    statsButton.textContent = isStatsMode ? '📜 记录' : '📊 统计';
+    
+    settingsButton.classList.toggle('active', isConfigMode);
+
+    if (isConfigMode) {
       updateCleanButtonState(detectTotalDuplicates(inMemoryChatState));
       return;
     }
 
-    if (uiState.viewMode === 'stats') {
+    if (isStatsMode) {
       paginationControls.style.display = 'none';
       updateTextareaAndPreserveSelection(() => {
         logDisplay.value = generateStatisticsText(messages, selectedChannel);
