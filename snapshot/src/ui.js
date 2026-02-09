@@ -1,5 +1,5 @@
 import { generateStatisticsText } from './analysis.js';
-import { SELF_NAME_KEY, STORAGE_KEY_V5, CONFIG_KEY } from './constants.js';
+import { CONFIG_KEY, SELF_NAME_KEY, STORAGE_KEY_V5 } from './constants.js';
 import { TOGGLE_BUTTON_ICON, getMainContainerHTML } from './templates.js';
 import { formatISOTimeForDisplay, getStorageUsageInMB } from './utils.js';
 
@@ -74,7 +74,7 @@ export function createUI(inMemoryChatState, callbacks) {
   const statsButton = document.getElementById('log-archive-stats-button');
   const settingsButton = document.getElementById('log-archive-settings-button');
   const pauseButton = document.getElementById('log-archive-pause-button');
-  
+
   // 配置页控件
   const selfNameInput = document.getElementById('log-archive-self-name-input');
   const pageSizeInput = document.getElementById('log-archive-page-size-input');
@@ -130,14 +130,14 @@ export function createUI(inMemoryChatState, callbacks) {
     // 视图可见性切换
     logView.style.display = uiState.viewMode === 'config' ? 'none' : 'flex';
     configView.style.display = uiState.viewMode === 'config' ? 'flex' : 'none';
-    
+
     // 按钮激活状态与文本切换
     const isStatsMode = uiState.viewMode === 'stats';
     const isConfigMode = uiState.viewMode === 'config';
 
     statsButton.classList.toggle('active', isStatsMode);
     statsButton.textContent = isStatsMode ? '📜 记录' : '📊 统计';
-    
+
     settingsButton.classList.toggle('active', isConfigMode);
 
     if (isConfigMode) {
@@ -161,11 +161,12 @@ export function createUI(inMemoryChatState, callbacks) {
       const paginatedMessages = messages.slice(startIndex, startIndex + uiState.pageSize);
 
       updateTextareaAndPreserveSelection(() => {
-        logDisplay.value = paginatedMessages.length > 0
-          ? paginatedMessages.map(formatMessageForDisplay).join('\n')
-          : `--- 在频道 [${selectedChannel}] 中没有记录 ---`;
+        logDisplay.value =
+          paginatedMessages.length > 0
+            ? paginatedMessages.map(formatMessageForDisplay).join('\n')
+            : `--- 在频道 [${selectedChannel}] 中没有记录 ---`;
       });
-      
+
       pageInfoSpan.textContent = `${uiState.currentPage} / ${uiState.totalPages}`;
       const isFirst = uiState.currentPage === 1;
       const isLast = uiState.currentPage === uiState.totalPages;
@@ -178,11 +179,11 @@ export function createUI(inMemoryChatState, callbacks) {
     const prev = channelSelector.value;
     const channels = Object.keys(inMemoryChatState);
     channelSelector.innerHTML = '';
-    
+
     if (channels.length === 0) {
       channelSelector.innerHTML = '<option>无记录</option>';
     } else {
-      channels.forEach(ch => {
+      channels.forEach((ch) => {
         const opt = document.createElement('option');
         opt.value = ch;
         opt.textContent = `${ch} (${inMemoryChatState[ch].length})`;
@@ -203,7 +204,7 @@ export function createUI(inMemoryChatState, callbacks) {
   });
 
   pageSizeInput.addEventListener('change', () => {
-    const val = parseInt(pageSizeInput.value, 10);
+    const val = Number.parseInt(pageSizeInput.value, 10);
     if (!isNaN(val) && val >= 10) {
       uiState.pageSize = val;
       saveConfig();
@@ -245,10 +246,26 @@ export function createUI(inMemoryChatState, callbacks) {
   });
 
   // 分页操作
-  pageFirstBtn.addEventListener('click', () => { uiState.currentPage = 1; renderCurrentView(); });
-  pagePrevBtn.addEventListener('click', () => { if (uiState.currentPage > 1) { uiState.currentPage--; renderCurrentView(); } });
-  pageNextBtn.addEventListener('click', () => { if (uiState.currentPage < uiState.totalPages) { uiState.currentPage++; renderCurrentView(); } });
-  pageLastBtn.addEventListener('click', () => { uiState.currentPage = uiState.totalPages; renderCurrentView(); });
+  pageFirstBtn.addEventListener('click', () => {
+    uiState.currentPage = 1;
+    renderCurrentView();
+  });
+  pagePrevBtn.addEventListener('click', () => {
+    if (uiState.currentPage > 1) {
+      uiState.currentPage--;
+      renderCurrentView();
+    }
+  });
+  pageNextBtn.addEventListener('click', () => {
+    if (uiState.currentPage < uiState.totalPages) {
+      uiState.currentPage++;
+      renderCurrentView();
+    }
+  });
+  pageLastBtn.addEventListener('click', () => {
+    uiState.currentPage = uiState.totalPages;
+    renderCurrentView();
+  });
 
   // 复制与下载
   copyButton.addEventListener('click', () => {
@@ -256,7 +273,9 @@ export function createUI(inMemoryChatState, callbacks) {
       navigator.clipboard.writeText(logDisplay.value).then(() => {
         const originalText = copyButton.textContent;
         copyButton.textContent = '已复制!';
-        setTimeout(() => { copyButton.textContent = originalText; }, 1500);
+        setTimeout(() => {
+          copyButton.textContent = originalText;
+        }, 1500);
       });
     }
   });
@@ -266,7 +285,9 @@ export function createUI(inMemoryChatState, callbacks) {
     navigator.clipboard.writeText(messages).then(() => {
       const originalText = copyAllButton.textContent;
       copyAllButton.textContent = '已复制 JSON!';
-      setTimeout(() => { copyAllButton.textContent = originalText; }, 1500);
+      setTimeout(() => {
+        copyAllButton.textContent = originalText;
+      }, 1500);
     });
   });
 
@@ -275,7 +296,7 @@ export function createUI(inMemoryChatState, callbacks) {
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 16);
     const baseFilename = `pt-saver-${timestamp}`;
-    
+
     // 生成文本版本
     let allTextContent = '';
     for (const channelName in inMemoryChatState) {
@@ -295,7 +316,11 @@ export function createUI(inMemoryChatState, callbacks) {
       URL.revokeObjectURL(url);
     };
 
-    triggerDownload(JSON.stringify(inMemoryChatState, null, 2), `${baseFilename}.json`, 'application/json');
+    triggerDownload(
+      JSON.stringify(inMemoryChatState, null, 2),
+      `${baseFilename}.json`,
+      'application/json',
+    );
     triggerDownload(allTextContent.trim(), `${baseFilename}.txt`, 'text/plain');
   });
 
@@ -303,7 +328,11 @@ export function createUI(inMemoryChatState, callbacks) {
   cleanButton.addEventListener('click', () => {
     const duplicateCount = detectTotalDuplicates(inMemoryChatState);
     if (duplicateCount === 0) return alert('未发现可清理的重复记录。');
-    if (confirm(`【确认】此操作将根据特定规则删除 ${duplicateCount} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`)) {
+    if (
+      confirm(
+        `【确认】此操作将根据特定规则删除 ${duplicateCount} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
+      )
+    ) {
       for (const channel in inMemoryChatState) {
         const { cleanedRecords } = cleanChannelRecords(inMemoryChatState[channel]);
         inMemoryChatState[channel] = cleanedRecords;
@@ -311,15 +340,21 @@ export function createUI(inMemoryChatState, callbacks) {
       saveMessagesToStorage(inMemoryChatState);
       updateUI();
       cleanButton.textContent = '清理完毕!';
-      setTimeout(() => { updateCleanButtonState(0); }, 2000);
+      setTimeout(() => {
+        updateCleanButtonState(0);
+      }, 2000);
     }
   });
 
   clearButton.addEventListener('click', () => {
-    if (confirm('【严重警告】此操作将清空所有本地存储的聊天存档，并以当前屏幕可见记录重置。此操作不可恢复！确定要执行吗？')) {
+    if (
+      confirm(
+        '【严重警告】此操作将清空所有本地存储的聊天存档，并以当前屏幕可见记录重置。此操作不可恢复！确定要执行吗？',
+      )
+    ) {
       deactivateLogger();
       localStorage.removeItem(STORAGE_KEY_V5);
-      Object.keys(inMemoryChatState).forEach(key => delete inMemoryChatState[key]);
+      Object.keys(inMemoryChatState).forEach((key) => delete inMemoryChatState[key]);
       scanAndMergeHistory();
       saveMessagesToStorage(inMemoryChatState);
       uiState.viewMode = 'log';
@@ -333,11 +368,13 @@ export function createUI(inMemoryChatState, callbacks) {
     if (!isVisible) updateUI();
     uiContainer.style.display = isVisible ? 'none' : 'flex';
   });
-  closeButton.addEventListener('click', () => { uiContainer.style.display = 'none'; });
+  closeButton.addEventListener('click', () => {
+    uiContainer.style.display = 'none';
+  });
 
   // --- 返回控制句柄 ---
-  return { 
-    updateUI, 
+  return {
+    updateUI,
     checkStorageUsage: () => {
       const usageMB = getStorageUsageInMB();
       const uiHeader = document.getElementById('log-archive-ui-header');
@@ -352,7 +389,7 @@ export function createUI(inMemoryChatState, callbacks) {
       } else if (warningElement) {
         warningElement.remove();
       }
-    }, 
-    isUIPaused: () => isUIPaused 
+    },
+    isUIPaused: () => isUIPaused,
   };
 }
