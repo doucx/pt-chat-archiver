@@ -1,0 +1,1 @@
+{"meta_version": "1.0", "summary": "Capture: A .gitignore, A index.html, A package-lock.json ... and 7 more files", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770642129.0452707, "duration_ms": 0}}
