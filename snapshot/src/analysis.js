@@ -155,7 +155,12 @@ export function detectTotalDuplicates(messagesByChannel) {
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
       const content = record.content;
-      if (!record.is_historical && content != null && seen_contents.has(content) && is_in_burst[i]) {
+      if (
+        !record.is_historical &&
+        content != null &&
+        seen_contents.has(content) &&
+        is_in_burst[i]
+      ) {
         totalDuplicates++;
       }
       if (content != null) seen_contents.add(content);

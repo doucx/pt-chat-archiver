@@ -1,6 +1,6 @@
 import { generateStatisticsText } from './analysis.js';
 import { SELF_NAME_KEY, STORAGE_KEY_V5 } from './constants.js';
-import { getMainContainerHTML, TOGGLE_BUTTON_ICON } from './templates.js';
+import { TOGGLE_BUTTON_ICON, getMainContainerHTML } from './templates.js';
 import { formatISOTimeForDisplay, getStorageUsageInMB } from './utils.js';
 
 /**
