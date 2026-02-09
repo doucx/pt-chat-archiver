@@ -1,62 +1,143 @@
-好的，我们已经成功完成了整个脚本的模块化重构。现在是时候将这个巨大的成果作为一个完整的、稳定的里程碑提交到版本控制中了。
+你的分析非常准确。在现代前端开发中，将版本号通过 `package.json` 进行统一管理（SSOT）是最佳实践。这不仅能确保构建出的 Userscript 元信息正确，也能让 UI 界面实时反映当前版本。
 
-## [COMMIT] refactor: 完成脚本的完全模块化重构
+我将执行以下步骤：
+1.  更新 `package.json` 中的 `version` 字段为 `5.5.0`。
+2.  在 `src/constants.js` 中新增 `VERSION` 常量。
+3.  修改 `vite.config.js`，使其动态读取 `package.json` 中的版本号。
+4.  修改 `src/ui.js`，通过导入 `VERSION` 常量来渲染标题。
+
+## [WIP] refactor: 建立项目版本号的单事实来源 (SSOT)
 
 ### 用户需求
-将所有已完成的模块化拆分工作（包括样式、常量、工具函数、解析器、状态管理和 UI）作为一个原子性的提交，正式记录到 Git 历史中。
+消除项目中硬编码的版本号，建立以 `package.json` 为核心、`src/constants.js` 为中转的版本号管理体系。
 
 ### 评论
-这是一次教科书式的重构。通过将一个数千行的单体脚本拆分为独立的、职责明确的模块（`parser`, `state`, `ui`），我们不仅极大地提升了代码的可读性和可维护性，还为未来的功能迭代和单元测试打下了坚实的基础。`main.js` 现在扮演着一个清晰的“控制器”角色，协调各个模块，结构非常优雅。
+这是一个基础但关键的重构。随着项目的迭代，手动在多个文件（构建配置、源码、UI）中维护版本号极易出错。通过 SSOT，我们只需要在一个地方（`package.json`）修改版本，整个系统就会自动同步。
 
 ### 目标
-1.  将所有新建的模块文件和修改后的主文件添加到 Git 暂存区。
-2.  创建一个内容详尽的提交，总结这次重构的核心工作和价值。
+1.  同步 `package.json` 版本号。
+2.  在 `constants.js` 中定义版本号常量。
+3.  打通 `vite.config.js` 与 `package.json` 的版本关联。
+4.  实现 `src/ui.js` 的版本号动态渲染。
 
 ### 基本原理
-`[COMMIT]` 计划用于将一系列经过验证的、逻辑上完整的变更持久化。这次提交标志着整个“模块化”宏任务的正式完成。
+利用 Vite 对 JSON 文件的原生支持，在 `vite.config.js` 中通过 `import` 读取 `package.json`。而在运行时代码中，我们将版本号定义在 `constants.js` 中。虽然最完美的 SSOT 是运行时也直接 `import package.json`，但考虑到 Userscript 的打包体积和某些环境下的兼容性，在 `constants.js` 中手动维护一个与 `package.json` 同步的变量是性能与维护性的折中方案。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/core #concept/parser #concept/state #concept/ui #scope/core #scope/dx #ai/instruct #task/domain/refactoring #task/object/modularity #task/action/commit #task/state/end #task/status/completed
+#intent/refine #flow/ready #priority/medium #comp/build #comp/ui #scope/dx #ai/instruct #task/domain/devops #task/object/versioning-ssot #task/action/refactor #task/state/begin
 
 ---
 
 ### Script
 
-#### Acts 1: 提交所有重构变更
+#### Acts 1: 更新 `package.json` 和 `constants.js`
 
-我们将所有新建和修改的文件添加到暂存区，并创建一个详细的提交。
+首先将底层数据源同步到目标版本。
 
 ~~~~~act
-git_add
-src/main.js
+patch_file
+package.json
+~~~~~
+~~~~~json.old
+  "name": "pt-chat-archiver",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+~~~~~
+~~~~~json.new
+  "name": "pt-chat-archiver",
+  "private": true,
+  "version": "5.5.0",
+  "type": "module",
+~~~~~
+
+~~~~~act
+patch_file
 src/constants.js
-src/utils.js
-src/parser.js
-src/state.js
+~~~~~
+~~~~~javascript.old
+// 全局配置与状态
+export const STORAGE_KEY_V5 = 'chatLogArchive_v5';
+~~~~~
+~~~~~javascript.new
+// 全局配置与状态
+export const VERSION = '5.5.0';
+export const STORAGE_KEY_V5 = 'chatLogArchive_v5';
+~~~~~
+
+#### Acts 2: 修改 `vite.config.js` 引用 `package.json`
+
+让 Userscript 的元数据（Meta Block）自动跟随 `package.json`。
+
+~~~~~act
+patch_file
+vite.config.js
+~~~~~
+~~~~~javascript.old
+import { defineConfig } from 'vite';
+import monkey from 'vite-plugin-monkey';
+
+export default defineConfig({
+  plugins: [
+    monkey({
+      entry: 'src/main.js',
+      userscript: {
+        name: 'PonyTown Chat Archiver',
+        namespace: 'http://tampermonkey.net/',
+        version: '5.5.0',
+        description: '自动将 pony.town 的聊天记录保存到浏览器本地存储，并提供查看、复制、下载、数据统计和清除界面。',
+~~~~~
+~~~~~javascript.new
+import { defineConfig } from 'vite';
+import monkey from 'vite-plugin-monkey';
+import pkg from './package.json';
+
+export default defineConfig({
+  plugins: [
+    monkey({
+      entry: 'src/main.js',
+      userscript: {
+        name: 'PonyTown Chat Archiver',
+        namespace: 'http://tampermonkey.net/',
+        version: pkg.version,
+        description: '自动将 pony.town 的聊天记录保存到浏览器本地存储，并提供查看、复制、下载、数据统计和清除界面。',
+~~~~~
+
+#### Acts 3: 修改 `src/ui.js` 渲染动态版本号
+
+最后，让 UI 界面引用我们在 `constants.js` 中定义的版本。
+
+~~~~~act
+patch_file
 src/ui.js
-src/style.css
+~~~~~
+~~~~~javascript.old
+import { SELF_NAME_KEY, STORAGE_KEY_V5 } from './constants.js';
+import { formatISOTimeForDisplay, getStorageUsageInMB } from './utils.js';
+~~~~~
+~~~~~javascript.new
+import { SELF_NAME_KEY, STORAGE_KEY_V5, VERSION } from './constants.js';
+import { formatISOTimeForDisplay, getStorageUsageInMB } from './utils.js';
 ~~~~~
 
 ~~~~~act
-git_commit
+patch_file
+src/ui.js
 ~~~~~
-~~~~~text
-refactor: Complete modularization of the script
-
-This major refactoring effort transforms the monolithic userscript into a modern, modular project. The core logic has been split into distinct, single-responsibility modules, significantly improving code clarity, maintainability, and future scalability.
-
-Key changes:
-- **`main.js`**: Now acts as the central controller, responsible for initializing modules, managing the script's lifecycle, and coordinating data flow. All direct DOM manipulation, state management, and UI rendering logic has been removed.
-- **`ui.js`**: A new module that encapsulates all UI creation, event handling, and rendering logic. It is initialized via dependency injection, receiving necessary state and callbacks from `main.js`.
-- **`state.js`**: A new module handling all data-related concerns, including loading from/saving to localStorage, data migration, merging, and cleaning logic.
-- **`parser.js`**: A new module that isolates all DOM parsing logic. Its responsibility is to read the game's chat elements and extract structured data, decoupling the core application from the specifics of the website's layout.
-- **`constants.js` & `utils.js`**: Global constants and generic helper functions have been extracted for better organization and reusability.
-- **`style.css`**: All UI styles have been moved from an inline `GM_addStyle` call to a dedicated CSS file, imported via Vite's asset pipeline.
-
-This new architecture establishes a clean separation of concerns, making the codebase easier to reason about, debug, and extend.
+~~~~~javascript.old
+    container.innerHTML = `
+            <div id="log-archive-ui-header">
+                <h2>聊天记录存档 v5.5.0</h2>
+                <div id="log-archive-ui-controls">
+~~~~~
+~~~~~javascript.new
+    container.innerHTML = `
+            <div id="log-archive-ui-header">
+                <h2>聊天记录存档 v${VERSION}</h2>
+                <div id="log-archive-ui-controls">
 ~~~~~
 
 ### 下一步建议
-- **添加新功能**: 现在你有了一个非常清晰的架构，可以轻松地添加新功能了。例如，为统计模块增加“每日发言趋势图”，或者支持导出为 Markdown 格式。
-- **编写测试**: 虽然对于油猴脚本来说比较复杂，但你可以考虑为 `state.js` 或 `parser.js` 中的纯函数编写单元测试，以确保核心逻辑的稳定性。
-- **持续优化**: 审查每个模块，看看是否有可以进一步提炼的地方。例如，`main.js` 中的 `setInterval` 也许可以被封装成一个更优雅的“后台服务”模块。
+- **执行验证**: 运行 `npm run build`，检查生成的 `.user.js` 文件头部的 `// @version` 是否正确变为 `5.5.0`。
+- **UI 检查**: 在浏览器中打开插件界面，确认标题显示为 `聊天记录存档 v5.5.0`。
+- **自动同步脚本 (进阶)**: 如果希望更彻底的 SSOT，可以考虑在 `vite.config.js` 中使用 `define` 插件将 `pkg.version` 注入为全局常量 `__APP_VERSION__`，从而连 `src/constants.js` 中的硬编码也可以去掉。如果你有兴趣，我们可以进一步实施。

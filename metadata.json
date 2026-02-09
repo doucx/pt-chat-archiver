@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] refactor: 完成脚本的完全模块化重构", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770651033.635578, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] refactor: 建立项目版本号的单事实来源 (SSOT)", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770661378.106409, "duration_ms": 0}}

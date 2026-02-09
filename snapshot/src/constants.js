@@ -1,4 +1,5 @@
 // 全局配置与状态
+export const VERSION = '5.5.0';
 export const STORAGE_KEY_V5 = 'chatLogArchive_v5';
 export const OLD_STORAGE_KEY_V4 = 'chatLogArchive_v4';
 export const SELF_NAME_KEY = 'chatLogArchiver_selfName';
