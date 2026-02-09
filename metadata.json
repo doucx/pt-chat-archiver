@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M templates.js, M ui.js", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770668514.3564482, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] feat: 实现设置页面、UI 布局重构及动态分页支持", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770668514.9691808, "duration_ms": 0}}
