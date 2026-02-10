@@ -11,7 +11,7 @@ import { createUIState } from './state.js';
  * @returns {object} Public API for the UI module.
  */
 export function createUI(initialAppState, appCallbacks) {
-  let appState = initialAppState;
+  const appState = initialAppState;
 
   // 1. Initialize DOM structure
   initDOM(__APP_VERSION__);
@@ -53,25 +53,30 @@ export function createUI(initialAppState, appCallbacks) {
     const messages = JSON.stringify(appState, null, 2);
     navigator.clipboard.writeText(messages);
   };
-  
+
   const cleanChannelRecords = () => {
-      const duplicateCount = appCallbacks.detectTotalDuplicates(appState);
-      if (duplicateCount === 0) return alert('未发现可清理的重复记录。');
-      if (
-        confirm(
-          `【确认】此操作将根据特定规则删除 ${duplicateCount} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
-        )
-      ) {
-        for (const channel in appState) {
-          const { cleanedRecords } = appCallbacks.cleanChannelRecords(appState[channel]);
-          appState[channel] = cleanedRecords;
-        }
-        appCallbacks.saveMessagesToStorage(appState);
-        dom.cleanButton.textContent = '清理完毕!';
-        setTimeout(() => {
-          renderer.render(appState, { ...appCallbacks, cleanChannelRecords, copyAllData, downloadAllData }); // Re-render to update button
-        }, 2000);
+    const duplicateCount = appCallbacks.detectTotalDuplicates(appState);
+    if (duplicateCount === 0) return alert('未发现可清理的重复记录。');
+    if (
+      confirm(
+        `【确认】此操作将根据特定规则删除 ${duplicateCount} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
+      )
+    ) {
+      for (const channel in appState) {
+        const { cleanedRecords } = appCallbacks.cleanChannelRecords(appState[channel]);
+        appState[channel] = cleanedRecords;
       }
+      appCallbacks.saveMessagesToStorage(appState);
+      dom.cleanButton.textContent = '清理完毕!';
+      setTimeout(() => {
+        renderer.render(appState, {
+          ...appCallbacks,
+          cleanChannelRecords,
+          copyAllData,
+          downloadAllData,
+        }); // Re-render to update button
+      }, 2000);
+    }
   };
 
   const clearAllData = () => {
@@ -85,9 +90,9 @@ export function createUI(initialAppState, appCallbacks) {
       for (const key of Object.keys(appState)) {
         delete appState[key];
       }
-        appCallbacks.scanAndMergeHistory(); // This will repopulate appState
-        appCallbacks.saveMessagesToStorage(appState);
-      }
+      appCallbacks.scanAndMergeHistory(); // This will repopulate appState
+      appCallbacks.saveMessagesToStorage(appState);
+    }
   };
 
   const uiCallbacks = {

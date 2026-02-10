@@ -132,7 +132,10 @@ export function createRenderer(dom, uiState) {
         if (!warningElement) {
           warningElement = document.createElement('div');
           warningElement.id = 'log-archive-storage-warning';
-          dom.header.insertBefore(warningElement, dom.header.querySelector('#log-archive-ui-controls'));
+          dom.header.insertBefore(
+            warningElement,
+            dom.header.querySelector('#log-archive-ui-controls'),
+          );
         }
         warningElement.textContent = `⚠️ 存储占用过高 (${usageMB.toFixed(1)}MB)，请及时清理！`;
       } else if (warningElement) {
