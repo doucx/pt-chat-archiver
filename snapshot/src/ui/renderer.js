@@ -49,13 +49,48 @@ export function createRenderer(dom, uiState) {
 
   // --- Main Render Logic ---
   const render = (appState, callbacks) => {
-    const { viewMode, currentPage, pageSize } = uiState.getState();
-    const selectedChannel = dom.channelSelector.value;
-    const messages = appState[selectedChannel] || [];
+    const { viewMode, currentPage, pageSize, viewingServer, activeServer } = uiState.getState();
 
-    // Update channel selector
-    const channels = Object.keys(appState);
-    const prevValue = dom.channelSelector.value;
+    // 1. 更新服务器选择器 (v6 特有)
+    const servers = Object.keys(appState);
+    if (dom.serverViewSelector) {
+      const prevServer = dom.serverViewSelector.value;
+      dom.serverViewSelector.innerHTML = '';
+      if (servers.length === 0) {
+        dom.serverViewSelector.innerHTML = '<option value="">无存档</option>';
+      } else {
+        for (const s of servers) {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s;
+          dom.serverViewSelector.appendChild(opt);
+        }
+        dom.serverViewSelector.value = viewingServer || prevServer || (servers[0] || '');
+      }
+    }
+
+    // 2. 更新服务器状态显示
+    if (dom.serverStatus) {
+      if (!activeServer) {
+        dom.serverStatus.textContent = '等待进入游戏...';
+        dom.serverStatus.style.color = '';
+      } else if (viewingServer === activeServer) {
+        dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}`;
+        dom.serverStatus.style.color = 'var(--color-primary-hover)';
+      } else {
+        dom.serverStatus.textContent = `⚠️ 只读模式: 正在查看 ${viewingServer} 存档`;
+        dom.serverStatus.style.color = 'var(--color-warning)';
+      }
+    }
+
+    // 3. 获取当前查看服务器的数据切片
+    const serverData = appState[viewingServer] || {};
+    const selectedChannel = dom.channelSelector.value;
+    const messages = serverData[selectedChannel] || [];
+
+    // 4. 更新频道选择器
+    const channels = Object.keys(serverData);
+    const prevChannelValue = dom.channelSelector.value;
     dom.channelSelector.innerHTML = '';
     if (channels.length === 0) {
       dom.channelSelector.innerHTML = '<option>无记录</option>';
@@ -63,11 +98,11 @@ export function createRenderer(dom, uiState) {
       for (const ch of channels) {
         const opt = document.createElement('option');
         opt.value = ch;
-        opt.textContent = `${ch} (${appState[ch].length})`;
+        opt.textContent = `${ch} (${serverData[ch].length})`;
         dom.channelSelector.appendChild(opt);
       }
-      if (channels.includes(prevValue)) {
-        dom.channelSelector.value = prevValue;
+      if (channels.includes(prevChannelValue)) {
+        dom.channelSelector.value = prevChannelValue;
       }
     }
 
@@ -119,11 +154,6 @@ export function createRenderer(dom, uiState) {
 
   return {
     render,
-    updateServerDisplay: (serverName) => {
-      if (dom.serverStatus) {
-        dom.serverStatus.textContent = serverName ? `服务器: ${serverName}` : '等待进入游戏...';
-      }
-    },
     checkStorageUsage: () => {
       const usageMB = getStorageUsageInMB();
       let warningElement = document.getElementById('log-archive-storage-warning');

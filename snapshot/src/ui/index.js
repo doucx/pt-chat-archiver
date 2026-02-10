@@ -119,6 +119,9 @@ export function createUI(initialAppState, appCallbacks) {
     },
     checkStorageUsage: renderer.checkStorageUsage,
     isUIPaused: () => uiState.getState().isUIPaused,
-    updateServerDisplay: renderer.updateServerDisplay,
+    updateServerDisplay: (serverName) => {
+      uiState.setActiveServer(serverName);
+      renderer.render(appState, uiCallbacks);
+    },
   };
 }

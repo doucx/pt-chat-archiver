@@ -1,234 +1,286 @@
-好的，我们将开始执行 **PonyTown 聊天存档器 v6 架构升级** 的第一阶段。
+我们现在开始执行 **阶段二：UI 状态与渲染重构**。
 
-这个阶段的任务是为多服务器支持奠定基础，主要涉及常量定义、存储驱动的扩展以及 UI 模板的初步调整。这将允许我们在不破坏现有 V5 逻辑的前提下，开始引入 V6 的分层数据结构。
+在这一阶段，我们将升级 UI 模块的内部状态机和渲染逻辑，使其能够理解并处理“服务器 -> 频道 -> 消息”的嵌套结构。核心在于引入“当前物理服务器 (activeServer)”和“查看服务器 (viewingServer)”的概念，从而支持用户在录制当前服务器消息的同时，翻阅其他服务器的历史存档。
 
-## [WIP] feat: 实施 v6 升级阶段一 - 基础设施与 UI 增强
+## [WIP] feat: 实施 v6 升级阶段二 - UI 状态与渲染重构
 
 ### 用户需求
-需要升级项目的底层基础设施，以支持 v6 版本的分层存储架构（`Server -> Channel -> Messages`）。这包括定义新的存储键、扩展存储驱动以支持 V6 数据操作，并更新 UI 模板以包含服务器选择器。
+重构 UI 层以适配 v6 的分层数据结构。UI 需要能够区分用户当前所在的服务器和正在查看的服务器，并允许用户通过下拉列表切换查看不同服务器的聊天存档（只读模式）。
 
 ### 评论
-这是架构升级中最稳健的第一步。通过保留 V5 逻辑并并行引入 V6 逻辑，我们创造了一个安全的过渡环境，为后续的数据迁移算法提供了“目的地”。
+将“正在录制”与“正在查看”这两个关注点在 UI 状态层面解耦，是提升多服务器环境下用户体验的关键。这为后续的“只读历史查看”功能提供了逻辑支持。
 
 ### 目标
-1.  在 `constants.js` 中定义 `STORAGE_KEY_V6`。
-2.  在 `storage.js` 中增加针对 V6 存储的操作方法，并增强存储容量计算的准确性。
-3.  在 `templates.js` 的设置视图中添加服务器查看选择器。
-4.  更新 `ui/dom.js` 以便代码能够引用新的 UI 元素。
+1.  **扩展 UI 状态**: 在 `state.js` 中增加 `activeServer` 和 `viewingServer` 状态及其设置器。
+2.  **重构渲染引擎**: 修改 `renderer.js` 中的 `render` 函数，使其根据 `viewingServer` 从全局状态树中进行数据切片，并动态填充服务器选择器。
+3.  **增强交互反馈**: 在 UI 顶部显示服务器状态（正在录制 vs 只读模式）。
+4.  **事件绑定**: 在 `events.js` 中监听服务器选择器的变化。
+5.  **入口联动**: 确保 `main.js` 的服务器检测信号能正确驱动 UI 状态的更新。
 
 ### 基本原理
-遵循“分而治之”和“向前兼容”的原则。我们通过引入新的存储键 `chatLogArchive_v6` 来隔离新旧数据。在 UI 上，通过在设置面板添加服务器选择器，为用户提供了管理多服务器数据的入口。
+通过在 `uiState` 中维护 `activeServer` 和 `viewingServer` 两个变量，我们实现了一个简单的状态机。当 `viewingServer === activeServer` 时，用户处于实时监控模式；当两者不等时，UI 自动切换为只读查看模式，同时保护当前录制逻辑不受影响。
 
 ### 标签
-#intent/build #flow/ready #priority/high #comp/storage #comp/docs #concept/state #scope/core #ai/instruct #task/domain/architecture #task/object/v6-upgrade #task/action/infrastructure #task/state/begin
+#intent/refine #flow/ready #priority/high #comp/cli #concept/ui #concept/state #scope/ux #ai/instruct #task/domain/ui #task/object/ui-state-refactor #task/action/v6-adaptation #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 定义 v6 存储常量
+#### Acts 1: 扩展 UI 内部状态
 
-我们将新的存储键添加到常量定义文件中。
-
-~~~~~act
-patch_file
-src/constants.js
-~~~~~
-~~~~~javascript.old
-// 全局配置与状态
-export const STORAGE_KEY_V5 = 'chatLogArchive_v5';
-export const OLD_STORAGE_KEY_V4 = 'chatLogArchive_v4';
-export const SELF_NAME_KEY = 'chatLogArchiver_selfName';
-~~~~~
-~~~~~javascript.new
-// 全局配置与状态
-export const STORAGE_KEY_V6 = 'chatLogArchive_v6';
-export const STORAGE_KEY_V5 = 'chatLogArchive_v5';
-export const OLD_STORAGE_KEY_V4 = 'chatLogArchive_v4';
-export const SELF_NAME_KEY = 'chatLogArchiver_selfName';
-~~~~~
-
-#### Acts 2: 扩展存储驱动以支持 v6
-
-我们在 `storage.js` 中添加 V6 专用方法，并更新原始字节大小计算函数，使其在 V6 存在时优先计算 V6。
+我们在 `src/ui/state.js` 中增加服务器相关的状态管理。
 
 ~~~~~act
 patch_file
-src/storage.js
+src/ui/state.js
 ~~~~~
 ~~~~~javascript.old
-import { CONFIG_KEY, OLD_STORAGE_KEY_V4, SELF_NAME_KEY, STORAGE_KEY_V5 } from './constants.js';
-
-/**
- * 核心存储驱动，封装对 localStorage 的直接访问。
- */
-export const storage = {
-  // --- 聊天记录 (Messages) ---
-  getMessages() {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY_V5);
-      return data ? JSON.parse(data) : {};
-    } catch (e) {
-      console.error('[Storage] 解析 V5 存档失败:', e);
-      return {};
-    }
-  },
-
-  saveMessages(messagesObject) {
-    try {
-      localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(messagesObject));
-    } catch (e) {
-      console.error('[Storage] 保存 V5 存档失败:', e);
-    }
-  },
-
-  clearAllMessages() {
-    localStorage.removeItem(STORAGE_KEY_V5);
-  },
-
-  /** 返回存档的原始字节大小（用于容量计算） */
-  getMessagesRawSize() {
-    const data = localStorage.getItem(STORAGE_KEY_V5);
-    return data ? new Blob([data]).size : 0;
-  },
+export function createUIState() {
+  const state = {
+    currentPage: 1,
+    pageSize: 1000,
+    totalPages: 1,
+    viewMode: 'log', // 'log' | 'stats' | 'config'
+    isUIPaused: false,
+  };
 ~~~~~
 ~~~~~javascript.new
-import {
-  CONFIG_KEY,
-  OLD_STORAGE_KEY_V4,
-  SELF_NAME_KEY,
-  STORAGE_KEY_V5,
-  STORAGE_KEY_V6,
-} from './constants.js';
-
-/**
- * 核心存储驱动，封装对 localStorage 的直接访问。
- */
-export const storage = {
-  // --- 聊天记录 (Messages) ---
-  /** 加载 V6 数据 (Server -> Channel -> Messages) */
-  getV6Messages() {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY_V6);
-      return data ? JSON.parse(data) : {};
-    } catch (e) {
-      console.error('[Storage] 解析 V6 存档失败:', e);
-      return {};
-    }
-  },
-
-  /** 保存 V6 数据 */
-  saveV6Messages(messagesObject) {
-    try {
-      localStorage.setItem(STORAGE_KEY_V6, JSON.stringify(messagesObject));
-    } catch (e) {
-      console.error('[Storage] 保存 V6 存档失败:', e);
-    }
-  },
-
-  getMessages() {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY_V5);
-      return data ? JSON.parse(data) : {};
-    } catch (e) {
-      console.error('[Storage] 解析 V5 存档失败:', e);
-      return {};
-    }
-  },
-
-  saveMessages(messagesObject) {
-    try {
-      localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(messagesObject));
-    } catch (e) {
-      console.error('[Storage] 保存 V5 存档失败:', e);
-    }
-  },
-
-  clearAllMessages() {
-    localStorage.removeItem(STORAGE_KEY_V6);
-    localStorage.removeItem(STORAGE_KEY_V5);
-  },
-
-  /** 返回存档的原始字节大小（用于容量计算） */
-  getMessagesRawSize() {
-    const dataV6 = localStorage.getItem(STORAGE_KEY_V6);
-    if (dataV6) return new Blob([dataV6]).size;
-    const dataV5 = localStorage.getItem(STORAGE_KEY_V5);
-    return dataV5 ? new Blob([dataV5]).size : 0;
-  },
+export function createUIState() {
+  const state = {
+    currentPage: 1,
+    pageSize: 1000,
+    totalPages: 1,
+    viewMode: 'log', // 'log' | 'stats' | 'config'
+    isUIPaused: false,
+    activeServer: null, // 当前物理所在的服务器
+    viewingServer: null, // 当前正在查看的存档服务器
+  };
+~~~~~
+~~~~~act
+patch_file
+src/ui/state.js
+~~~~~
+~~~~~javascript.old
+    forcePause: (paused) => {
+      state.isUIPaused = paused;
+    },
+    getSelfName: () => storage.getSelfName(),
+    setSelfName: (name) => storage.setSelfName(name),
+  };
+}
+~~~~~
+~~~~~javascript.new
+    forcePause: (paused) => {
+      state.isUIPaused = paused;
+    },
+    setActiveServer: (serverName) => {
+      state.activeServer = serverName;
+      // 如果还没有选择查看哪个服务器，默认跟随当前服务器
+      if (!state.viewingServer) {
+        state.viewingServer = serverName;
+      }
+    },
+    setViewingServer: (serverName) => {
+      state.viewingServer = serverName;
+    },
+    getSelfName: () => storage.getSelfName(),
+    setSelfName: (name) => storage.setSelfName(name),
+  };
+}
 ~~~~~
 
-#### Acts 3: 更新 UI 模板
+#### Acts 2: 重构渲染逻辑以适配 v6 结构
 
-我们在设置视图中添加服务器选择器，以便用户未来可以切换查看不同服务器的存档。
+我们修改 `render` 函数，使其从 `appState[viewingServer]` 中获取数据，并更新服务器选择器和状态标签。
 
 ~~~~~act
 patch_file
-src/templates.js
+src/ui/renderer.js
 ~~~~~
 ~~~~~javascript.old
-        <!-- 设置视图 -->
-        <div id="log-archive-config-view" class="config-section" style="display: none;">
-            <div class="config-group">
-                <label>用户昵称</label>
-                <input type="text" id="log-archive-self-name-input" placeholder="用于识别私聊方向...">
-            </div>
-            <div class="config-group">
-                <label>分页大小 (每页消息条数)</label>
-                <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
-            </div>
-            <div class="config-group">
+  // --- Main Render Logic ---
+  const render = (appState, callbacks) => {
+    const { viewMode, currentPage, pageSize } = uiState.getState();
+    const selectedChannel = dom.channelSelector.value;
+    const messages = appState[selectedChannel] || [];
+
+    // Update channel selector
+    const channels = Object.keys(appState);
+    const prevValue = dom.channelSelector.value;
+    dom.channelSelector.innerHTML = '';
+    if (channels.length === 0) {
+      dom.channelSelector.innerHTML = '<option>无记录</option>';
+    } else {
+      for (const ch of channels) {
+        const opt = document.createElement('option');
+        opt.value = ch;
+        opt.textContent = `${ch} (${appState[ch].length})`;
+        dom.channelSelector.appendChild(opt);
+      }
+      if (channels.includes(prevValue)) {
+        dom.channelSelector.value = prevValue;
+      }
+    }
 ~~~~~
 ~~~~~javascript.new
-        <!-- 设置视图 -->
-        <div id="log-archive-config-view" class="config-section" style="display: none;">
-            <div class="config-group">
-                <label>查看存档服务器</label>
-                <select id="log-archive-server-view-selector" class="log-archive-ui-button"></select>
-                <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
-                    切换查看不同服务器的历史记录。注意：此切换仅影响显示，不影响当前的数据录制。
-                </div>
-            </div>
-            <div class="config-group">
-                <label>用户昵称</label>
-                <input type="text" id="log-archive-self-name-input" placeholder="用于识别私聊方向...">
-            </div>
-            <div class="config-group">
-                <label>分页大小 (每页消息条数)</label>
-                <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
-            </div>
-            <div class="config-group">
+  // --- Main Render Logic ---
+  const render = (appState, callbacks) => {
+    const { viewMode, currentPage, pageSize, viewingServer, activeServer } = uiState.getState();
+
+    // 1. 更新服务器选择器 (v6 特有)
+    const servers = Object.keys(appState);
+    if (dom.serverViewSelector) {
+      const prevServer = dom.serverViewSelector.value;
+      dom.serverViewSelector.innerHTML = '';
+      if (servers.length === 0) {
+        dom.serverViewSelector.innerHTML = '<option value="">无存档</option>';
+      } else {
+        for (const s of servers) {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s;
+          dom.serverViewSelector.appendChild(opt);
+        }
+        dom.serverViewSelector.value = viewingServer || prevServer || (servers[0] || '');
+      }
+    }
+
+    // 2. 更新服务器状态显示
+    if (dom.serverStatus) {
+      if (!activeServer) {
+        dom.serverStatus.textContent = '等待进入游戏...';
+        dom.serverStatus.style.color = '';
+      } else if (viewingServer === activeServer) {
+        dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}`;
+        dom.serverStatus.style.color = 'var(--color-primary-hover)';
+      } else {
+        dom.serverStatus.textContent = `⚠️ 只读模式: 正在查看 ${viewingServer} 存档`;
+        dom.serverStatus.style.color = 'var(--color-warning)';
+      }
+    }
+
+    // 3. 获取当前查看服务器的数据切片
+    const serverData = appState[viewingServer] || {};
+    const selectedChannel = dom.channelSelector.value;
+    const messages = serverData[selectedChannel] || [];
+
+    // 4. 更新频道选择器
+    const channels = Object.keys(serverData);
+    const prevChannelValue = dom.channelSelector.value;
+    dom.channelSelector.innerHTML = '';
+    if (channels.length === 0) {
+      dom.channelSelector.innerHTML = '<option>无记录</option>';
+    } else {
+      for (const ch of channels) {
+        const opt = document.createElement('option');
+        opt.value = ch;
+        opt.textContent = `${ch} (${serverData[ch].length})`;
+        dom.channelSelector.appendChild(opt);
+      }
+      if (channels.includes(prevChannelValue)) {
+        dom.channelSelector.value = prevChannelValue;
+      }
+    }
+~~~~~
+~~~~~act
+patch_file
+src/ui/renderer.js
+~~~~~
+~~~~~javascript.old
+  return {
+    render,
+    updateServerDisplay: (serverName) => {
+      if (dom.serverStatus) {
+        dom.serverStatus.textContent = serverName ? `服务器: ${serverName}` : '等待进入游戏...';
+      }
+    },
+    checkStorageUsage: () => {
+~~~~~
+~~~~~javascript.new
+  return {
+    render,
+    checkStorageUsage: () => {
 ~~~~~
 
-#### Acts 4: 更新 DOM 引用
+#### Acts 3: 绑定服务器切换事件
 
-我们将新添加的服务器选择器包含在 `getDOMElements` 返回的对象中。
+我们在 `src/ui/events.js` 中添加对 `serverViewSelector` 的监听。
 
 ~~~~~act
 patch_file
-src/ui/dom.js
+src/ui/events.js
 ~~~~~
 ~~~~~javascript.old
-    // Config View Controls
-    selfNameInput: document.getElementById('log-archive-self-name-input'),
-    pageSizeInput: document.getElementById('log-archive-page-size-input'),
-    configStorageInfo: document.getElementById('log-archive-config-storage-info'),
+  dom.channelSelector.addEventListener('change', () => {
+    uiState.setPage(1);
+    fullRender();
+  });
+
+  // --- View switching ---
 ~~~~~
 ~~~~~javascript.new
-    // Config View Controls
-    serverViewSelector: document.getElementById('log-archive-server-view-selector'),
-    selfNameInput: document.getElementById('log-archive-self-name-input'),
-    pageSizeInput: document.getElementById('log-archive-page-size-input'),
-    configStorageInfo: document.getElementById('log-archive-config-storage-info'),
+  dom.channelSelector.addEventListener('change', () => {
+    uiState.setPage(1);
+    fullRender();
+  });
+
+  dom.serverViewSelector.addEventListener('change', () => {
+    uiState.setViewingServer(dom.serverViewSelector.value);
+    uiState.setPage(1);
+    fullRender();
+  });
+
+  // --- View switching ---
+~~~~~
+
+#### Acts 4: 联动主入口函数
+
+修改 `src/ui/index.js`，使 `updateServerDisplay` 成为更新 UI 状态并触发重绘的接口。
+
+~~~~~act
+patch_file
+src/ui/index.js
+~~~~~
+~~~~~javascript.old
+    updateUI: () => {
+      if (!uiState.getState().isUIPaused) {
+        renderer.render(appState, uiCallbacks);
+      }
+    },
+    checkStorageUsage: renderer.checkStorageUsage,
+    isUIPaused: () => uiState.getState().isUIPaused,
+    updateServerDisplay: renderer.updateServerDisplay,
+  };
+}
+~~~~~
+~~~~~javascript.new
+    updateUI: () => {
+      if (!uiState.getState().isUIPaused) {
+        renderer.render(appState, uiCallbacks);
+      }
+    },
+    checkStorageUsage: renderer.checkStorageUsage,
+    isUIPaused: () => uiState.getState().isUIPaused,
+    updateServerDisplay: (serverName) => {
+      uiState.setActiveServer(serverName);
+      renderer.render(appState, uiCallbacks);
+    },
+  };
+}
 ~~~~~
 
 ### 下一步建议
 
-基础设施已经就绪。接下来的关键步骤是 **阶段二：UI 状态与渲染重构**。
+UI 模块现在已经具备了处理 v6 分层数据的能力。现在的障碍是：`main.js` 仍然在加载和处理 v5 的扁平数据结构。
+
+接下来的关键步骤是 **阶段三：迁移逻辑与主流程编排**。
 
 我们需要：
-1.  修改 `src/ui/state.js`，使 UI 能够识别“当前物理服务器”和“正在查看的服务器”。
-2.  修改 `src/ui/renderer.js` 中的 `render` 函数，使其根据 `viewingServer` 从分层状态中切片数据。
-3.  在 `src/ui/events.js` 中绑定服务器选择器的切换事件。
+1.  在 `src/state.js` 中实现核心迁移函数 `migrateV5toV6`。
+2.  全面改造 `src/main.js` 的生命周期：
+    *   在启动时加载 V6 存储。
+    *   当检测到服务器时，如果发现旧的 V5 数据，触发用户交互确认迁移。
+    *   将消息录制逻辑重定向到 `inMemoryChatState[detectedServerName]`。
 
-当你准备好进行 UI 状态的逻辑升级时，请告知我。
+当你准备好进行这最后一步重构时，请告知我。

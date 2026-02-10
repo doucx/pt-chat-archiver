@@ -11,6 +11,8 @@ export function createUIState() {
     totalPages: 1,
     viewMode: 'log', // 'log' | 'stats' | 'config'
     isUIPaused: false,
+    activeServer: null, // 当前物理所在的服务器
+    viewingServer: null, // 当前正在查看的存档服务器
   };
 
   const loadConfig = () => {
@@ -52,6 +54,16 @@ export function createUIState() {
     },
     forcePause: (paused) => {
       state.isUIPaused = paused;
+    },
+    setActiveServer: (serverName) => {
+      state.activeServer = serverName;
+      // 如果还没有选择查看哪个服务器，默认跟随当前服务器
+      if (!state.viewingServer) {
+        state.viewingServer = serverName;
+      }
+    },
+    setViewingServer: (serverName) => {
+      state.viewingServer = serverName;
     },
     getSelfName: () => storage.getSelfName(),
     setSelfName: (name) => storage.setSelfName(name),
