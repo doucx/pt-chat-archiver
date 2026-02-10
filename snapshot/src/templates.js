@@ -38,6 +38,13 @@ export const getMainContainerHTML = (version) => `
         <!-- 设置视图 -->
         <div id="log-archive-config-view" class="config-section" style="display: none;">
             <div class="config-group">
+                <label>查看存档服务器</label>
+                <select id="log-archive-server-view-selector" class="log-archive-ui-button"></select>
+                <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
+                    切换查看不同服务器的历史记录。注意：此切换仅影响显示，不影响当前的数据录制。
+                </div>
+            </div>
+            <div class="config-group">
                 <label>用户昵称</label>
                 <input type="text" id="log-archive-self-name-input" placeholder="用于识别私聊方向...">
             </div>
