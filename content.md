@@ -1,118 +1,58 @@
-我们将“下载”按钮也移入了设置页面，这样主界面将只剩下最核心的频道切换、状态切换和复制功能。同时，我修复了由于 V6 版本数据结构变动（引入了服务器层级）导致下载功能尝试读取错误路径而崩溃的 Bug。
+好的，我们已经完成了 UI 瘦身、设置项迁移以及存档安全性的增强逻辑。现在是将这些更改作为一个完整的逻辑单元提交到版本控制系统的时候了。
 
-## [WIP] fix(ui): 修复并迁移下载功能至设置页面
-
-### 错误分析
-下载功能失效的根本原因是**数据结构不匹配**。
-在 V6 版本中，`appState` 的结构从 `Channel -> Messages` 升级为了 `Server -> Channel -> Messages`。原有的 `downloadAllData` 函数在遍历时仍然假设 `appState` 的第一层级是频道，导致尝试对包含频道对象的“服务器对象”调用 `.map()` 方法，从而引发 JavaScript 运行错误并中断了下载流程。
+## [COMMIT] refactor(ui): 瘦身主界面并增强存档管理与安全性功能
 
 ### 用户需求
-1.  **修复 Bug**: 恢复下载所有存档的功能（包括 JSON 和 TXT）。
-2.  **界面一致性**: 将“下载”按钮从主 Header 移至设置页面的维护操作区。
+1.  **UI 瘦身**: 将非核心信息（版本、录制状态）和低频操作（下载）移入设置页面，并使用 Emoji 替代按钮文字以节省空间。
+2.  **安全增强**: 提供“立即保存”功能、可配置的自动保存间隔，并实时显示上次保存时间。
+3.  **Bug 修复**: 修正 V6 架构下下载功能无法处理服务器层级数据的错误。
+4.  **结构优化**: 将模板文件移入 UI 子目录。
 
 ### 评论
-随着功能的增加，将非高频操作（如导出数据）收纳进设置页面是保持 UI 清爽的最佳实践。同时，修复数据遍历逻辑是确保功能可用性的前提。
+这次重构不仅提升了界面的精致感，更通过增强透明度（显示保存时间）和控制权（手动保存/间隔设置）显著改善了用户对数据安全的心理预期。
 
 ### 目标
-1.  修改 `templates.js`：移除 Header 按钮，并在设置页添加新的下载按钮。
-2.  重构 `index.js` 中的 `downloadAllData`：增加对服务器层级的遍历。
-3.  确保 TXT 导出格式能够清晰地展示 `服务器 -> 频道` 的隶属关系。
+1.  将所有修改过的源文件添加到 Git 暂存区。
+2.  创建一个包含详细变更说明的提交记录。
+
+### 基本原理
+我们遵循了“核心操作最小化，管理操作深层化”的原则。通过 `git_commit` 将这些涉及 UI 交互、数据结构修复和逻辑重构的变动固化下来。
 
 ### 标签
-#intent/fix #intent/refine #flow/ready #priority/high #comp/ui #concept/parser #scope/ux #ai/brainstorm #task/domain/ui #task/object/download-mechanism #task/action/fix #task/state/continue
+#intent/refine #intent/build #intent/fix #flow/ready #priority/medium #comp/ui #comp/build #scope/ux #ai/instruct #task/domain/ui #task/object/ui-overhaul #task/action/commit #task/state/end
 
 ---
 
 ### Script
 
-#### Acts 1: 重构 HTML 模板 (templates.js)
+#### Acts 1: 添加更改到暂存区
 
-移除 Header 的下载按钮，将其放入设置页的“维护操作”组合中。
-
-~~~~~act
-patch_file
-src/ui/templates.js
-~~~~~
-~~~~~javascript.old
-                <button id="log-archive-stats-button" class="log-archive-ui-button" title="数据统计">📊</button>
-                <button id="log-archive-settings-button" class="log-archive-ui-button" title="设置">⚙️</button>
-                <button id="log-archive-copy-button" class="log-archive-ui-button" title="复制当前页内容">📋</button>
-                <button id="log-archive-download-button" class="log-archive-ui-button" title="下载全部存档">💾</button>
-                <button id="log-archive-close-button" class="log-archive-ui-button" title="关闭界面">❌</button>
-~~~~~
-~~~~~javascript.new
-                <button id="log-archive-stats-button" class="log-archive-ui-button" title="数据统计">📊</button>
-                <button id="log-archive-settings-button" class="log-archive-ui-button" title="设置">⚙️</button>
-                <button id="log-archive-copy-button" class="log-archive-ui-button" title="复制当前页内容">📋</button>
-                <button id="log-archive-close-button" class="log-archive-ui-button" title="关闭界面">❌</button>
-~~~~~
-~~~~~act
-patch_file
-src/ui/templates.js
-~~~~~
-~~~~~javascript.old
-                    <div class="config-actions" style="display: flex; gap: 10px;">
-                        <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复记录</button>
-                        <button id="log-archive-copy-all-button" class="log-archive-ui-button" style="flex-grow: 1;">导出 JSON</button>
-                    </div>
-~~~~~
-~~~~~javascript.new
-                    <div class="config-actions" style="display: flex; gap: 10px;">
-                        <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复</button>
-                        <button id="log-archive-copy-all-button" class="log-archive-ui-button" style="flex-grow: 1;">导出 JSON</button>
-                        <button id="log-archive-download-button" class="log-archive-ui-button" style="flex-grow: 1;">下载备份</button>
-                    </div>
-~~~~~
-
-#### Acts 2: 修复下载逻辑 (index.js)
-
-更新 `downloadAllData` 以支持 V6 的双层嵌套结构 (`Server > Channel`)。
+我们将涉及 UI 逻辑、模板、存储配置以及主程序的所有更改一并添加。
 
 ~~~~~act
-patch_file
-src/ui/index.js
+git_add
+src
 ~~~~~
-~~~~~javascript.old
-  const downloadAllData = () => {
-    if (Object.keys(appState).length === 0) return;
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 16);
-    const baseFilename = `pt-saver-${timestamp}`;
-    let allTextContent = '';
-    for (const channelName in appState) {
-      allTextContent += `\n\n==================== 频道: ${channelName} ====================\n\n`;
-      allTextContent += appState[channelName].map(formatMessageForDisplay).join('\n');
-    }
-    const triggerDownload = (content, filename, mimeType) => {
+
+#### Acts 2: 提交变更
+
+~~~~~act
+git_commit
 ~~~~~
-~~~~~javascript.new
-  const downloadAllData = () => {
-    if (Object.keys(appState).length === 0) return;
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 16);
-    const baseFilename = `pt-saver-${timestamp}`;
-    let allTextContent = '';
+~~~~~text
+refactor(ui): streamline interface and enhance data safety features
 
-    // V6 结构: appState[serverName][channelName]
-    for (const serverName in appState) {
-      allTextContent += `\n\n############################################################\n`;
-      allTextContent += `## 服务器: ${serverName}\n`;
-      allTextContent += `############################################################\n`;
-
-      const serverData = appState[serverName];
-      for (const channelName in serverData) {
-        allTextContent += `\n\n==================== 频道: ${channelName} ====================\n\n`;
-        const messages = serverData[channelName];
-        if (Array.isArray(messages)) {
-          allTextContent += messages.map(formatMessageForDisplay).join('\n');
-        }
-      }
-    }
-
-    const triggerDownload = (content, filename, mimeType) => {
+- UI Refactor: Replaced text-heavy buttons with compact Emoji icons and tooltips to maximize screen real estate for logs.
+- Information Architecture: Moved app metadata (version, recording status) and infrequent actions (Download) into the settings panel.
+- Data Safety:
+  - Added "Save Now" manual trigger.
+  - Added configurable auto-save intervals (5s to 1h).
+  - Added "Last Saved" timestamp display in settings for better user feedback.
+- Bug Fix: Fixed a crash in the download function caused by incorrect traversal of V6's server-nested data structure.
+- Structural Cleanup: Relocated 'templates.js' to 'src/ui/' for better modularity.
 ~~~~~
 
 ### 下一步建议
-- **分服务器下载**: 随着存档增加，用户可能只想下载“当前查看的服务器”的记录，可以考虑在查看服务器选择器旁边加一个局部的下载图标。
-- **导出格式**: 目前是 JSON 和 TXT 双下载，可能会触发浏览器的“多文件下载”拦截警告，可以考虑在设置里增加一个“下载格式”偏好。
-- **数据压缩**: 如果存档接近 5MB 限制，TXT 文件的体积可能会很大，后续可以考虑引入简单的压缩库。
+- **多标签页同步**: 目前多个标签页同时开启时，自动保存可能会发生覆盖。建议下一步研究基于 `storage` 事件的跨标签页状态同步机制。
+- **UI 预设**: 考虑添加“简约/完整”模式切换，让用户一键在 Emoji 模式和带文字的传统模式间切换。
+- **发布准备**: 既然版本号已经移动到了设置页，可以考虑更新 `package.json` 的版本号准备发布 6.2.0。
