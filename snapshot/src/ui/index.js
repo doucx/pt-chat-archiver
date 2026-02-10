@@ -33,9 +33,9 @@ export function createUI(initialAppState, appCallbacks) {
 
     // V6 结构: appState[serverName][channelName]
     for (const serverName in appState) {
-      allTextContent += `\n\n############################################################\n`;
+      allTextContent += '\n\n############################################################\n';
       allTextContent += `## 服务器: ${serverName}\n`;
-      allTextContent += `############################################################\n`;
+      allTextContent += '############################################################\n';
 
       const serverData = appState[serverName];
       for (const channelName in serverData) {
