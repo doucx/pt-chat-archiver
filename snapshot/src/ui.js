@@ -394,5 +394,11 @@ export function createUI(inMemoryChatState, callbacks) {
       }
     },
     isUIPaused: () => isUIPaused,
+    updateServerDisplay: (serverName) => {
+      const statusElement = document.getElementById('log-archive-server-status');
+      if (statusElement) {
+        statusElement.textContent = serverName ? `服务器: ${serverName}` : '等待进入游戏...';
+      }
+    },
   };
 }
