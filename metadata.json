@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] refactor: 实现存储层封装以消除硬编码的 localStorage 交互", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770753834.17956, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "biome Capture: M storage.js", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770753887.9547389, "duration_ms": 0}}
