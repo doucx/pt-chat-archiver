@@ -49,6 +49,7 @@ export function getDOMElements() {
 
     // Config View Controls
     serverViewSelector: document.getElementById('log-archive-server-view-selector'),
+    resetServerButton: document.getElementById('log-archive-reset-server-button'),
     selfNameInput: document.getElementById('log-archive-self-name-input'),
     pageSizeInput: document.getElementById('log-archive-page-size-input'),
     configStorageInfo: document.getElementById('log-archive-config-storage-info'),

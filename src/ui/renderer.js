@@ -62,7 +62,7 @@ export function createRenderer(dom, uiState) {
         for (const s of servers) {
           const opt = document.createElement('option');
           opt.value = s;
-          opt.textContent = s;
+          opt.textContent = s === activeServer ? `${s} (正在记录)` : s;
           dom.serverViewSelector.appendChild(opt);
         }
         dom.serverViewSelector.value = viewingServer || prevServer || servers[0] || '';
@@ -74,12 +74,15 @@ export function createRenderer(dom, uiState) {
       if (!activeServer) {
         dom.serverStatus.textContent = '等待进入游戏...';
         dom.serverStatus.style.color = '';
+        if (dom.resetServerButton) dom.resetServerButton.disabled = true;
       } else if (viewingServer === activeServer) {
         dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}`;
         dom.serverStatus.style.color = 'var(--color-primary-hover)';
+        if (dom.resetServerButton) dom.resetServerButton.disabled = true;
       } else {
         dom.serverStatus.textContent = `⚠️ 只读模式: 正在查看 ${viewingServer} 存档`;
         dom.serverStatus.style.color = 'var(--color-warning)';
+        if (dom.resetServerButton) dom.resetServerButton.disabled = false;
       }
     }
 
