@@ -38,20 +38,11 @@
 
 #log-archive-ui-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 5px;
   flex-shrink: 0;
-  flex-wrap: wrap;
   gap: 10px;
-}
-
-#log-archive-ui-header h2 {
-  margin: 0;
-  font-size: 1.2em;
-  color: var(--color-primary);
-  flex-shrink: 0;
-  margin-right: 15px;
 }
 
 #log-archive-ui-controls {

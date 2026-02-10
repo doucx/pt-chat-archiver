@@ -1,4 +1,4 @@
-import { TOGGLE_BUTTON_ICON, getMainContainerHTML } from '../templates.js';
+import { TOGGLE_BUTTON_ICON, getMainContainerHTML } from './templates.js';
 
 let domElements = null;
 
@@ -52,6 +52,9 @@ export function getDOMElements() {
     resetServerButton: document.getElementById('log-archive-reset-server-button'),
     selfNameInput: document.getElementById('log-archive-self-name-input'),
     pageSizeInput: document.getElementById('log-archive-page-size-input'),
+    autoSaveIntervalInput: document.getElementById('log-archive-auto-save-interval'),
+    lastSavedInfo: document.getElementById('log-archive-last-saved-info'),
+    saveNowButton: document.getElementById('log-archive-save-now-button'),
     configStorageInfo: document.getElementById('log-archive-config-storage-info'),
     cleanButton: document.getElementById('log-archive-clean-button'),
     copyAllButton: document.getElementById('log-archive-copy-all-button'),

@@ -115,12 +115,20 @@ export function createRenderer(dom, uiState) {
 
     // Update button states
     dom.statsButton.classList.toggle('active', viewMode === 'stats');
-    dom.statsButton.textContent = viewMode === 'stats' ? '📜 记录' : '📊 统计';
+    dom.statsButton.textContent = viewMode === 'stats' ? '📜' : '📊';
     dom.settingsButton.classList.toggle('active', viewMode === 'config');
 
     if (viewMode === 'config') {
       const usageMB = getStorageUsageInMB();
       dom.configStorageInfo.textContent = `当前本地存储占用: ${usageMB.toFixed(2)} MB / 5.00 MB`;
+
+      const { lastSavedTime } = uiState.getState();
+      if (lastSavedTime) {
+        dom.lastSavedInfo.textContent = `上次保存: ${formatISOTimeForDisplay(lastSavedTime).split(' ')[1]}`;
+      } else {
+        dom.lastSavedInfo.textContent = '尚未保存';
+      }
+
       updateCleanButtonState(callbacks.detectTotalDuplicates(appState));
       return;
     }

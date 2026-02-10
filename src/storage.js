@@ -68,7 +68,7 @@ export const storage = {
 
   // --- 配置 (Config) ---
   getConfig() {
-    const defaultCfg = { pageSize: 1000 };
+    const defaultCfg = { pageSize: 1000, autoSaveInterval: 30 };
     try {
       const stored = localStorage.getItem(CONFIG_KEY);
       return stored ? { ...defaultCfg, ...JSON.parse(stored) } : defaultCfg;

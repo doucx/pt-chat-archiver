@@ -95,6 +95,21 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
     fullRender();
   });
 
+  dom.autoSaveIntervalInput.addEventListener('change', () => {
+    uiState.setAutoSaveInterval(dom.autoSaveIntervalInput.value);
+    callbacks.onAutoSaveIntervalChange();
+    fullRender();
+  });
+
+  dom.saveNowButton.addEventListener('click', () => {
+    callbacks.manualSave();
+    const originalText = dom.saveNowButton.textContent;
+    dom.saveNowButton.textContent = '✅ 已保存';
+    setTimeout(() => {
+      dom.saveNowButton.textContent = originalText;
+    }, 1500);
+  });
+
   dom.cleanButton.addEventListener('click', () => {
     callbacks.cleanChannelRecords();
     fullRender(); // Re-render to update button state
@@ -111,7 +126,7 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
     if (dom.logDisplay.value) {
       navigator.clipboard.writeText(dom.logDisplay.value).then(() => {
         const originalText = dom.copyButton.textContent;
-        dom.copyButton.textContent = '已复制!';
+        dom.copyButton.textContent = '✅';
         setTimeout(() => {
           dom.copyButton.textContent = originalText;
         }, 1500);
@@ -133,4 +148,5 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
   // --- Initial value setup ---
   dom.selfNameInput.value = uiState.getSelfName();
   dom.pageSizeInput.value = uiState.getState().pageSize;
+  dom.autoSaveIntervalInput.value = uiState.getState().autoSaveInterval;
 }

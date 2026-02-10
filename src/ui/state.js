@@ -8,6 +8,8 @@ export function createUIState() {
   const state = {
     currentPage: 1,
     pageSize: 1000,
+    autoSaveInterval: 30,
+    lastSavedTime: null,
     totalPages: 1,
     viewMode: 'log', // 'log' | 'stats' | 'config'
     isUIPaused: false,
@@ -18,10 +20,14 @@ export function createUIState() {
   const loadConfig = () => {
     const config = storage.getConfig();
     state.pageSize = config.pageSize;
+    state.autoSaveInterval = config.autoSaveInterval;
   };
 
   const saveConfig = () => {
-    storage.saveConfig({ pageSize: state.pageSize });
+    storage.saveConfig({
+      pageSize: state.pageSize,
+      autoSaveInterval: state.autoSaveInterval,
+    });
   };
 
   // Initial load
@@ -47,6 +53,16 @@ export function createUIState() {
         state.pageSize = val;
         saveConfig();
       }
+    },
+    setAutoSaveInterval: (seconds) => {
+      const val = Number.parseInt(seconds, 10);
+      if (!Number.isNaN(val) && val >= 5) {
+        state.autoSaveInterval = val;
+        saveConfig();
+      }
+    },
+    setLastSavedTime: (isoString) => {
+      state.lastSavedTime = isoString;
     },
     togglePause: () => {
       state.isUIPaused = !state.isUIPaused;
