@@ -85,12 +85,6 @@ export function createRenderer(dom, uiState) {
         if (dom.resetServerButton) dom.resetServerButton.disabled = false;
       }
     }
-        dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}`;
-        dom.serverStatus.style.color = 'var(--color-primary-hover)';
-      } else 
-        dom.serverStatus.textContent = `⚠️ 只读模式: 正在查看 ${viewingServer} 存档`;
-        dom.serverStatus.style.color = 'var(--color-warning)';
-    }
 
     // 3. 获取当前查看服务器的数据切片
     const serverData = appState[viewingServer] || {};
