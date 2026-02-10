@@ -1,11 +1,11 @@
-import { STORAGE_KEY_V5 } from './constants.js';
+import { STORAGE_KEY_V6 } from './constants.js';
 
 /**
  * 计算脚本在 localStorage 中的存储占用空间。
  * @returns {number} - 占用的空间大小，单位是 MB。
  */
 export function getStorageUsageInMB() {
-  const data = localStorage.getItem(STORAGE_KEY_V5);
+  const data = localStorage.getItem(STORAGE_KEY_V6);
   if (!data) return 0;
   // 使用 Blob 来精确计算字符串的字节大小
   const sizeInBytes = new Blob([data]).size;
