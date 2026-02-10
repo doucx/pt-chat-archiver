@@ -1,4 +1,4 @@
-import { CONFIG_KEY, SELF_NAME_KEY } from '../constants.js';
+import { storage } from '../storage.js';
 
 /**
  * Creates and manages the UI's internal state.
@@ -14,18 +14,12 @@ export function createUIState() {
   };
 
   const loadConfig = () => {
-    const defaultCfg = { pageSize: 1000 };
-    try {
-      const stored = localStorage.getItem(CONFIG_KEY);
-      const parsed = stored ? { ...defaultCfg, ...JSON.parse(stored) } : defaultCfg;
-      state.pageSize = parsed.pageSize;
-    } catch (e) {
-      // Use default if config is corrupt
-    }
+    const config = storage.getConfig();
+    state.pageSize = config.pageSize;
   };
 
   const saveConfig = () => {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify({ pageSize: state.pageSize }));
+    storage.saveConfig({ pageSize: state.pageSize });
   };
 
   // Initial load
@@ -59,7 +53,7 @@ export function createUIState() {
     forcePause: (paused) => {
       state.isUIPaused = paused;
     },
-    getSelfName: () => localStorage.getItem(SELF_NAME_KEY) || '',
-    setSelfName: (name) => localStorage.setItem(SELF_NAME_KEY, name.trim()),
+    getSelfName: () => storage.getSelfName(),
+    setSelfName: (name) => storage.setSelfName(name),
   };
 }
