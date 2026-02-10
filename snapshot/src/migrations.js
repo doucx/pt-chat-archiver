@@ -1,5 +1,5 @@
-import { storage } from './storage.js';
 import { mergeAndDeduplicateMessages } from './state.js';
+import { storage } from './storage.js';
 
 /**
  * 版本迁移管理器
@@ -97,7 +97,7 @@ export const MigrationManager = {
         onMigrated(newV6State);
       }
     }
-    
+
     // 2. 将来可以在这里添加 V6 -> V7 的检查逻辑
   },
 };
