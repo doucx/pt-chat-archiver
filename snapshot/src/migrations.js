@@ -86,11 +86,12 @@ export const MigrationManager = {
     // 1. 处理 V5 -> V6
     const v5Data = storage.getMessages(); // 获取 V5 存档
     if (v5Data && Object.keys(v5Data).length > 0) {
-      const confirmMsg = 
-        `【数据升级】检测到您的旧版本聊天存档。\n\n` +
-        `是否将其迁移到当前服务器 [${serverName}]？\n\n` +
-        `注意：如果存档不属于此服务器，请点击“取消”，切换到正确的服务器后再执行此操作。`;
-      
+      const confirmMsg = `【数据升级】检测到您的旧版本聊天存档。
+
+是否将其迁移到当前服务器 [${serverName}]？
+
+注意：如果存档不属于此服务器，请点击“取消”，切换到正确的服务器后再执行此操作。`;
+
       if (confirm(confirmMsg)) {
         const newV6State = this.migrateV5toV6(v5Data, serverName);
         onMigrated(newV6State);
