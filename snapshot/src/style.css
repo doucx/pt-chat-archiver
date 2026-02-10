@@ -2,13 +2,13 @@
 #log-archive-ui-container {
   --color-primary: #8af;
   --color-primary-hover: #a0c8ff;
-  --color-bg: rgba(26, 32, 38, 0.95);
+  --color-bg: rgba(26, 32, 38, 0.7);
   --color-surface: #2a3036;
   --color-surface-hover: #363d44;
   --color-border: #4a545e;
   --color-text: #e0e0e0;
   --color-text-dim: #a0a0a0;
-  
+
   --color-success: #3a8c54;
   --color-success-hover: #4da669;
   --color-warning: #c89632;
@@ -101,19 +101,40 @@
 }
 
 /* 特定语义按钮 */
-#log-archive-pause-button { background-color: var(--color-success); }
-#log-archive-pause-button:hover { background-color: var(--color-success-hover); }
-#log-archive-pause-button.paused { background-color: var(--color-warning); }
-#log-archive-pause-button.paused:hover { background-color: var(--color-warning-hover); }
+#log-archive-pause-button {
+  background-color: var(--color-success);
+}
+#log-archive-pause-button:hover {
+  background-color: var(--color-success-hover);
+}
+#log-archive-pause-button.paused {
+  background-color: var(--color-warning);
+}
+#log-archive-pause-button.paused:hover {
+  background-color: var(--color-warning-hover);
+}
 
-#log-archive-stats-button.active { background-color: var(--color-success); }
-#log-archive-settings-button.active { background-color: var(--color-warning); border-color: var(--color-warning-hover); }
+#log-archive-stats-button.active {
+  background-color: var(--color-success);
+}
+#log-archive-settings-button.active {
+  background-color: var(--color-warning);
+  border-color: var(--color-warning-hover);
+}
 
-#log-archive-clear-button { background-color: var(--color-danger); }
-#log-archive-clear-button:hover { background-color: var(--color-danger-hover); }
+#log-archive-clear-button {
+  background-color: var(--color-danger);
+}
+#log-archive-clear-button:hover {
+  background-color: var(--color-danger-hover);
+}
 
-#log-archive-download-button { background-color: var(--color-info); }
-#log-archive-download-button:hover { background-color: var(--color-info-hover); }
+#log-archive-download-button {
+  background-color: var(--color-info);
+}
+#log-archive-download-button:hover {
+  background-color: var(--color-info-hover);
+}
 
 #log-archive-clean-button.active {
   background-color: var(--color-warning);
@@ -121,8 +142,14 @@
 }
 
 /* 分页与信息 */
-.info-text-primary { color: var(--color-primary-hover); font-weight: bold; }
-.info-text-dim { color: var(--color-text-dim); font-size: 0.85em; }
+.info-text-primary {
+  color: var(--color-primary-hover);
+  font-weight: bold;
+}
+.info-text-dim {
+  color: var(--color-text-dim);
+  font-size: 0.85em;
+}
 
 /* 设置视图 */
 .config-section {
@@ -188,7 +215,13 @@
 }
 
 @keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.6; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
+  }
 }
