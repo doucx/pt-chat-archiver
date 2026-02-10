@@ -2,39 +2,6 @@ import { storage } from './storage.js';
 import { getISOTimestamp } from './utils.js';
 
 /**
- * 检查并执行一次性的数据迁移，将 v4 版本的数据转换为 v5 格式。
- */
-export function migrateDataV4toV5() {
-  try {
-    const oldData = storage.getLegacyV4Data();
-    if (!oldData) return;
-
-    console.log('检测到旧版本(v4)数据，正在执行一次性迁移...');
-    const newData = {};
-
-    for (const channel in oldData) {
-      newData[channel] = oldData[channel].map((msg) => {
-        const newMsg = { ...msg };
-        try {
-          const localDate = new Date(msg.time.replace(/-/g, '/'));
-          newMsg.time = localDate.toISOString();
-        } catch (e) {
-          newMsg.time = new Date().toISOString();
-        }
-        newMsg.is_historical = true;
-        return newMsg;
-      });
-    }
-
-    storage.saveMessages(newData);
-    storage.removeLegacyV4Data();
-    console.log('数据迁移成功！');
-  } catch (error) {
-    console.error('数据迁移失败，旧数据可能已损坏，将予以保留。', error);
-  }
-}
-
-/**
  * 智能合并消息数组，用于处理聊天记录不连续的情况。
  */
 export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
@@ -89,31 +56,6 @@ export function loadMessagesFromStorage() {
 export function saveMessagesToStorage(messagesObject) {
   console.info('存档已保存到本地存储 (V6)');
   storage.saveV6Messages(messagesObject);
-}
-
-/**
- * 执行 V5 到 V6 的数据迁移。
- */
-export function migrateV5toV6(v5Data, targetServer) {
-  console.log(`[Migration] 正在将 V5 数据迁移到服务器: ${targetServer}`);
-  const v6Data = storage.getV6Messages();
-
-  if (!v6Data[targetServer]) {
-    v6Data[targetServer] = v5Data;
-  } else {
-    // 如果目标服务器已存在数据，执行频道级合并
-    for (const channel in v5Data) {
-      v6Data[targetServer][channel] = mergeAndDeduplicateMessages(
-        v6Data[targetServer][channel] || [],
-        v5Data[channel],
-      );
-    }
-  }
-
-  storage.saveV6Messages(v6Data);
-  storage.removeV5Data();
-  console.log('[Migration] V5 迁移完成，旧数据已移除。');
-  return v6Data;
 }
 
 /**

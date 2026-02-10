@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M README.md, M package.json", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770758283.2153254, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] refactor: 建立独立的迁移管理系统并简化主程序逻辑", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770758385.0619252, "duration_ms": 0}}

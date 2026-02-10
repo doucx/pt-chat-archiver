@@ -1,11 +1,7 @@
 import './style.css';
 import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
-import {
-  OLD_STORAGE_KEY_V4,
-  SELF_NAME_KEY,
-  STORAGE_KEY_V5,
-  STORAGE_WARNING_THRESHOLD_MB,
-} from './constants.js';
+import { SELF_NAME_KEY } from './constants.js';
+import { MigrationManager } from './migrations.js';
 import {
   extractServerFromDOM,
   extractUsefulData,
@@ -16,18 +12,11 @@ import {
   addMessageToSyntheticChannelIfNeeded,
   loadMessagesFromStorage,
   mergeAndDeduplicateMessages,
-  migrateDataV4toV5,
-  migrateV5toV6,
   saveMessagesToStorage,
 } from './state.js';
 import { storage } from './storage.js';
 import { createUI } from './ui/index.js';
-import {
-  debounce,
-  formatISOTimeForDisplay,
-  getISOTimestamp,
-  getStorageUsageInMB,
-} from './utils.js';
+import { debounce, getISOTimestamp } from './utils.js';
 
 (() => {
   // --- 全局状态 ---
@@ -222,7 +211,10 @@ import {
 
   /** 脚本主入口函数。*/
   function main() {
-    migrateDataV4toV5();
+    // 1. 执行静默迁移 (如 v4 -> v5)
+    MigrationManager.runSilentMigrations();
+
+    // 2. 加载状态与初始化 UI
     inMemoryChatState = loadMessagesFromStorage();
     uiControls = createUI(inMemoryChatState, {
       scanAndMergeHistory,
@@ -244,15 +236,11 @@ import {
           uiControls.updateServerDisplay(detectedServerName);
         }
 
-        // 检查 V5 数据迁移逻辑
-        const v5Data = storage.getMessages(); // storage.getMessages 获取的是 V5
-        if (v5Data && Object.keys(v5Data).length > 0) {
-          const msg = `【数据升级】检测到您的旧版本聊天存档。是否将其迁移到当前服务器 [${server}]？\n\n注意：如果不是该服务器，则选择取消，再选择目标服务器后迁移提示将再次弹出。`;
-          if (confirm(msg)) {
-            inMemoryChatState = migrateV5toV6(v5Data, server);
-            uiControls.setState(inMemoryChatState);
-          }
-        }
+        // 3. 检查并触发交互式迁移 (如 v5 -> v6)
+        MigrationManager.checkAndTriggerInteractiveMigrations(server, (newState) => {
+          inMemoryChatState = newState;
+          uiControls.setState(inMemoryChatState);
+        });
       }
     };
 
