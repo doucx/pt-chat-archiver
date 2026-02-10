@@ -4,6 +4,7 @@ import {
   OLD_STORAGE_KEY_V4,
   SELF_NAME_KEY,
   STORAGE_KEY_V5,
+  STORAGE_KEY_V6,
   STORAGE_WARNING_THRESHOLD_MB,
 } from './constants.js';
 import {
@@ -17,6 +18,7 @@ import {
   loadMessagesFromStorage,
   mergeAndDeduplicateMessages,
   migrateDataV4toV5,
+  migrateDataV5toV6,
   saveMessagesToStorage,
 } from './state.js';
 import { createUI } from './ui.js';
@@ -91,20 +93,28 @@ import {
    * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
    */
   function scanAndMergeHistory() {
+    if (!detectedServerName) return; // 未知服务器不录制
+
     const historicalState = extractHistoricalChatState();
     let dataChanged = false;
 
+    // 确保当前服务器在内存中有对象
+    if (!inMemoryChatState[detectedServerName]) {
+        inMemoryChatState[detectedServerName] = {};
+    }
+    const serverData = inMemoryChatState[detectedServerName];
+
     if (historicalState.current_tab && historicalState.messages.length > 0) {
       const channelName = historicalState.current_tab;
-      const oldMessages = inMemoryChatState[channelName] || [];
+      const oldMessages = serverData[channelName] || [];
       const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
 
       if (newMergedMessages.length > oldMessages.length) {
-        inMemoryChatState[channelName] = newMergedMessages;
+        serverData[channelName] = newMergedMessages;
         dataChanged = true;
         const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
         for (const msg of newlyAddedHistoricalMessages) {
-          addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
+          addMessageToSyntheticChannelIfNeeded(serverData, msg, channelName);
         }
       }
     }
@@ -123,18 +133,23 @@ import {
   function handleNewChatMessage(node) {
     if (isInitializingChat || isSwitchingTabs) return;
     if (node.nodeType !== Node.ELEMENT_NODE || !node.matches('.chat-line')) return;
-    if (!currentActiveChannel) return;
+    if (!currentActiveChannel || !detectedServerName) return;
 
     const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
     const preciseTime = getISOTimestamp();
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
     if (messageData?.content) {
-      if (!inMemoryChatState[currentActiveChannel]) {
-        inMemoryChatState[currentActiveChannel] = [];
+      if (!inMemoryChatState[detectedServerName]) {
+          inMemoryChatState[detectedServerName] = {};
       }
-      inMemoryChatState[currentActiveChannel].push(messageData);
-      addMessageToSyntheticChannelIfNeeded(inMemoryChatState, messageData, currentActiveChannel);
+      const serverData = inMemoryChatState[detectedServerName];
+
+      if (!serverData[currentActiveChannel]) {
+        serverData[currentActiveChannel] = [];
+      }
+      serverData[currentActiveChannel].push(messageData);
+      addMessageToSyntheticChannelIfNeeded(serverData, messageData, currentActiveChannel);
 
       if (uiControls && !uiControls.isUIPaused()) {
         uiControls.updateUI();
@@ -233,6 +248,22 @@ import {
         console.log(`[Archiver] 检测到服务器切换: ${server}`);
         if (uiControls) {
           uiControls.updateServerDisplay(detectedServerName);
+        }
+        
+        // 尝试迁移 V5 数据 (如果存在)
+        const oldData = localStorage.getItem(STORAGE_KEY_V5);
+        if (oldData) {
+            const shouldMigrate = confirm(
+                `[聊天存档 V6 升级]\n\n检测到旧版本存档！\n\n是否将旧数据归并到当前检测到的服务器：\n>> ${server} <<\n\n[确定]: 是的，这是我之前玩的服务器。\n[取消]: 不，我要换个服务器再合并。`
+            );
+            if (shouldMigrate) {
+                const newData = migrateDataV5toV6(server);
+                if (newData) {
+                    inMemoryChatState = newData;
+                    // Force UI Refresh
+                    uiControls.updateUI(); 
+                }
+            }
         }
       }
     };

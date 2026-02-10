@@ -47,6 +47,8 @@ export function createUI(inMemoryChatState, callbacks) {
     pageSize: config.pageSize,
     totalPages: 1,
     viewMode: 'log', // 'log' | 'stats' | 'config'
+    viewingServer: null, // 当前 UI 查看的服务器
+    activeServer: null,  // 当前物理检测到的服务器
   };
   let isUIPaused = false;
 
@@ -67,6 +69,7 @@ export function createUI(inMemoryChatState, callbacks) {
   const configView = document.getElementById('log-archive-config-view');
 
   const channelSelector = document.getElementById('log-archive-channel-selector');
+  const serverViewSelector = document.getElementById('log-archive-server-view-selector');
   const logDisplay = document.getElementById('log-archive-ui-log-display');
   const copyButton = document.getElementById('log-archive-copy-button');
   const closeButton = document.getElementById('log-archive-close-button');
@@ -125,8 +128,29 @@ export function createUI(inMemoryChatState, callbacks) {
 
   // --- 渲染核心 ---
   function renderCurrentView() {
+    // 确保 viewingServer 有值，默认为 activeServer，再没有就取第一个
+    if (!uiState.viewingServer) {
+        uiState.viewingServer = uiState.activeServer || Object.keys(inMemoryChatState)[0];
+    }
+    
+    const viewingData = inMemoryChatState[uiState.viewingServer] || {};
     const selectedChannel = channelSelector.value;
-    const messages = inMemoryChatState[selectedChannel] || [];
+    const messages = viewingData[selectedChannel] || [];
+
+    // 更新只读状态提示
+    const statusElement = document.getElementById('log-archive-server-status');
+    if (statusElement) {
+        if (uiState.activeServer && uiState.viewingServer !== uiState.activeServer) {
+            statusElement.textContent = `⚠️ 正在查看 [${uiState.viewingServer}] (只读)`;
+            statusElement.style.color = 'var(--color-warning)';
+        } else if (uiState.activeServer) {
+            statusElement.textContent = `✅ 正在记录 [${uiState.activeServer}]`;
+            statusElement.style.color = 'var(--color-primary-hover)';
+        } else {
+             statusElement.textContent = '等待进入游戏...';
+             statusElement.style.color = 'var(--color-text-dim)';
+        }
+    }
 
     // 视图可见性切换
     logView.style.display = uiState.viewMode === 'config' ? 'none' : 'flex';
@@ -177,8 +201,32 @@ export function createUI(inMemoryChatState, callbacks) {
   }
 
   function updateUI() {
-    const prev = channelSelector.value;
-    const channels = Object.keys(inMemoryChatState);
+    // 1. 更新服务器选择器 (Settings)
+    const allServers = Object.keys(inMemoryChatState);
+    if (uiState.activeServer && !allServers.includes(uiState.activeServer)) {
+        allServers.push(uiState.activeServer);
+    }
+    // 简单的去重
+    const uniqueServers = [...new Set(allServers)].sort();
+    
+    const prevServer = serverViewSelector.value;
+    serverViewSelector.innerHTML = '';
+    for (const srv of uniqueServers) {
+        const opt = document.createElement('option');
+        opt.value = srv;
+        opt.textContent = srv + (srv === uiState.activeServer ? ' (当前)' : '');
+        serverViewSelector.appendChild(opt);
+    }
+    if (prevServer && uniqueServers.includes(prevServer)) {
+        serverViewSelector.value = prevServer;
+    } else if (uiState.viewingServer) {
+        serverViewSelector.value = uiState.viewingServer;
+    }
+
+    // 2. 更新频道选择器 (Main) - 基于 viewingServer
+    const viewingData = inMemoryChatState[uiState.viewingServer] || {};
+    const channels = Object.keys(viewingData);
+    const prevChannel = channelSelector.value;
     channelSelector.innerHTML = '';
 
     if (channels.length === 0) {
@@ -187,11 +235,11 @@ export function createUI(inMemoryChatState, callbacks) {
       for (const ch of channels) {
         const opt = document.createElement('option');
         opt.value = ch;
-        opt.textContent = `${ch} (${inMemoryChatState[ch].length})`;
+        opt.textContent = `${ch} (${viewingData[ch].length})`;
         channelSelector.appendChild(opt);
       }
-      if (prev && channels.includes(prev)) {
-        channelSelector.value = prev;
+      if (prevChannel && channels.includes(prevChannel)) {
+        channelSelector.value = prevChannel;
       }
     }
     renderCurrentView();
@@ -230,6 +278,13 @@ export function createUI(inMemoryChatState, callbacks) {
     pauseButton.classList.toggle('paused', isUIPaused);
     pauseButton.textContent = isUIPaused ? '▶️ ' : '⏸️ ';
     if (!isUIPaused) updateUI();
+  });
+  
+  // 服务器切换
+  serverViewSelector.addEventListener('change', () => {
+      uiState.viewingServer = serverViewSelector.value;
+      uiState.currentPage = 1;
+      updateUI();
   });
 
   channelSelector.addEventListener('change', () => {
@@ -327,16 +382,19 @@ export function createUI(inMemoryChatState, callbacks) {
 
   // 维护操作
   cleanButton.addEventListener('click', () => {
-    const duplicateCount = detectTotalDuplicates(inMemoryChatState);
-    if (duplicateCount === 0) return alert('未发现可清理的重复记录。');
+    const viewingData = inMemoryChatState[uiState.viewingServer];
+    if (!viewingData) return;
+    
+    const duplicateCount = detectTotalDuplicates(viewingData);
+    if (duplicateCount === 0) return alert('在当前查看的服务器中未发现可清理的重复记录。');
     if (
       confirm(
-        `【确认】此操作将根据特定规则删除 ${duplicateCount} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
+        `【确认】此操作将清理 [${uiState.viewingServer}] 中的 ${duplicateCount} 条重复记录。确定要继续吗？`,
       )
     ) {
-      for (const channel in inMemoryChatState) {
-        const { cleanedRecords } = cleanChannelRecords(inMemoryChatState[channel]);
-        inMemoryChatState[channel] = cleanedRecords;
+      for (const channel in viewingData) {
+        const { cleanedRecords } = cleanChannelRecords(viewingData[channel]);
+        viewingData[channel] = cleanedRecords;
       }
       saveMessagesToStorage(inMemoryChatState);
       updateUI();
@@ -350,15 +408,16 @@ export function createUI(inMemoryChatState, callbacks) {
   clearButton.addEventListener('click', () => {
     if (
       confirm(
-        '【严重警告】此操作将清空所有本地存储的聊天存档，并以当前屏幕可见记录重置。此操作不可恢复！确定要执行吗？',
+        '【严重警告】此操作将清空【所有服务器】的本地存档！确定要执行吗？',
       )
     ) {
       deactivateLogger();
-      localStorage.removeItem(STORAGE_KEY_V5);
+      localStorage.removeItem(STORAGE_KEY_V5); // Clean legacy just in case
+      // Reset everything
       for (const key of Object.keys(inMemoryChatState)) {
         delete inMemoryChatState[key];
       }
-      scanAndMergeHistory();
+      scanAndMergeHistory(); // This will re-populate current server from DOM
       saveMessagesToStorage(inMemoryChatState);
       uiState.viewMode = 'log';
       updateUI();
@@ -395,10 +454,12 @@ export function createUI(inMemoryChatState, callbacks) {
     },
     isUIPaused: () => isUIPaused,
     updateServerDisplay: (serverName) => {
-      const statusElement = document.getElementById('log-archive-server-status');
-      if (statusElement) {
-        statusElement.textContent = serverName ? `服务器: ${serverName}` : '等待进入游戏...';
+      uiState.activeServer = serverName;
+      // 首次检测到服务器时，如果用户没手动选过，自动切过去
+      if (!uiState.viewingServer) {
+        uiState.viewingServer = serverName;
       }
+      updateUI(); // 重新渲染状态栏和可能的选择器更新
     },
   };
 }

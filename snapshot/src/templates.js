@@ -38,6 +38,11 @@ export const getMainContainerHTML = (version) => `
         <!-- 设置视图 -->
         <div id="log-archive-config-view" class="config-section" style="display: none;">
             <div class="config-group">
+                <label>查看存档服务器</label>
+                <select id="log-archive-server-view-selector" class="log-archive-ui-button"></select>
+                <div class="info-text-dim" style="margin-top: 5px; font-size: 0.8em;">注：此处仅切换查看内容。新消息始终会记录到你当前实际所在的服务器。</div>
+            </div>
+            <div class="config-group">
                 <label>用户昵称</label>
                 <input type="text" id="log-archive-self-name-input" placeholder="用于识别私聊方向...">
             </div>
