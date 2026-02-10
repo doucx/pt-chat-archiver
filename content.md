@@ -1,57 +1,64 @@
-我将修复 `src/parser.js` 中的 lint 错误。通过使用可选链（Optional Chaining），我们可以简化对 DOM 元素的判空逻辑，并符合 Biome 的代码规范。
+好的，我已经分析了你提供的变更（Diff）。这次重构非常彻底，成功将原本臃肿的单体文件 `src/ui.js` 拆解为职责清晰的模块化结构（DOM 管理、事件绑定、渲染逻辑、状态管理），并提升了 `parser.js` 的健壮性。
 
-## [WIP] fix(parser): 使用可选链修复 lint 错误
+我将生成一个 `[COMMIT]` 计划，将这些重构成果正式提交到 Git 仓库。
 
-### 错误分析
-Biome 报告了一个 `lint/complexity/useOptionalChain` 错误。
-在 `src/parser.js` 的 `extractServerFromDOM` 函数中，代码使用了传统的 `if (serverSpan && serverSpan.textContent.trim())` 模式。这种模式在现代 JavaScript 中被认为过于冗长。Biome 建议使用可选链 (`?.`) 来合并对象存在性检查和属性访问。虽然 Biome 自动修复时将其标记为“不安全”，但在该上下文中（`textContent` 在 DOM 节点上总是字符串），使用可选链是完全安全且符合预期的。
+## [COMMIT] refactor(ui): modularize UI implementation and improve parser robustness
 
 ### 用户需求
-修复 `npm run check` 报告的 `useOptionalChain` 错误。
+将 monolithic 的 `src/ui.js` 重构为模块化结构，并优化 `parser.js` 中的 DOM 访问安全。
 
 ### 评论
-这是一个微小的重构，旨在提高代码的现代化程度并保持 lint 检查通过。
+这是一次非常关键的架构改进。通过将 UI 逻辑拆分为 `dom`, `events`, `state`, `renderer` 等子模块，大幅提升了代码的可读性、可维护性和可测试性。同时，在 `parser.js` 中引入可选链（Optional Chaining）是防御性编程的良好实践。
 
 ### 目标
-1. 修改 `src/parser.js` 中的 `extractServerFromDOM` 函数。
-2. 将传统的 null 检查替换为可选链形式。
+1.  正式记录 `src/ui.js` 的删除以及 `src/ui/` 目录下五个新模块的创建。
+2.  提交对 `src/main.js`（引用更新）和 `src/parser.js`（健壮性优化）的修改。
 
 ### 基本原理
-可选链 `?.` 在遇到 null 或 undefined 时会立即停止评估并返回 undefined。通过 `serverSpan?.textContent?.trim()`，我们可以在一行内安全地检查 `serverSpan` 是否存在、其 `textContent` 是否存在以及进行去空格处理，逻辑上与原有的 `&&` 检查完全等价，但语法更简洁。
+根据关注点分离（SoC）原则，UI 模块被划分为：
+- `dom.js`: 负责 DOM 的创建注入及元素缓存。
+- `events.js`: 负责所有用户交互事件的绑定。
+- `state.js`: 封装 UI 内部状态及配置持久化逻辑。
+- `renderer.js`: 专注于 DOM 更新与内容格式化。
+- `index.js`: 充当门面（Facade），协调各子模块并暴露公共 API。
 
 ### 标签
-#intent/fix #flow/ready #priority/low 
-#comp/docs #concept/parser #scope/dx 
+#intent/refine #flow/ready #priority/medium
+#comp/ui #scope/core #concept/ui 
 #ai/instruct 
-#task/domain/tooling #task/object/lint-fix #task/action/refactor #task/state/begin
+#task/domain/ui #task/object/ui-refactor #task/action/refactor #task/state/end #task/status/completed
 
 ---
 
 ### Script
 
-#### Acts 1: 在 `src/parser.js` 中应用可选链修复
+#### Acts 1: 提交重构代码
 
-我们将更新 `extractServerFromDOM` 函数，使用可选链来处理 `serverSpan` 的检查。
+我们将这些结构化变更添加到暂存区并提交。
 
 ~~~~~act
-patch_file
-src/parser.js
+git_add
+src
 ~~~~~
-~~~~~javascript.old
-  // 寻找按钮内的 span 元素，它通常包含服务器名称
-  const serverSpan = playButton.querySelector('span');
-  if (serverSpan && serverSpan.textContent.trim()) {
-    return serverSpan.textContent.trim();
-  }
+
+~~~~~act
+git_commit
 ~~~~~
-~~~~~javascript.new
-  // 寻找按钮内的 span 元素，它通常包含服务器名称
-  const serverSpan = playButton.querySelector('span');
-  if (serverSpan?.textContent?.trim()) {
-    return serverSpan.textContent.trim();
-  }
+~~~~~text
+refactor(ui): modularize UI implementation and improve parser robustness
+
+- Modularized the monolithic `src/ui.js` into a structured directory `src/ui/`.
+- Split UI responsibilities into specialized modules:
+    - `dom.js`: Handles DOM creation and element caching.
+    - `events.js`: Manages UI event listener binding.
+    - `state.js`: Encapsulates UI-specific state and configuration management.
+    - `renderer.js`: Focuses on DOM rendering and message formatting.
+    - `index.js`: Orchestrates components and provides the public entry point.
+- Refined `src/parser.js` by using optional chaining in `extractServerFromDOM` for safer DOM access.
+- Updated `src/main.js` to import the UI module from its new location.
 ~~~~~
 
 ### 下一步建议
-- **运行检查**: 请执行 `npm run check` 验证该错误是否已消失。
-- **提交更改**: 验证通过后，可以生成一个 `[COMMIT]` 计划来提交此修复。
+- **代码规范检查**: 建议运行 `npm run check` 或 `biome check .` 以确保新创建的模块符合项目的代码风格和 lint 规则。
+- **功能回归测试**: 在 PonyTown 环境下手动验证 UI 功能（如分页、统计、下载、清理重复）是否依然工作正常。
+- **单元测试**: 既然逻辑已经解耦，可以考虑为 `state.js` 和 `renderer.js` 编写单元测试，以验证 UI 状态转换和格式化逻辑的正确性。

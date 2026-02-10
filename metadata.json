@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(parser): 使用可选链修复 lint 错误", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770753134.1533608, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] refactor(ui): modularize UI implementation and improve parser robustness", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770753222.9529016, "duration_ms": 0}}
