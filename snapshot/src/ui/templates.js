@@ -5,20 +5,16 @@
  */
 export const getMainContainerHTML = (version) => `
     <div id="log-archive-ui-header">
-        <div style="display: flex; flex-direction: column; gap: 2px;">
-            <h2 style="margin-bottom: 0;">聊天记录存档 v${version}</h2>
-            <div id="log-archive-server-status" class="info-text-dim" style="font-size: 0.8em; color: var(--color-primary-hover);">
-                检测中...
+        <div id="log-archive-ui-controls" style="width: 100%; justify-content: space-between;">
+            <select id="log-archive-channel-selector" class="log-archive-ui-button" style="flex-grow: 1; margin-right: 10px;"></select>
+            <div style="display: flex; gap: 5px;">
+                <button id="log-archive-pause-button" class="log-archive-ui-button" title="暂停/恢复录制">⏸️ </button>
+                <button id="log-archive-stats-button" class="log-archive-ui-button" title="数据统计">📊</button>
+                <button id="log-archive-settings-button" class="log-archive-ui-button" title="设置">⚙️</button>
+                <button id="log-archive-copy-button" class="log-archive-ui-button" title="复制当前页内容">📋</button>
+                <button id="log-archive-download-button" class="log-archive-ui-button" title="下载全部存档">💾</button>
+                <button id="log-archive-close-button" class="log-archive-ui-button" title="关闭界面">❌</button>
             </div>
-        </div>
-        <div id="log-archive-ui-controls">
-            <select id="log-archive-channel-selector" class="log-archive-ui-button"></select>
-            <button id="log-archive-pause-button" class="log-archive-ui-button">⏸️ </button>
-            <button id="log-archive-stats-button" class="log-archive-ui-button">📊 统计</button>
-            <button id="log-archive-settings-button" class="log-archive-ui-button">⚙️ 设置</button>
-            <button id="log-archive-copy-button" class="log-archive-ui-button">复制</button>
-            <button id="log-archive-download-button" class="log-archive-ui-button">下载</button>
-            <button id="log-archive-close-button" class="log-archive-ui-button">关闭</button>
         </div>
     </div>
     
@@ -37,6 +33,17 @@ export const getMainContainerHTML = (version) => `
 
         <!-- 设置视图 -->
         <div id="log-archive-config-view" class="config-section" style="display: none;">
+            <!-- 元信息展示区 -->
+            <div style="border-bottom: 1px solid var(--color-border); padding-bottom: 15px; margin-bottom: 5px;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <h3 style="margin: 0; color: var(--color-primary); font-size: 1.1em;">PT Chat Archiver</h3>
+                    <span class="info-text-dim" style="font-size: 0.8em;">v${version}</span>
+                </div>
+                <div id="log-archive-server-status" style="margin-top: 8px; font-size: 0.85em;">
+                    检测中...
+                </div>
+            </div>
+
             <div class="config-group">
                 <label>查看存档服务器</label>
                 <div style="display: flex; gap: 8px;">
@@ -58,9 +65,9 @@ export const getMainContainerHTML = (version) => `
             <div class="config-group">
                 <label>维护操作</label>
                 <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 5px;"></div>
-                <div class="config-actions">
-                    <button id="log-archive-clean-button" class="log-archive-ui-button">清理重复记录</button>
-                    <button id="log-archive-copy-all-button" class="log-archive-ui-button">导出原始数据 (JSON)</button>
+                <div class="config-actions" style="display: flex; gap: 10px;">
+                    <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复记录</button>
+                    <button id="log-archive-copy-all-button" class="log-archive-ui-button" style="flex-grow: 1;">导出 JSON</button>
                 </div>
             </div>
             <div class="config-group" style="margin-top: auto; border-top: 1px dashed #444; padding-top: 20px;">

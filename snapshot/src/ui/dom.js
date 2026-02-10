@@ -1,4 +1,4 @@
-import { TOGGLE_BUTTON_ICON, getMainContainerHTML } from '../templates.js';
+import { TOGGLE_BUTTON_ICON, getMainContainerHTML } from './templates.js';
 
 let domElements = null;
 

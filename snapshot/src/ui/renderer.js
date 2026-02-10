@@ -115,7 +115,7 @@ export function createRenderer(dom, uiState) {
 
     // Update button states
     dom.statsButton.classList.toggle('active', viewMode === 'stats');
-    dom.statsButton.textContent = viewMode === 'stats' ? '📜 记录' : '📊 统计';
+    dom.statsButton.textContent = viewMode === 'stats' ? '📜' : '📊';
     dom.settingsButton.classList.toggle('active', viewMode === 'config');
 
     if (viewMode === 'config') {

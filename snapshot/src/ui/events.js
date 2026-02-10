@@ -111,7 +111,7 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
     if (dom.logDisplay.value) {
       navigator.clipboard.writeText(dom.logDisplay.value).then(() => {
         const originalText = dom.copyButton.textContent;
-        dom.copyButton.textContent = '已复制!';
+        dom.copyButton.textContent = '✅';
         setTimeout(() => {
           dom.copyButton.textContent = originalText;
         }, 1500);
