@@ -2,8 +2,9 @@ import './style.css';
 import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
 import {
   OLD_STORAGE_KEY_V4,
+  OLD_STORAGE_KEY_V5,
   SELF_NAME_KEY,
-  STORAGE_KEY_V5,
+  STORAGE_KEY_V6,
   STORAGE_WARNING_THRESHOLD_MB,
 } from './constants.js';
 import {
@@ -17,6 +18,7 @@ import {
   loadMessagesFromStorage,
   mergeAndDeduplicateMessages,
   migrateDataV4toV5,
+  performMigrationV5ToV6,
   saveMessagesToStorage,
 } from './state.js';
 import { createUI } from './ui.js';
@@ -91,20 +93,27 @@ import {
    * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
    */
   function scanAndMergeHistory() {
+    if (!detectedServerName) return;
+
     const historicalState = extractHistoricalChatState();
     let dataChanged = false;
 
     if (historicalState.current_tab && historicalState.messages.length > 0) {
       const channelName = historicalState.current_tab;
-      const oldMessages = inMemoryChatState[channelName] || [];
+      
+      if (!inMemoryChatState[detectedServerName]) {
+          inMemoryChatState[detectedServerName] = {};
+      }
+
+      const oldMessages = inMemoryChatState[detectedServerName][channelName] || [];
       const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
 
       if (newMergedMessages.length > oldMessages.length) {
-        inMemoryChatState[channelName] = newMergedMessages;
+        inMemoryChatState[detectedServerName][channelName] = newMergedMessages;
         dataChanged = true;
         const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
         for (const msg of newlyAddedHistoricalMessages) {
-          addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
+          addMessageToSyntheticChannelIfNeeded(inMemoryChatState[detectedServerName], msg, channelName);
         }
       }
     }
@@ -123,18 +132,23 @@ import {
   function handleNewChatMessage(node) {
     if (isInitializingChat || isSwitchingTabs) return;
     if (node.nodeType !== Node.ELEMENT_NODE || !node.matches('.chat-line')) return;
-    if (!currentActiveChannel) return;
+    if (!currentActiveChannel || !detectedServerName) return;
 
     const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
     const preciseTime = getISOTimestamp();
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
     if (messageData?.content) {
-      if (!inMemoryChatState[currentActiveChannel]) {
-        inMemoryChatState[currentActiveChannel] = [];
+      if (!inMemoryChatState[detectedServerName]) {
+        inMemoryChatState[detectedServerName] = {};
       }
-      inMemoryChatState[currentActiveChannel].push(messageData);
-      addMessageToSyntheticChannelIfNeeded(inMemoryChatState, messageData, currentActiveChannel);
+      if (!inMemoryChatState[detectedServerName][currentActiveChannel]) {
+        inMemoryChatState[detectedServerName][currentActiveChannel] = [];
+      }
+      
+      inMemoryChatState[detectedServerName][currentActiveChannel].push(messageData);
+      // 注意：合成频道函数也需要适配，这里暂时简单传该服务器的状态
+      addMessageToSyntheticChannelIfNeeded(inMemoryChatState[detectedServerName], messageData, currentActiveChannel);
 
       if (uiControls && !uiControls.isUIPaused()) {
         uiControls.updateUI();
@@ -233,6 +247,20 @@ import {
         console.log(`[Archiver] 检测到服务器切换: ${server}`);
         if (uiControls) {
           uiControls.updateServerDisplay(detectedServerName);
+        }
+
+        // 交互式迁移检查
+        const oldDataV5 = localStorage.getItem(OLD_STORAGE_KEY_V5);
+        if (oldDataV5 && detectedServerName) {
+            const confirmMsg = `检测到旧版本存档！\n\n是否将所有旧记录合并到当前服务器：[${detectedServerName}]？\n\n如果这不是你想要的服务器，请点击“取消”，切换服务器进入后再试。`;
+            if (confirm(confirmMsg)) {
+                const newV6 = performMigrationV5ToV6(detectedServerName, JSON.parse(oldDataV5));
+                if (newV6) {
+                    inMemoryChatState = newV6;
+                    uiControls.updateUI();
+                    alert('数据迁移成功！');
+                }
+            }
         }
       }
     };

@@ -47,6 +47,7 @@ export function createUI(inMemoryChatState, callbacks) {
     pageSize: config.pageSize,
     totalPages: 1,
     viewMode: 'log', // 'log' | 'stats' | 'config'
+    viewingServer: null, // 当前正在查看的服务器名
   };
   let isUIPaused = false;
 
@@ -78,6 +79,7 @@ export function createUI(inMemoryChatState, callbacks) {
   // 配置页控件
   const selfNameInput = document.getElementById('log-archive-self-name-input');
   const pageSizeInput = document.getElementById('log-archive-page-size-input');
+  const serverViewSelector = document.getElementById('log-archive-server-view-selector');
   const configStorageInfo = document.getElementById('log-archive-config-storage-info');
   const cleanButton = document.getElementById('log-archive-clean-button');
   const copyAllButton = document.getElementById('log-archive-copy-all-button');
@@ -126,7 +128,15 @@ export function createUI(inMemoryChatState, callbacks) {
   // --- 渲染核心 ---
   function renderCurrentView() {
     const selectedChannel = channelSelector.value;
-    const messages = inMemoryChatState[selectedChannel] || [];
+    const viewingServer = uiState.viewingServer;
+    
+    // 如果没有选择服务器，显示提示
+    if (!viewingServer) {
+        logDisplay.value = '--- 请在设置中选择要查看的服务器 ---';
+        return;
+    }
+
+    const messages = inMemoryChatState[viewingServer]?.[selectedChannel] || [];
 
     // 视图可见性切换
     logView.style.display = uiState.viewMode === 'config' ? 'none' : 'flex';
@@ -177,8 +187,27 @@ export function createUI(inMemoryChatState, callbacks) {
   }
 
   function updateUI() {
-    const prev = channelSelector.value;
-    const channels = Object.keys(inMemoryChatState);
+    // 更新服务器选择器 (设置页)
+    const servers = Object.keys(inMemoryChatState);
+    const prevServer = serverViewSelector.value;
+    serverViewSelector.innerHTML = '';
+    for (const s of servers) {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      serverViewSelector.appendChild(opt);
+    }
+    if (prevServer && servers.includes(prevServer)) {
+        serverViewSelector.value = prevServer;
+    } else if (servers.length > 0 && !uiState.viewingServer) {
+        uiState.viewingServer = servers[0];
+        serverViewSelector.value = servers[0];
+    }
+
+    // 更新频道选择器
+    const prevChannel = channelSelector.value;
+    const currentServerData = inMemoryChatState[uiState.viewingServer] || {};
+    const channels = Object.keys(currentServerData);
     channelSelector.innerHTML = '';
 
     if (channels.length === 0) {
@@ -187,11 +216,11 @@ export function createUI(inMemoryChatState, callbacks) {
       for (const ch of channels) {
         const opt = document.createElement('option');
         opt.value = ch;
-        opt.textContent = `${ch} (${inMemoryChatState[ch].length})`;
+        opt.textContent = `${ch} (${currentServerData[ch].length})`;
         channelSelector.appendChild(opt);
       }
-      if (prev && channels.includes(prev)) {
-        channelSelector.value = prev;
+      if (prevChannel && channels.includes(prevChannel)) {
+        channelSelector.value = prevChannel;
       }
     }
     renderCurrentView();
@@ -235,6 +264,12 @@ export function createUI(inMemoryChatState, callbacks) {
   channelSelector.addEventListener('change', () => {
     uiState.currentPage = 1;
     renderCurrentView();
+  });
+
+  serverViewSelector.addEventListener('change', () => {
+    uiState.viewingServer = serverViewSelector.value;
+    uiState.currentPage = 1;
+    updateUI();
   });
 
   // 日志文本框自动暂停

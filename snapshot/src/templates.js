@@ -46,6 +46,11 @@ export const getMainContainerHTML = (version) => `
                 <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
             </div>
             <div class="config-group">
+                <label>查看存档服务器</label>
+                <select id="log-archive-server-view-selector" class="log-archive-ui-button"></select>
+                <p class="info-text-dim">注：无论查看哪个服务器，新消息只会记录到当前所在的服务器中。</p>
+            </div>
+            <div class="config-group">
                 <label>维护操作</label>
                 <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 5px;"></div>
                 <div class="config-actions">

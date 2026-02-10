@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat: 实现服务器检测功能", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770749844.7173557, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] feat: 实施 v6 数据架构与交互式迁移引导", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770750066.6862166, "duration_ms": 0}}
