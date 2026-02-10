@@ -1,11 +1,12 @@
-import { OLD_STORAGE_KEY_V4, STORAGE_KEY_V5 } from './constants.js';
+import { OLD_STORAGE_KEY_V4, STORAGE_KEY_V5, STORAGE_KEY_V6 } from './constants.js';
+import { storage } from './storage.js';
 import { getISOTimestamp } from './utils.js';
 
 /**
  * 检查并执行一次性的数据迁移，将 v4 版本的数据转换为 v5 格式。
  */
 export function migrateDataV4toV5() {
-  const oldDataRaw = localStorage.getItem(OLD_STORAGE_KEY_V4);
+  const oldDataRaw = storage.getRaw(OLD_STORAGE_KEY_V4);
   if (!oldDataRaw) return;
 
   console.log('检测到旧版本(v4)数据，正在执行一次性迁移...');
@@ -27,8 +28,10 @@ export function migrateDataV4toV5() {
       });
     }
 
+    // 迁移逻辑中暂时直接使用 localStorage 写入 V5 是允许的，
+    // 因为这是针对 v4 的旧迁移。
     localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(newData));
-    localStorage.removeItem(OLD_STORAGE_KEY_V4);
+    storage.removeRaw(OLD_STORAGE_KEY_V4);
     console.log('数据迁移成功！');
   } catch (error) {
     console.error('数据迁移失败，旧数据可能已损坏，将予以保留。', error);
@@ -81,20 +84,16 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
   return oldMessages.concat(messagesToAdd);
 }
 
-/** 从 localStorage 加载存档。*/
+/** 从持久化层加载 v6 存档。*/
 export function loadMessagesFromStorage() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY_V5)) || {};
-  } catch (e) {
-    console.error('读取存档失败，数据已损坏。', e);
-    return {};
-  }
+  return storage.load();
 }
 
-/** 将内存中的存档保存到 localStorage。*/
+/** 将内存中的存档保存到持久化层。*/
 export function saveMessagesToStorage(messagesObject) {
-  console.info('存档已保存到 localStorage');
-  localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(messagesObject));
+  if (storage.save(messagesObject)) {
+    console.info('[State] 存档已保存到持久化存储');
+  }
 }
 
 /**

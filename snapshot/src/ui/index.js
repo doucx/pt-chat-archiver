@@ -77,16 +77,15 @@ export function createUI(initialAppState, appCallbacks) {
   const clearAllData = () => {
     if (
       confirm(
-        '【严重警告】此操作将清空所有本地存储的聊天存档，并以当前屏幕可见记录重置。此操作不可恢复！确定要执行吗？',
+        '【严重警告】此操作将清空所有本地存储的聊天存档。此操作不可恢复！确定要执行吗？',
       )
     ) {
       appCallbacks.deactivateLogger();
-      localStorage.removeItem(STORAGE_KEY_V5); // 使用常量
+      storage.clear(); // 使用抽象层清空数据
       for (const key of Object.keys(appState)) {
         delete appState[key];
       }
-      appCallbacks.scanAndMergeHistory(); // This will repopulate appState
-      appCallbacks.saveMessagesToStorage(appState);
+      // 重置后不应立即扫描合并，而是保持空状态或由用户决定
       renderer.render(appState, uiCallbacks);
     }
   };
