@@ -1,4 +1,4 @@
-import { STORAGE_KEY_V5 } from '../constants.js';
+import { storage } from '../storage.js';
 import { getDOMElements, initDOM } from './dom.js';
 import { bindUIEvents } from './events.js';
 import { createRenderer, formatMessageForDisplay } from './renderer.js';
@@ -81,7 +81,7 @@ export function createUI(initialAppState, appCallbacks) {
       )
     ) {
       appCallbacks.deactivateLogger();
-      localStorage.removeItem(STORAGE_KEY_V5); // 使用常量
+      storage.clearAllMessages();
       for (const key of Object.keys(appState)) {
         delete appState[key];
       }
