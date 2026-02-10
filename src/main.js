@@ -19,7 +19,7 @@ import {
   migrateDataV4toV5,
   saveMessagesToStorage,
 } from './state.js';
-import { createUI } from './ui.js';
+import { createUI } from './ui/index.js';
 import {
   debounce,
   formatISOTimeForDisplay,

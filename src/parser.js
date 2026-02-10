@@ -138,7 +138,7 @@ export function extractServerFromDOM() {
 
   // 寻找按钮内的 span 元素，它通常包含服务器名称
   const serverSpan = playButton.querySelector('span');
-  if (serverSpan && serverSpan.textContent.trim()) {
+  if (serverSpan?.textContent?.trim()) {
     return serverSpan.textContent.trim();
   }
 
