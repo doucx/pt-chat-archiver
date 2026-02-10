@@ -112,8 +112,10 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
       navigator.clipboard.writeText(dom.logDisplay.value).then(() => {
         const originalText = dom.copyButton.textContent;
         dom.copyButton.textContent = '已复制!';
+        dom.copyButton.style.minWidth = '60px'; // 防止文字显示不全
         setTimeout(() => {
           dom.copyButton.textContent = originalText;
+          dom.copyButton.style.minWidth = '';
         }, 1500);
       });
     }
