@@ -17,8 +17,10 @@ import {
   loadMessagesFromStorage,
   mergeAndDeduplicateMessages,
   migrateDataV4toV5,
+  migrateV5toV6,
   saveMessagesToStorage,
 } from './state.js';
+import { storage } from './storage.js';
 import { createUI } from './ui/index.js';
 import {
   debounce,
