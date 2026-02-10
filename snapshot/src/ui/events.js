@@ -39,6 +39,15 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
     fullRender();
   });
 
+  dom.resetServerButton.addEventListener('click', () => {
+    const { activeServer } = uiState.getState();
+    if (activeServer) {
+      uiState.setViewingServer(activeServer);
+      uiState.setPage(1);
+      fullRender();
+    }
+  });
+
   // --- View switching ---
   dom.settingsButton.addEventListener('click', () => {
     const currentMode = uiState.getState().viewMode;

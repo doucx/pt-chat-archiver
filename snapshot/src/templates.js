@@ -39,7 +39,10 @@ export const getMainContainerHTML = (version) => `
         <div id="log-archive-config-view" class="config-section" style="display: none;">
             <div class="config-group">
                 <label>查看存档服务器</label>
-                <select id="log-archive-server-view-selector" class="log-archive-ui-button"></select>
+                <div style="display: flex; gap: 8px;">
+                    <select id="log-archive-server-view-selector" class="log-archive-ui-button" style="flex-grow: 1;"></select>
+                    <button id="log-archive-reset-server-button" class="log-archive-ui-button" title="回到正在记录的服务器">📍</button>
+                </div>
                 <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
                     切换查看不同服务器的历史记录。注意：此切换仅影响显示，不影响当前的数据录制。
                 </div>
