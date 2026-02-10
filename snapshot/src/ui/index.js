@@ -62,9 +62,12 @@ export function createUI(initialAppState, appCallbacks) {
         `【确认】此操作将根据特定规则删除 ${duplicateCount} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
       )
     ) {
-      for (const channel in appState) {
-        const { cleanedRecords } = appCallbacks.cleanChannelRecords(appState[channel]);
-        appState[channel] = cleanedRecords;
+      for (const server in appState) {
+        const channels = appState[server];
+        for (const channel in channels) {
+          const { cleanedRecords } = appCallbacks.cleanChannelRecords(channels[channel]);
+          channels[channel] = cleanedRecords;
+        }
       }
       appCallbacks.saveMessagesToStorage(appState);
       dom.cleanButton.textContent = '清理完毕!';

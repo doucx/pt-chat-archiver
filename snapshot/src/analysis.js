@@ -142,13 +142,16 @@ export function cleanChannelRecords(records) {
 }
 
 /**
- * 检测所有频道中可被清理的重复记录总数。
+ * 检测所有服务器及其频道中可被清理的重复记录总数。
  */
-export function detectTotalDuplicates(messagesByChannel) {
+export function detectTotalDuplicates(messagesByServer) {
   let totalDuplicates = 0;
-  if (!messagesByChannel) return 0;
-  for (const channel in messagesByChannel) {
-    const records = messagesByChannel[channel];
+  if (!messagesByServer) return 0;
+  for (const server in messagesByServer) {
+    const channels = messagesByServer[server];
+    if (!channels) continue;
+    for (const channel in channels) {
+      const records = channels[channel];
     if (!records || records.length === 0) continue;
     const is_in_burst = identifyBurstDuplicates(records);
     const seen_contents = new Set();

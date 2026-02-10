@@ -17,8 +17,10 @@ import {
   loadMessagesFromStorage,
   mergeAndDeduplicateMessages,
   migrateDataV4toV5,
+  migrateV5toV6,
   saveMessagesToStorage,
 } from './state.js';
+import { storage } from './storage.js';
 import { createUI } from './ui/index.js';
 import {
   debounce,
@@ -91,20 +93,27 @@ import {
    * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
    */
   function scanAndMergeHistory() {
+    if (!detectedServerName) return;
     const historicalState = extractHistoricalChatState();
     let dataChanged = false;
 
     if (historicalState.current_tab && historicalState.messages.length > 0) {
       const channelName = historicalState.current_tab;
-      const oldMessages = inMemoryChatState[channelName] || [];
+      if (!inMemoryChatState[detectedServerName]) inMemoryChatState[detectedServerName] = {};
+
+      const oldMessages = inMemoryChatState[detectedServerName][channelName] || [];
       const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
 
       if (newMergedMessages.length > oldMessages.length) {
-        inMemoryChatState[channelName] = newMergedMessages;
+        inMemoryChatState[detectedServerName][channelName] = newMergedMessages;
         dataChanged = true;
         const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
         for (const msg of newlyAddedHistoricalMessages) {
-          addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
+          addMessageToSyntheticChannelIfNeeded(
+            inMemoryChatState[detectedServerName],
+            msg,
+            channelName,
+          );
         }
       }
     }
@@ -121,7 +130,7 @@ import {
 
   /** 处理 MutationObserver 捕获到的新消息节点。*/
   function handleNewChatMessage(node) {
-    if (isInitializingChat || isSwitchingTabs) return;
+    if (isInitializingChat || isSwitchingTabs || !detectedServerName) return;
     if (node.nodeType !== Node.ELEMENT_NODE || !node.matches('.chat-line')) return;
     if (!currentActiveChannel) return;
 
@@ -130,11 +139,18 @@ import {
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
     if (messageData?.content) {
-      if (!inMemoryChatState[currentActiveChannel]) {
-        inMemoryChatState[currentActiveChannel] = [];
+      if (!inMemoryChatState[detectedServerName]) {
+        inMemoryChatState[detectedServerName] = {};
       }
-      inMemoryChatState[currentActiveChannel].push(messageData);
-      addMessageToSyntheticChannelIfNeeded(inMemoryChatState, messageData, currentActiveChannel);
+      if (!inMemoryChatState[detectedServerName][currentActiveChannel]) {
+        inMemoryChatState[detectedServerName][currentActiveChannel] = [];
+      }
+      inMemoryChatState[detectedServerName][currentActiveChannel].push(messageData);
+      addMessageToSyntheticChannelIfNeeded(
+        inMemoryChatState[detectedServerName],
+        messageData,
+        currentActiveChannel,
+      );
 
       if (uiControls && !uiControls.isUIPaused()) {
         uiControls.updateUI();
@@ -233,6 +249,22 @@ import {
         console.log(`[Archiver] 检测到服务器切换: ${server}`);
         if (uiControls) {
           uiControls.updateServerDisplay(detectedServerName);
+        }
+
+        // --- 数据迁移检查 ---
+        const v5Data = storage.getMessages();
+        if (v5Data && Object.keys(v5Data).length > 0) {
+          if (
+            confirm(
+              `【数据升级】检测到您的旧版本聊天存档。是否将其迁移到当前服务器 [${server}]？\n注意：如果不是该服务器，则选择取消，再选择目标服务器。`,
+            )
+          ) {
+            const migrated = migrateV5toV6(v5Data, server);
+            // 原子性地更新内存状态对象的内容
+            for (const key of Object.keys(inMemoryChatState)) delete inMemoryChatState[key];
+            Object.assign(inMemoryChatState, migrated);
+            uiControls.updateUI();
+          }
         }
       }
     };
