@@ -1,94 +1,68 @@
-这是一个典型的引用错误。在上一阶段的修改中，我们在 `main.js` 的 `updateServer` 函数里直接使用了 `storage` 对象和 `migrateV5toV6` 函数，但忘记在文件顶部导入它们。
+好的，Phase 3 的核心代码修改已经全部就绪。
 
-我将立即生成修复计划。
+这次更新彻底改变了存档器的数据组织方式，从扁平结构升级到了按服务器隔离的嵌套结构，并提供了完善的迁移路径和 UI 交互支持。这标志着 v6 架构升级中最艰难的部分已经顺利完成。
 
-## [WIP] fix: add missing imports for storage and migration in main.js
+我将生成一个 `[COMMIT]` 计划，将这些变更提交到仓库。
 
-### 错误分析
-
-**问题**: 浏览器抛出 `Uncaught ReferenceError: storage is not defined`。
-**原因**: 在 `src/main.js` 中使用了 `storage.getMessages()` 和 `migrateV5toV6()`，但该文件并未从 `src/storage.js` 导入 `storage` 对象，也未从 `src/state.js` 导入 `migrateV5toV6` 函数。由于 JavaScript 模块化的限制，这些未定义的引用导致了运行时崩溃。
+## [COMMIT] feat: implement server-aware recording and V5-to-V6 migration
 
 ### 用户需求
-修复 `main.js` 中的引用错误，确保服务器检测和数据迁移逻辑能够正常运行。
+根据已完成的 Phase 3 实施代码，提交所有关于服务器感知录制、数据隔离存储、跨服务器查看以及 V5 到 V6 数据迁移的变更。
 
 ### 评论
-这是一个在重构过程中常见的疏忽。当我们将逻辑从一个模块移动或扩展到另一个模块时，必须确保所有依赖项都已正确声明。
+这是项目的一个里程碑。它不仅解决了多服务器数据混淆的问题，还通过迁移算法保护了老用户的历史资产，同时通过 `setState` 模式提升了架构的健壮性。
 
 ### 目标
-1. 在 `src/main.js` 中导入 `storage` 对象。
-2. 在 `src/main.js` 中从 `src/state.js` 导入 `migrateV5toV6` 函数。
+1. 提交所有涉及 v6 架构升级的核心逻辑变更。
+2. 确保 Git 历史记录清晰地反映了这次重大的功能演进。
 
 ### 基本原理
-通过在文件顶部添加 `import` 语句，将所需的依赖项引入当前模块的作用域，从而解决 `ReferenceError`。
+按照 Quipu 协议，在所有逻辑修改完成后，通过一个独立的计划执行 Git 提交操作。这有助于保持变更的可追溯性和原子性。
 
 ### 标签
-#intent/fix #flow/ready #priority/critical #comp/engine #scope/core #ai/instruct #task/domain/storage #task/object/v6-migration #task/action/bug-fix #task/state/continue
+#intent/build #flow/ready #priority/high #comp/engine #comp/ui #comp/runtime #concept/state #concept/navigation #scope/core #ai/instruct #task/domain/storage #task/object/v6-migration #task/action/implementation #task/state/end #task/status/completed
 
 ---
 
 ### Script
 
-#### Acts 1: 补全 `main.js` 的导入语句
+#### Acts 1: 提交 Phase 3 核心变更
 
-我们需要导入 `storage` 和 `migrateV5toV6`。
+我们将涉及到的所有文件添加到暂存区并创建提交。
 
 ~~~~~act
-patch_file
+git_add
+src/constants.js
 src/main.js
+src/state.js
+src/storage.js
+src/templates.js
+src/ui/dom.js
+src/ui/events.js
+src/ui/index.js
+src/ui/renderer.js
+src/ui/state.js
 ~~~~~
-~~~~~javascript.old
-import './style.css';
-import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
-import {
-  OLD_STORAGE_KEY_V4,
-  SELF_NAME_KEY,
-  STORAGE_KEY_V5,
-  STORAGE_WARNING_THRESHOLD_MB,
-} from './constants.js';
-import {
-  extractServerFromDOM,
-  extractUsefulData,
-  findActiveTabByClass,
-  locateChatElements,
-} from './parser.js';
-import {
-  addMessageToSyntheticChannelIfNeeded,
-  loadMessagesFromStorage,
-  mergeAndDeduplicateMessages,
-  migrateDataV4toV5,
-  saveMessagesToStorage,
-} from './state.js';
-import { createUI } from './ui/index.js';
+
+~~~~~act
+git_commit
 ~~~~~
-~~~~~javascript.new
-import './style.css';
-import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
-import {
-  OLD_STORAGE_KEY_V4,
-  SELF_NAME_KEY,
-  STORAGE_KEY_V5,
-  STORAGE_WARNING_THRESHOLD_MB,
-} from './constants.js';
-import {
-  extractServerFromDOM,
-  extractUsefulData,
-  findActiveTabByClass,
-  locateChatElements,
-} from './parser.js';
-import {
-  addMessageToSyntheticChannelIfNeeded,
-  loadMessagesFromStorage,
-  mergeAndDeduplicateMessages,
-  migrateDataV4toV5,
-  migrateV5toV6,
-  saveMessagesToStorage,
-} from './state.js';
-import { storage } from './storage.js';
-import { createUI } from './ui/index.js';
+~~~~~text
+feat(core): implement server-aware recording and V5-to-V6 migration
+
+This major architectural update introduces the v6 storage schema, which organizes chat logs by game server (Server -> Channel -> Messages).
+
+Key changes:
+- Data Isolation: Messages are now recorded into server-specific namespaces based on real-time DOM detection.
+- Migration Path: Implemented an interactive migration flow that allows users to move their legacy V5 (flat) data into the new V6 structure for a specific server.
+- Multi-Server Viewer: Enhanced the UI with a server selector in the settings, allowing users to view archives from different servers in a 'Read-only' mode.
+- State Sync: Introduced a 'setState' bridge between the main logic and UI module to ensure robust data synchronization when the state tree is replaced.
+- Storage Driver: Updated to support V6 keys, proper cleanup of V5 data, and accurate storage usage calculation.
+
+This upgrade resolves the long-standing issue of data overlapping in multi-server environments.
 ~~~~~
 
 ### 下一步建议
-- **立即刷新页面**: 检查控制台是否还存在 `ReferenceError`。
-- **验证迁移弹窗**: 进入游戏并确保检测到服务器后，迁移对话框能够正确弹出。
-- **检查 UI 状态同步**: 迁移完成后，UI 应该立即刷新并显示从 V5 导入的数据。
+- **回归测试**: 建议在不同服务器环境下运行脚本，验证录制是否完全隔离，以及 UI 的只读提示是否准确。
+- **清理与优化**: 在 v6 稳定运行一个周期后，可以考虑移除 `src/state.js` 中极其古老的 `migrateDataV4toV5` 逻辑，进一步精简代码库。
+- **文档更新**: 如果有外部用户手册，请更新关于“多服务器支持”的使用说明。
