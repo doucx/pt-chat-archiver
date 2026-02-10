@@ -33,6 +33,12 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
     fullRender();
   });
 
+  dom.serverViewSelector.addEventListener('change', () => {
+    uiState.setViewingServer(dom.serverViewSelector.value);
+    uiState.setPage(1);
+    fullRender();
+  });
+
   // --- View switching ---
   dom.settingsButton.addEventListener('click', () => {
     const currentMode = uiState.getState().viewMode;

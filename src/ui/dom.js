@@ -48,6 +48,7 @@ export function getDOMElements() {
     toggleButton: document.getElementById('log-archive-ui-toggle-button'),
 
     // Config View Controls
+    serverViewSelector: document.getElementById('log-archive-server-view-selector'),
     selfNameInput: document.getElementById('log-archive-self-name-input'),
     pageSizeInput: document.getElementById('log-archive-page-size-input'),
     configStorageInfo: document.getElementById('log-archive-config-storage-info'),
