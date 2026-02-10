@@ -1,7 +1,8 @@
-import { bindUIEvents } from './events.js';
-import { createRenderer } from './renderer.js';
-import { createUIState } from './state.js';
+import { STORAGE_KEY_V5 } from '../constants.js';
 import { getDOMElements, initDOM } from './dom.js';
+import { bindUIEvents } from './events.js';
+import { createRenderer, formatMessageForDisplay } from './renderer.js';
+import { createUIState } from './state.js';
 
 /**
  * Initializes and orchestrates the entire UI module.
@@ -31,9 +32,7 @@ export function createUI(initialAppState, appCallbacks) {
     let allTextContent = '';
     for (const channelName in appState) {
       allTextContent += `\n\n==================== 频道: ${channelName} ====================\n\n`;
-      allTextContent += appState[channelName]
-        .map((msg) => renderer.formatMessageForDisplay(msg)) // Re-use formatter logic if needed or define locally
-        .join('\n');
+      allTextContent += appState[channelName].map(formatMessageForDisplay).join('\n');
     }
     const triggerDownload = (content, filename, mimeType) => {
       const blob = new Blob([content], { type: mimeType });
@@ -76,15 +75,27 @@ export function createUI(initialAppState, appCallbacks) {
   };
 
   const clearAllData = () => {
-      if(confirm('【严重警告】此操作将清空所有本地存储的聊天存档，并以当前屏幕可见记录重置。此操作不可恢复！确定要执行吗？')) {
-        appCallbacks.deactivateLogger();
-        localStorage.removeItem('chatLogArchive_v5'); // Direct access for critical op
-        for (const key of Object.keys(appState)) {
-          delete appState[key];
-        }
+    if (
+      confirm(
+        '【严重警告】此操作将清空所有本地存储的聊天存档，并以当前屏幕可见记录重置。此操作不可恢复！确定要执行吗？',
+      )
+    ) {
+      appCallbacks.deactivateLogger();
+      localStorage.removeItem(STORAGE_KEY_V5); // 使用常量
+      for (const key of Object.keys(appState)) {
+        delete appState[key];
+      }
         appCallbacks.scanAndMergeHistory(); // This will repopulate appState
         appCallbacks.saveMessagesToStorage(appState);
       }
+  };
+
+  const uiCallbacks = {
+    ...appCallbacks,
+    cleanChannelRecords,
+    clearAllData,
+    copyAllData,
+    downloadAllData,
   };
 
   bindUIEvents({
@@ -92,14 +103,17 @@ export function createUI(initialAppState, appCallbacks) {
     uiState,
     renderer,
     getAppState,
-    callbacks: { ...appCallbacks, cleanChannelRecords, clearAllData, copyAllData, downloadAllData },
+    callbacks: uiCallbacks,
   });
 
-  // 4. Return the public API
+  // 4. Initial Render
+  renderer.render(appState, uiCallbacks);
+
+  // 5. Return the public API
   return {
     updateUI: () => {
       if (!uiState.getState().isUIPaused) {
-        renderer.render(appState, { ...appCallbacks, cleanChannelRecords, copyAllData, downloadAllData });
+        renderer.render(appState, uiCallbacks);
       }
     },
     checkStorageUsage: renderer.checkStorageUsage,

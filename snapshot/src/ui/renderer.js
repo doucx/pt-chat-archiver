@@ -2,6 +2,20 @@ import { generateStatisticsText } from '../analysis.js';
 import { formatISOTimeForDisplay, getStorageUsageInMB } from '../utils.js';
 
 /**
+ * Formats a single message object into a display string for the UI or text export.
+ * @param {object} msg - The message object.
+ * @returns {string} Formatted string.
+ */
+export function formatMessageForDisplay(msg) {
+  let prefix = '';
+  if (msg.type.includes('party')) prefix = '👥 ';
+  else if (msg.type.includes('whisper')) prefix = '💬 ';
+  else if (msg.type.includes('announcement')) prefix = '📣 ';
+  const displayTime = formatISOTimeForDisplay(msg.time);
+  return `${displayTime} ${prefix}${msg.content}`;
+}
+
+/**
  * Creates a renderer instance responsible for updating the UI DOM.
  * @param {object} dom - The DOM elements object from dom.js.
  * @param {object} uiState - The UI state manager from state.js.
@@ -9,15 +23,6 @@ import { formatISOTimeForDisplay, getStorageUsageInMB } from '../utils.js';
  */
 export function createRenderer(dom, uiState) {
   // --- Private Helper Functions ---
-  const formatMessageForDisplay = (msg) => {
-    let prefix = '';
-    if (msg.type.includes('party')) prefix = '👥 ';
-    else if (msg.type.includes('whisper')) prefix = '💬 ';
-    else if (msg.type.includes('announcement')) prefix = '📣 ';
-    const displayTime = formatISOTimeForDisplay(msg.time);
-    return `${displayTime} ${prefix}${msg.content}`;
-  };
-
   const updateTextareaAndPreserveSelection = (updateFn) => {
     const isFocused = document.activeElement === dom.logDisplay;
     let selectionStart;
