@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(ui): 修复重构导致的 UI 刷新不及时和计数更新滞后问题", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770752848.7950933, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(parser): 使用可选链修复 lint 错误", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770753134.1533608, "duration_ms": 0}}
