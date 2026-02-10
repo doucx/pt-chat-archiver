@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat: 实施 v6 升级阶段二 - UI 状态与渲染重构", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770754370.2718403, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "biome Capture: M renderer.js", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770754832.5312836, "duration_ms": 0}}

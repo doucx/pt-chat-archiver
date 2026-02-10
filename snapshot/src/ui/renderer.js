@@ -65,7 +65,7 @@ export function createRenderer(dom, uiState) {
           opt.textContent = s;
           dom.serverViewSelector.appendChild(opt);
         }
-        dom.serverViewSelector.value = viewingServer || prevServer || (servers[0] || '');
+        dom.serverViewSelector.value = viewingServer || prevServer || servers[0] || '';
       }
     }
 
