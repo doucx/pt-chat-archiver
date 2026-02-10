@@ -131,6 +131,23 @@ export function locateChatElements() {
   };
 }
 
+/** 从开始界面的 Play 按钮中提取服务器名称。*/
+export function extractServerFromDOM() {
+  const playButton = document.querySelector('button.btn-success');
+  if (!playButton) return null;
+
+  // 寻找按钮内的 span 元素，它通常包含服务器名称
+  const serverSpan = playButton.querySelector('span');
+  if (serverSpan && serverSpan.textContent.trim()) {
+    return serverSpan.textContent.trim();
+  }
+
+  // 回退方案：尝试解析整个按钮的文本
+  const text = playButton.textContent.trim();
+  const match = text.match(/Play on (.*)/i);
+  return match ? match[1].trim() : null;
+}
+
 /** 从 tabs 元素的 HTML 中解析出当前活跃的标签页名称。*/
 export function findActiveTabByClass(htmlString) {
   if (!htmlString) return null;

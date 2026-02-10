@@ -6,7 +6,12 @@ import {
   STORAGE_KEY_V5,
   STORAGE_WARNING_THRESHOLD_MB,
 } from './constants.js';
-import { extractUsefulData, findActiveTabByClass, locateChatElements } from './parser.js';
+import {
+  extractServerFromDOM,
+  extractUsefulData,
+  findActiveTabByClass,
+  locateChatElements,
+} from './parser.js';
 import {
   addMessageToSyntheticChannelIfNeeded,
   loadMessagesFromStorage,
@@ -27,7 +32,9 @@ import {
   let inMemoryChatState = {};
   let messageObserver = null;
   let tabObserver = null;
+  let serverObserver = null;
   let currentActiveChannel = null;
+  let detectedServerName = null;
   let isInitializingChat = false;
   let isSwitchingTabs = false;
   // UI 控制句柄
@@ -217,6 +224,22 @@ import {
     });
 
     uiControls.checkStorageUsage();
+
+    // --- 启动服务器检测观察者 ---
+    const updateServer = () => {
+      const server = extractServerFromDOM();
+      if (server && server !== detectedServerName) {
+        detectedServerName = server;
+        console.log(`[Archiver] 检测到服务器切换: ${server}`);
+        if (uiControls) {
+          uiControls.updateServerDisplay(detectedServerName);
+        }
+      }
+    };
+
+    serverObserver = new MutationObserver(updateServer);
+    serverObserver.observe(document.body, { childList: true, subtree: true });
+    updateServer(); // 立即执行一次
 
     const uiObserver = new MutationObserver(() => {
       const { chatLogContainer } = locateChatElements();

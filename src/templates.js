@@ -5,7 +5,12 @@
  */
 export const getMainContainerHTML = (version) => `
     <div id="log-archive-ui-header">
-        <h2>聊天记录存档 v${version}</h2>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+            <h2 style="margin-bottom: 0;">聊天记录存档 v${version}</h2>
+            <div id="log-archive-server-status" class="info-text-dim" style="font-size: 0.8em; color: var(--color-primary-hover);">
+                检测中...
+            </div>
+        </div>
         <div id="log-archive-ui-controls">
             <select id="log-archive-channel-selector" class="log-archive-ui-button"></select>
             <button id="log-archive-pause-button" class="log-archive-ui-button">⏸️ </button>
