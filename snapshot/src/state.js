@@ -80,25 +80,50 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
   return oldMessages.concat(messagesToAdd);
 }
 
-/** 从持久化层加载存档。*/
+/** 从持久化层加载存档 (V6)。*/
 export function loadMessagesFromStorage() {
-  return storage.getMessages();
+  return storage.getV6Messages();
 }
 
-/** 将内存中的存档保存到持久化层。*/
+/** 将内存中的存档保存到持久化层 (V6)。*/
 export function saveMessagesToStorage(messagesObject) {
-  console.info('存档已保存到本地存储');
-  storage.saveMessages(messagesObject);
+  console.info('存档已保存到本地存储 (V6)');
+  storage.saveV6Messages(messagesObject);
+}
+
+/**
+ * 执行 V5 到 V6 的数据迁移。
+ */
+export function migrateV5toV6(v5Data, targetServer) {
+  console.log(`[Migration] 正在将 V5 数据迁移到服务器: ${targetServer}`);
+  const v6Data = storage.getV6Messages();
+
+  if (!v6Data[targetServer]) {
+    v6Data[targetServer] = v5Data;
+  } else {
+    // 如果目标服务器已存在数据，执行频道级合并
+    for (const channel in v5Data) {
+      v6Data[targetServer][channel] = mergeAndDeduplicateMessages(
+        v6Data[targetServer][channel] || [],
+        v5Data[channel],
+      );
+    }
+  }
+
+  storage.saveV6Messages(v6Data);
+  storage.removeV5Data();
+  console.log('[Migration] V5 迁移完成，旧数据已移除。');
+  return v6Data;
 }
 
 /**
  * 根据条件将消息添加到合成频道。
- * @param {object} state - 脚本的内存状态对象 (inMemoryChatState)。
+ * @param {object} channelMap - 对应服务器的频道映射对象 (inMemoryChatState[server])。
  * @param {object} message - 消息数据对象。
  * @param {string} activeChannel - 消息产生时所在的活跃频道。
  */
-export function addMessageToSyntheticChannelIfNeeded(state, message, activeChannel) {
-  if (activeChannel !== 'Local') {
+export function addMessageToSyntheticChannelIfNeeded(channelMap, message, activeChannel) {
+  if (activeChannel !== 'Local' || !channelMap) {
     return;
   }
   let syntheticChannelName = null;
@@ -108,10 +133,10 @@ export function addMessageToSyntheticChannelIfNeeded(state, message, activeChann
     syntheticChannelName = 'Whisper-Local';
   }
   if (syntheticChannelName) {
-    if (!state[syntheticChannelName]) {
-      state[syntheticChannelName] = [];
+    if (!channelMap[syntheticChannelName]) {
+      channelMap[syntheticChannelName] = [];
     }
-    state[syntheticChannelName].push({ ...message });
+    channelMap[syntheticChannelName].push({ ...message });
     console.log(`消息已自动复制到合成频道 [${syntheticChannelName}]`);
   }
 }

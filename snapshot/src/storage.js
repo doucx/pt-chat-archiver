@@ -49,6 +49,10 @@ export const storage = {
     }
   },
 
+  removeV5Data() {
+    localStorage.removeItem(STORAGE_KEY_V5);
+  },
+
   clearAllMessages() {
     localStorage.removeItem(STORAGE_KEY_V6);
     localStorage.removeItem(STORAGE_KEY_V5);

@@ -11,7 +11,7 @@ import { createUIState } from './state.js';
  * @returns {object} Public API for the UI module.
  */
 export function createUI(initialAppState, appCallbacks) {
-  const appState = initialAppState;
+  let appState = initialAppState;
 
   // 1. Initialize DOM structure
   initDOM(__APP_VERSION__);
@@ -116,6 +116,10 @@ export function createUI(initialAppState, appCallbacks) {
       if (!uiState.getState().isUIPaused) {
         renderer.render(appState, uiCallbacks);
       }
+    },
+    setState: (newState) => {
+      appState = newState;
+      renderer.render(appState, uiCallbacks);
     },
     checkStorageUsage: renderer.checkStorageUsage,
     isUIPaused: () => uiState.getState().isUIPaused,
