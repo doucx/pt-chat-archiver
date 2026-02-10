@@ -63,11 +63,21 @@ export const getMainContainerHTML = (version) => `
                 <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
             </div>
             <div class="config-group">
+                <label>自动保存间隔 (秒)</label>
+                <input type="number" id="log-archive-auto-save-interval" min="5" max="3600" step="5">
+            </div>
+            <div class="config-group">
                 <label>维护操作</label>
                 <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 5px;"></div>
-                <div class="config-actions" style="display: flex; gap: 10px;">
-                    <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复记录</button>
-                    <button id="log-archive-copy-all-button" class="log-archive-ui-button" style="flex-grow: 1;">导出 JSON</button>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="log-archive-save-now-button" class="log-archive-ui-button" style="flex-grow: 1;">💾 立即保存</button>
+                        <span id="log-archive-last-saved-info" class="info-text-dim" style="font-size: 0.8em; white-space: nowrap;">未保存</span>
+                    </div>
+                    <div class="config-actions" style="display: flex; gap: 10px;">
+                        <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复记录</button>
+                        <button id="log-archive-copy-all-button" class="log-archive-ui-button" style="flex-grow: 1;">导出 JSON</button>
+                    </div>
                 </div>
             </div>
             <div class="config-group" style="margin-top: auto; border-top: 1px dashed #444; padding-top: 20px;">

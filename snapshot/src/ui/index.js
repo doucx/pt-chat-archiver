@@ -127,5 +127,10 @@ export function createUI(initialAppState, appCallbacks) {
       uiState.setActiveServer(serverName);
       renderer.render(appState, uiCallbacks);
     },
+    setLastSavedTime: (time) => {
+      uiState.setLastSavedTime(time);
+      renderer.render(appState, uiCallbacks);
+    },
+    getAutoSaveInterval: () => uiState.getState().autoSaveInterval,
   };
 }

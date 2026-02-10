@@ -1,5 +1,8 @@
 import { generateStatisticsText } from '../analysis.js';
-import { formatISOTimeForDisplay, getStorageUsageInMB } from '../utils.js';
+import {
+  formatISOTimeForDisplay,
+  getStorageUsageInMB,
+} from '../utils.js';
 
 /**
  * Formats a single message object into a display string for the UI or text export.
@@ -121,6 +124,14 @@ export function createRenderer(dom, uiState) {
     if (viewMode === 'config') {
       const usageMB = getStorageUsageInMB();
       dom.configStorageInfo.textContent = `当前本地存储占用: ${usageMB.toFixed(2)} MB / 5.00 MB`;
+      
+      const { lastSavedTime } = uiState.getState();
+      if (lastSavedTime) {
+        dom.lastSavedInfo.textContent = `上次保存: ${formatISOTimeForDisplay(lastSavedTime).split(' ')[1]}`;
+      } else {
+        dom.lastSavedInfo.textContent = '尚未保存';
+      }
+      
       updateCleanButtonState(callbacks.detectTotalDuplicates(appState));
       return;
     }

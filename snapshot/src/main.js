@@ -30,6 +30,7 @@ import { debounce, getISOTimestamp } from './utils.js';
   let isSwitchingTabs = false;
   // UI 控制句柄
   let uiControls = null;
+  let autoSaveTimer = null;
 
   /*
    * =================================================================
@@ -209,6 +210,23 @@ import { debounce, getISOTimestamp } from './utils.js';
     currentActiveChannel = null;
   }
 
+  /** 执行一次完整的保存动作并更新 UI。*/
+  function performAutoSave() {
+    saveMessagesToStorage(inMemoryChatState);
+    if (uiControls) {
+      uiControls.setLastSavedTime(getISOTimestamp());
+      uiControls.checkStorageUsage();
+    }
+  }
+
+  /** (重新)启动自动保存定时器。*/
+  function startAutoSaveTimer() {
+    if (autoSaveTimer) clearInterval(autoSaveTimer);
+    const intervalSeconds = uiControls ? uiControls.getAutoSaveInterval() : 30;
+    console.log(`[Archiver] 自动保存定时器启动，间隔: ${intervalSeconds}s`);
+    autoSaveTimer = setInterval(performAutoSave, intervalSeconds * 1000);
+  }
+
   /** 脚本主入口函数。*/
   function main() {
     // 1. 执行静默迁移 (如 v4 -> v5)
@@ -222,6 +240,8 @@ import { debounce, getISOTimestamp } from './utils.js';
       cleanChannelRecords,
       detectTotalDuplicates,
       deactivateLogger,
+      manualSave: performAutoSave,
+      onAutoSaveIntervalChange: startAutoSaveTimer,
     });
 
     uiControls.checkStorageUsage();
@@ -263,10 +283,7 @@ import { debounce, getISOTimestamp } from './utils.js';
     });
     uiObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
 
-    setInterval(() => {
-      saveMessagesToStorage(inMemoryChatState);
-      uiControls.checkStorageUsage();
-    }, 15000);
+    startAutoSaveTimer();
 
     let lastDuplicateCount = -1;
     setInterval(() => {
