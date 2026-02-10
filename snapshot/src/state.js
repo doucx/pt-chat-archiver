@@ -80,25 +80,54 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
   return oldMessages.concat(messagesToAdd);
 }
 
-/** 从持久化层加载存档。*/
+/** 从持久化层加载存档 (V6)。*/
 export function loadMessagesFromStorage() {
-  return storage.getMessages();
+  return storage.getV6Messages();
 }
 
-/** 将内存中的存档保存到持久化层。*/
+/** 将内存中的存档保存到持久化层 (V6)。*/
 export function saveMessagesToStorage(messagesObject) {
-  console.info('存档已保存到本地存储');
-  storage.saveMessages(messagesObject);
+  console.info('存档已保存到本地存储 (V6)');
+  storage.saveV6Messages(messagesObject);
+}
+
+/**
+ * 将 V5 数据迁移到 V6 结构。
+ * @param {object} v5Data - 旧的扁平化数据。
+ * @param {string} targetServer - 目标服务器名称。
+ */
+export function migrateV5toV6(v5Data, targetServer) {
+  if (!v5Data || !targetServer) return null;
+  console.log(`[Migration] 正在将 V5 数据迁移到服务器: ${targetServer}`);
+
+  const v6Data = storage.getV6Messages();
+
+  if (!v6Data[targetServer]) {
+    v6Data[targetServer] = v5Data;
+  } else {
+    // 如果 V6 中已存在该服务器数据，执行频道级合并
+    for (const channel in v5Data) {
+      v6Data[targetServer][channel] = mergeAndDeduplicateMessages(
+        v6Data[targetServer][channel] || [],
+        v5Data[channel],
+      );
+    }
+  }
+
+  storage.saveV6Messages(v6Data);
+  // 核心安全：迁移成功后才移除旧键
+  localStorage.removeItem('chatLogArchive_v5');
+  return v6Data;
 }
 
 /**
  * 根据条件将消息添加到合成频道。
- * @param {object} state - 脚本的内存状态对象 (inMemoryChatState)。
+ * @param {object} serverMap - 特定服务器的频道数据映射 (inMemoryChatState[server])。
  * @param {object} message - 消息数据对象。
  * @param {string} activeChannel - 消息产生时所在的活跃频道。
  */
-export function addMessageToSyntheticChannelIfNeeded(state, message, activeChannel) {
-  if (activeChannel !== 'Local') {
+export function addMessageToSyntheticChannelIfNeeded(serverMap, message, activeChannel) {
+  if (!serverMap || activeChannel !== 'Local') {
     return;
   }
   let syntheticChannelName = null;
@@ -108,10 +137,10 @@ export function addMessageToSyntheticChannelIfNeeded(state, message, activeChann
     syntheticChannelName = 'Whisper-Local';
   }
   if (syntheticChannelName) {
-    if (!state[syntheticChannelName]) {
-      state[syntheticChannelName] = [];
+    if (!serverMap[syntheticChannelName]) {
+      serverMap[syntheticChannelName] = [];
     }
-    state[syntheticChannelName].push({ ...message });
+    serverMap[syntheticChannelName].push({ ...message });
     console.log(`消息已自动复制到合成频道 [${syntheticChannelName}]`);
   }
 }

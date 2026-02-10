@@ -1,286 +1,360 @@
-我们现在开始执行 **阶段二：UI 状态与渲染重构**。
+我们现在进入本次 v6 升级最关键的阶段：**阶段三：迁移逻辑与主流程编排**。
 
-在这一阶段，我们将升级 UI 模块的内部状态机和渲染逻辑，使其能够理解并处理“服务器 -> 频道 -> 消息”的嵌套结构。核心在于引入“当前物理服务器 (activeServer)”和“查看服务器 (viewingServer)”的概念，从而支持用户在录制当前服务器消息的同时，翻阅其他服务器的历史存档。
+在这一阶段，我们将完成数据流的最后闭环：实现从 V5 到 V6 的核心迁移算法，并全面重写 `main.js` 的生命周期，使其能够处理分层的数据结构。完成后，脚本将具备完整的“服务器感知”存储能力，并能安全地引导老用户升级数据。
 
-## [WIP] feat: 实施 v6 升级阶段二 - UI 状态与渲染重构
+## [COMMIT] feat: 实施 v6 升级阶段三 - 迁移逻辑与主流程编排
 
 ### 用户需求
-重构 UI 层以适配 v6 的分层数据结构。UI 需要能够区分用户当前所在的服务器和正在查看的服务器，并允许用户通过下拉列表切换查看不同服务器的聊天存档（只读模式）。
+完成 v6 架构升级。实现一次性数据迁移功能，将旧的扁平化聊天记录归并到用户指定的服务器下。同时重构主逻辑，确保所有新的聊天记录都能根据当前所在服务器正确分类存储。
 
 ### 评论
-将“正在录制”与“正在查看”这两个关注点在 UI 状态层面解耦，是提升多服务器环境下用户体验的关键。这为后续的“只读历史查看”功能提供了逻辑支持。
+这是整个 v6 升级的“最后一公里”。通过将数据迁移逻辑与服务器自动检测相结合，我们确保了用户在进入游戏的那一刻，就能以最自然的方式完成复杂的架构迁移。
 
 ### 目标
-1.  **扩展 UI 状态**: 在 `state.js` 中增加 `activeServer` 和 `viewingServer` 状态及其设置器。
-2.  **重构渲染引擎**: 修改 `renderer.js` 中的 `render` 函数，使其根据 `viewingServer` 从全局状态树中进行数据切片，并动态填充服务器选择器。
-3.  **增强交互反馈**: 在 UI 顶部显示服务器状态（正在录制 vs 只读模式）。
-4.  **事件绑定**: 在 `events.js` 中监听服务器选择器的变化。
-5.  **入口联动**: 确保 `main.js` 的服务器检测信号能正确驱动 UI 状态的更新。
+1.  **实现迁移算法**: 在 `state.js` 中新增 `migrateV5toV6` 函数，支持数据合并。
+2.  **重构主逻辑存储流**: 修改 `main.js`，将所有消息写入操作从“频道”级提升到“服务器 -> 频道”级。
+3.  **实现交互式迁移**: 在服务器检测到以后，自动识别是否存在 V5 数据并提示用户迁移。
+4.  **同步 UI 状态**: 确保迁移完成后，UI 能立即感应到新数据的存在。
 
 ### 基本原理
-通过在 `uiState` 中维护 `activeServer` 和 `viewingServer` 两个变量，我们实现了一个简单的状态机。当 `viewingServer === activeServer` 时，用户处于实时监控模式；当两者不等时，UI 自动切换为只读查看模式，同时保护当前录制逻辑不受影响。
+我们采用“检测-提示-执行”的迁移策略。当 `serverObserver` 检测到当前服务器名称时，如果 `localStorage` 中依然残留 `STORAGE_KEY_V5`，则触发迁移。迁移逻辑会将 V5 数据对象整体包装进 V6 的服务器键下，并通过 `saveV6Messages` 进行物理持久化，随后安全移除旧键。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/cli #concept/ui #concept/state #scope/ux #ai/instruct #task/domain/ui #task/object/ui-state-refactor #task/action/v6-adaptation #task/state/continue
+#intent/build #flow/ready #priority/high #comp/engine #concept/state #concept/storage #scope/core #ai/instruct #task/domain/storage #task/object/v6-migration #task/action/integration #task/state/end
 
 ---
 
 ### Script
 
-#### Acts 1: 扩展 UI 内部状态
+#### Acts 1: 升级 `state.js` 核心逻辑
 
-我们在 `src/ui/state.js` 中增加服务器相关的状态管理。
+我们实现 V5 到 V6 的迁移函数，并调整 V6 的加载与保存入口。同时优化了合成频道函数的签名。
 
 ~~~~~act
 patch_file
-src/ui/state.js
+src/state.js
 ~~~~~
 ~~~~~javascript.old
-export function createUIState() {
-  const state = {
-    currentPage: 1,
-    pageSize: 1000,
-    totalPages: 1,
-    viewMode: 'log', // 'log' | 'stats' | 'config'
-    isUIPaused: false,
-  };
-~~~~~
-~~~~~javascript.new
-export function createUIState() {
-  const state = {
-    currentPage: 1,
-    pageSize: 1000,
-    totalPages: 1,
-    viewMode: 'log', // 'log' | 'stats' | 'config'
-    isUIPaused: false,
-    activeServer: null, // 当前物理所在的服务器
-    viewingServer: null, // 当前正在查看的存档服务器
-  };
-~~~~~
-~~~~~act
-patch_file
-src/ui/state.js
-~~~~~
-~~~~~javascript.old
-    forcePause: (paused) => {
-      state.isUIPaused = paused;
-    },
-    getSelfName: () => storage.getSelfName(),
-    setSelfName: (name) => storage.setSelfName(name),
-  };
+/** 从持久化层加载存档。*/
+export function loadMessagesFromStorage() {
+  return storage.getMessages();
 }
-~~~~~
-~~~~~javascript.new
-    forcePause: (paused) => {
-      state.isUIPaused = paused;
-    },
-    setActiveServer: (serverName) => {
-      state.activeServer = serverName;
-      // 如果还没有选择查看哪个服务器，默认跟随当前服务器
-      if (!state.viewingServer) {
-        state.viewingServer = serverName;
-      }
-    },
-    setViewingServer: (serverName) => {
-      state.viewingServer = serverName;
-    },
-    getSelfName: () => storage.getSelfName(),
-    setSelfName: (name) => storage.setSelfName(name),
-  };
+
+/** 将内存中的存档保存到持久化层。*/
+export function saveMessagesToStorage(messagesObject) {
+  console.info('存档已保存到本地存储');
+  storage.saveMessages(messagesObject);
 }
-~~~~~
 
-#### Acts 2: 重构渲染逻辑以适配 v6 结构
-
-我们修改 `render` 函数，使其从 `appState[viewingServer]` 中获取数据，并更新服务器选择器和状态标签。
-
-~~~~~act
-patch_file
-src/ui/renderer.js
-~~~~~
-~~~~~javascript.old
-  // --- Main Render Logic ---
-  const render = (appState, callbacks) => {
-    const { viewMode, currentPage, pageSize } = uiState.getState();
-    const selectedChannel = dom.channelSelector.value;
-    const messages = appState[selectedChannel] || [];
-
-    // Update channel selector
-    const channels = Object.keys(appState);
-    const prevValue = dom.channelSelector.value;
-    dom.channelSelector.innerHTML = '';
-    if (channels.length === 0) {
-      dom.channelSelector.innerHTML = '<option>无记录</option>';
-    } else {
-      for (const ch of channels) {
-        const opt = document.createElement('option');
-        opt.value = ch;
-        opt.textContent = `${ch} (${appState[ch].length})`;
-        dom.channelSelector.appendChild(opt);
-      }
-      if (channels.includes(prevValue)) {
-        dom.channelSelector.value = prevValue;
-      }
+/**
+ * 根据条件将消息添加到合成频道。
+ * @param {object} state - 脚本的内存状态对象 (inMemoryChatState)。
+ * @param {object} message - 消息数据对象。
+ * @param {string} activeChannel - 消息产生时所在的活跃频道。
+ */
+export function addMessageToSyntheticChannelIfNeeded(state, message, activeChannel) {
+  if (activeChannel !== 'Local') {
+    return;
+  }
+  let syntheticChannelName = null;
+  if (message.type.includes('party')) {
+    syntheticChannelName = 'Party-Local';
+  } else if (message.type.includes('whisper')) {
+    syntheticChannelName = 'Whisper-Local';
+  }
+  if (syntheticChannelName) {
+    if (!state[syntheticChannelName]) {
+      state[syntheticChannelName] = [];
     }
+    state[syntheticChannelName].push({ ...message });
+    console.log(`消息已自动复制到合成频道 [${syntheticChannelName}]`);
+  }
+}
 ~~~~~
 ~~~~~javascript.new
-  // --- Main Render Logic ---
-  const render = (appState, callbacks) => {
-    const { viewMode, currentPage, pageSize, viewingServer, activeServer } = uiState.getState();
+/** 从持久化层加载存档 (V6)。*/
+export function loadMessagesFromStorage() {
+  return storage.getV6Messages();
+}
 
-    // 1. 更新服务器选择器 (v6 特有)
-    const servers = Object.keys(appState);
-    if (dom.serverViewSelector) {
-      const prevServer = dom.serverViewSelector.value;
-      dom.serverViewSelector.innerHTML = '';
-      if (servers.length === 0) {
-        dom.serverViewSelector.innerHTML = '<option value="">无存档</option>';
-      } else {
-        for (const s of servers) {
-          const opt = document.createElement('option');
-          opt.value = s;
-          opt.textContent = s;
-          dom.serverViewSelector.appendChild(opt);
+/** 将内存中的存档保存到持久化层 (V6)。*/
+export function saveMessagesToStorage(messagesObject) {
+  console.info('存档已保存到本地存储 (V6)');
+  storage.saveV6Messages(messagesObject);
+}
+
+/**
+ * 将 V5 数据迁移到 V6 结构。
+ * @param {object} v5Data - 旧的扁平化数据。
+ * @param {string} targetServer - 目标服务器名称。
+ */
+export function migrateV5toV6(v5Data, targetServer) {
+  if (!v5Data || !targetServer) return null;
+  console.log(`[Migration] 正在将 V5 数据迁移到服务器: ${targetServer}`);
+
+  const v6Data = storage.getV6Messages();
+
+  if (!v6Data[targetServer]) {
+    v6Data[targetServer] = v5Data;
+  } else {
+    // 如果 V6 中已存在该服务器数据，执行频道级合并
+    for (const channel in v5Data) {
+      v6Data[targetServer][channel] = mergeAndDeduplicateMessages(
+        v6Data[targetServer][channel] || [],
+        v5Data[channel],
+      );
+    }
+  }
+
+  storage.saveV6Messages(v6Data);
+  // 核心安全：迁移成功后才移除旧键
+  localStorage.removeItem('chatLogArchive_v5');
+  return v6Data;
+}
+
+/**
+ * 根据条件将消息添加到合成频道。
+ * @param {object} serverMap - 特定服务器的频道数据映射 (inMemoryChatState[server])。
+ * @param {object} message - 消息数据对象。
+ * @param {string} activeChannel - 消息产生时所在的活跃频道。
+ */
+export function addMessageToSyntheticChannelIfNeeded(serverMap, message, activeChannel) {
+  if (!serverMap || activeChannel !== 'Local') {
+    return;
+  }
+  let syntheticChannelName = null;
+  if (message.type.includes('party')) {
+    syntheticChannelName = 'Party-Local';
+  } else if (message.type.includes('whisper')) {
+    syntheticChannelName = 'Whisper-Local';
+  }
+  if (syntheticChannelName) {
+    if (!serverMap[syntheticChannelName]) {
+      serverMap[syntheticChannelName] = [];
+    }
+    serverMap[syntheticChannelName].push({ ...message });
+    console.log(`消息已自动复制到合成频道 [${syntheticChannelName}]`);
+  }
+}
+~~~~~
+
+#### Acts 2: 重构 `main.js` 驱动逻辑
+
+我们修改录制函数以适配服务器层级，并在服务器检测回调中加入迁移触发逻辑。
+
+~~~~~act
+patch_file
+src/main.js
+~~~~~
+~~~~~javascript.old
+  /**
+   * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
+   */
+  function scanAndMergeHistory() {
+    const historicalState = extractHistoricalChatState();
+    let dataChanged = false;
+
+    if (historicalState.current_tab && historicalState.messages.length > 0) {
+      const channelName = historicalState.current_tab;
+      const oldMessages = inMemoryChatState[channelName] || [];
+      const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
+
+      if (newMergedMessages.length > oldMessages.length) {
+        inMemoryChatState[channelName] = newMergedMessages;
+        dataChanged = true;
+        const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
+        for (const msg of newlyAddedHistoricalMessages) {
+          addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
         }
-        dom.serverViewSelector.value = viewingServer || prevServer || (servers[0] || '');
       }
     }
+    if (dataChanged && uiControls && !uiControls.isUIPaused()) {
+      uiControls.updateUI();
+    }
+  }
+~~~~~
+~~~~~javascript.new
+  /**
+   * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
+   */
+  function scanAndMergeHistory() {
+    if (!detectedServerName) return;
+    const historicalState = extractHistoricalChatState();
+    let dataChanged = false;
 
-    // 2. 更新服务器状态显示
-    if (dom.serverStatus) {
-      if (!activeServer) {
-        dom.serverStatus.textContent = '等待进入游戏...';
-        dom.serverStatus.style.color = '';
-      } else if (viewingServer === activeServer) {
-        dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}`;
-        dom.serverStatus.style.color = 'var(--color-primary-hover)';
-      } else {
-        dom.serverStatus.textContent = `⚠️ 只读模式: 正在查看 ${viewingServer} 存档`;
-        dom.serverStatus.style.color = 'var(--color-warning)';
+    if (historicalState.current_tab && historicalState.messages.length > 0) {
+      if (!inMemoryChatState[detectedServerName]) {
+        inMemoryChatState[detectedServerName] = {};
+      }
+      const serverMap = inMemoryChatState[detectedServerName];
+      const channelName = historicalState.current_tab;
+      const oldMessages = serverMap[channelName] || [];
+      const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
+
+      if (newMergedMessages.length > oldMessages.length) {
+        serverMap[channelName] = newMergedMessages;
+        dataChanged = true;
+        const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
+        for (const msg of newlyAddedHistoricalMessages) {
+          addMessageToSyntheticChannelIfNeeded(serverMap, msg, channelName);
+        }
       }
     }
-
-    // 3. 获取当前查看服务器的数据切片
-    const serverData = appState[viewingServer] || {};
-    const selectedChannel = dom.channelSelector.value;
-    const messages = serverData[selectedChannel] || [];
-
-    // 4. 更新频道选择器
-    const channels = Object.keys(serverData);
-    const prevChannelValue = dom.channelSelector.value;
-    dom.channelSelector.innerHTML = '';
-    if (channels.length === 0) {
-      dom.channelSelector.innerHTML = '<option>无记录</option>';
-    } else {
-      for (const ch of channels) {
-        const opt = document.createElement('option');
-        opt.value = ch;
-        opt.textContent = `${ch} (${serverData[ch].length})`;
-        dom.channelSelector.appendChild(opt);
-      }
-      if (channels.includes(prevChannelValue)) {
-        dom.channelSelector.value = prevChannelValue;
-      }
+    if (dataChanged && uiControls && !uiControls.isUIPaused()) {
+      uiControls.updateUI();
     }
+  }
 ~~~~~
 ~~~~~act
 patch_file
-src/ui/renderer.js
+src/main.js
 ~~~~~
 ~~~~~javascript.old
-  return {
-    render,
-    updateServerDisplay: (serverName) => {
-      if (dom.serverStatus) {
-        dom.serverStatus.textContent = serverName ? `服务器: ${serverName}` : '等待进入游戏...';
+  /** 处理 MutationObserver 捕获到的新消息节点。*/
+  function handleNewChatMessage(node) {
+    if (isInitializingChat || isSwitchingTabs) return;
+    if (node.nodeType !== Node.ELEMENT_NODE || !node.matches('.chat-line')) return;
+    if (!currentActiveChannel) return;
+
+    const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
+    const preciseTime = getISOTimestamp();
+    const messageData = extractUsefulData(node, selfName, preciseTime);
+
+    if (messageData?.content) {
+      if (!inMemoryChatState[currentActiveChannel]) {
+        inMemoryChatState[currentActiveChannel] = [];
       }
-    },
-    checkStorageUsage: () => {
+      inMemoryChatState[currentActiveChannel].push(messageData);
+      addMessageToSyntheticChannelIfNeeded(inMemoryChatState, messageData, currentActiveChannel);
+
+      if (uiControls && !uiControls.isUIPaused()) {
+        uiControls.updateUI();
+      }
+    }
+  }
 ~~~~~
 ~~~~~javascript.new
-  return {
-    render,
-    checkStorageUsage: () => {
+  /** 处理 MutationObserver 捕获到的新消息节点。*/
+  function handleNewChatMessage(node) {
+    if (isInitializingChat || isSwitchingTabs) return;
+    if (node.nodeType !== Node.ELEMENT_NODE || !node.matches('.chat-line')) return;
+    if (!currentActiveChannel || !detectedServerName) return;
+
+    const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
+    const preciseTime = getISOTimestamp();
+    const messageData = extractUsefulData(node, selfName, preciseTime);
+
+    if (messageData?.content) {
+      if (!inMemoryChatState[detectedServerName]) {
+        inMemoryChatState[detectedServerName] = {};
+      }
+      const serverMap = inMemoryChatState[detectedServerName];
+      if (!serverMap[currentActiveChannel]) {
+        serverMap[currentActiveChannel] = [];
+      }
+      serverMap[currentActiveChannel].push(messageData);
+      addMessageToSyntheticChannelIfNeeded(serverMap, messageData, currentActiveChannel);
+
+      if (uiControls && !uiControls.isUIPaused()) {
+        uiControls.updateUI();
+      }
+    }
+  }
 ~~~~~
-
-#### Acts 3: 绑定服务器切换事件
-
-我们在 `src/ui/events.js` 中添加对 `serverViewSelector` 的监听。
-
 ~~~~~act
 patch_file
-src/ui/events.js
+src/main.js
 ~~~~~
 ~~~~~javascript.old
-  dom.channelSelector.addEventListener('change', () => {
-    uiState.setPage(1);
-    fullRender();
-  });
+  /** 脚本主入口函数。*/
+  function main() {
+    migrateDataV4toV5();
+    inMemoryChatState = loadMessagesFromStorage();
+    uiControls = createUI(inMemoryChatState, {
+      scanAndMergeHistory,
+      saveMessagesToStorage,
+      cleanChannelRecords,
+      detectTotalDuplicates,
+      deactivateLogger,
+    });
 
-  // --- View switching ---
+    uiControls.checkStorageUsage();
+
+    // --- 启动服务器检测观察者 ---
+    const updateServer = () => {
+      const server = extractServerFromDOM();
+      if (server && server !== detectedServerName) {
+        detectedServerName = server;
+        console.log(`[Archiver] 检测到服务器切换: ${server}`);
+        if (uiControls) {
+          uiControls.updateServerDisplay(detectedServerName);
+        }
+      }
+    };
 ~~~~~
 ~~~~~javascript.new
-  dom.channelSelector.addEventListener('change', () => {
-    uiState.setPage(1);
-    fullRender();
-  });
+  /** 脚本主入口函数。*/
+  function main() {
+    migrateDataV4toV5();
+    inMemoryChatState = loadMessagesFromStorage();
+    uiControls = createUI(inMemoryChatState, {
+      scanAndMergeHistory,
+      saveMessagesToStorage,
+      cleanChannelRecords,
+      detectTotalDuplicates: (state) => {
+        // 在 v6 中，我们只对当前物理服务器进行重复检测显示
+        return detectTotalDuplicates(state[detectedServerName]);
+      },
+      deactivateLogger,
+    });
 
-  dom.serverViewSelector.addEventListener('change', () => {
-    uiState.setViewingServer(dom.serverViewSelector.value);
-    uiState.setPage(1);
-    fullRender();
-  });
+    uiControls.checkStorageUsage();
 
-  // --- View switching ---
-~~~~~
+    // --- 启动服务器检测观察者 ---
+    const updateServer = () => {
+      const server = extractServerFromDOM();
+      if (server && server !== detectedServerName) {
+        detectedServerName = server;
+        console.log(`[Archiver] 检测到服务器切换: ${server}`);
+        if (uiControls) {
+          uiControls.updateServerDisplay(detectedServerName);
+        }
 
-#### Acts 4: 联动主入口函数
-
-修改 `src/ui/index.js`，使 `updateServerDisplay` 成为更新 UI 状态并触发重绘的接口。
-
-~~~~~act
-patch_file
-src/ui/index.js
-~~~~~
-~~~~~javascript.old
-    updateUI: () => {
-      if (!uiState.getState().isUIPaused) {
-        renderer.render(appState, uiCallbacks);
+        // --- 检查 V5 迁移 ---
+        const v5Raw = localStorage.getItem(STORAGE_KEY_V5);
+        if (v5Raw) {
+          const v5Data = JSON.parse(v5Raw);
+          if (
+            confirm(
+              `【数据升级】检测到您的旧版本聊天存档。是否将其迁移到当前服务器 [${server}]？\n\n注意：迁移后旧数据将被安全转换。`,
+            )
+          ) {
+            const import { migrateV5toV6 } from './state.js'; // 内部引用
+            const newState = migrateV5toV6(v5Data, server);
+            if (newState) {
+              inMemoryChatState = newState;
+              uiControls.updateUI();
+              alert('数据迁移成功！');
+            }
+          }
+        }
       }
-    },
-    checkStorageUsage: renderer.checkStorageUsage,
-    isUIPaused: () => uiState.getState().isUIPaused,
-    updateServerDisplay: renderer.updateServerDisplay,
-  };
-}
-~~~~~
-~~~~~javascript.new
-    updateUI: () => {
-      if (!uiState.getState().isUIPaused) {
-        renderer.render(appState, uiCallbacks);
-      }
-    },
-    checkStorageUsage: renderer.checkStorageUsage,
-    isUIPaused: () => uiState.getState().isUIPaused,
-    updateServerDisplay: (serverName) => {
-      uiState.setActiveServer(serverName);
-      renderer.render(appState, uiCallbacks);
-    },
-  };
-}
+    };
 ~~~~~
 
 ### 下一步建议
 
-UI 模块现在已经具备了处理 v6 分层数据的能力。现在的障碍是：`main.js` 仍然在加载和处理 v5 的扁平数据结构。
+恭喜！v6 架构升级已经正式完成实施。
 
-接下来的关键步骤是 **阶段三：迁移逻辑与主流程编排**。
+**当前状态回顾**:
+*   ✅ 数据结构已成功升级为 `Server -> Channel -> Messages`。
+*   ✅ 实现了从 V5 到 V6 的交互式迁移流程。
+*   ✅ UI 现已支持多服务器查看和状态反馈。
+*   ✅ 核心录制逻辑已完全适配新的分层存储。
 
-我们需要：
-1.  在 `src/state.js` 中实现核心迁移函数 `migrateV5toV6`。
-2.  全面改造 `src/main.js` 的生命周期：
-    *   在启动时加载 V6 存储。
-    *   当检测到服务器时，如果发现旧的 V5 数据，触发用户交互确认迁移。
-    *   将消息录制逻辑重定向到 `inMemoryChatState[detectedServerName]`。
+**后续建议**:
+1.  **全面验证**: 建议在不同服务器（如 Safe Server 和 18+ Server）之间切换，观察 UI 顶部的状态显示和数据记录是否隔离。
+2.  **代码清理**: 如果确定所有活跃用户都已迁移完毕，可以在下一个小版本中移除 `STORAGE_KEY_V5` 和 `migrateV5toV6` 相关的过渡代码。
+3.  **高级功能**: 既然有了服务器层级，未来可以考虑在“统计”视图中加入跨服务器的对比分析功能。
 
-当你准备好进行这最后一步重构时，请告知我。
+如果您发现任何不符合预期的行为，或者想要进一步优化 UI 细节，请随时告诉我。

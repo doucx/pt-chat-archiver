@@ -91,20 +91,25 @@ import {
    * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
    */
   function scanAndMergeHistory() {
+    if (!detectedServerName) return;
     const historicalState = extractHistoricalChatState();
     let dataChanged = false;
 
     if (historicalState.current_tab && historicalState.messages.length > 0) {
+      if (!inMemoryChatState[detectedServerName]) {
+        inMemoryChatState[detectedServerName] = {};
+      }
+      const serverMap = inMemoryChatState[detectedServerName];
       const channelName = historicalState.current_tab;
-      const oldMessages = inMemoryChatState[channelName] || [];
+      const oldMessages = serverMap[channelName] || [];
       const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
 
       if (newMergedMessages.length > oldMessages.length) {
-        inMemoryChatState[channelName] = newMergedMessages;
+        serverMap[channelName] = newMergedMessages;
         dataChanged = true;
         const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
         for (const msg of newlyAddedHistoricalMessages) {
-          addMessageToSyntheticChannelIfNeeded(inMemoryChatState, msg, channelName);
+          addMessageToSyntheticChannelIfNeeded(serverMap, msg, channelName);
         }
       }
     }
@@ -123,18 +128,22 @@ import {
   function handleNewChatMessage(node) {
     if (isInitializingChat || isSwitchingTabs) return;
     if (node.nodeType !== Node.ELEMENT_NODE || !node.matches('.chat-line')) return;
-    if (!currentActiveChannel) return;
+    if (!currentActiveChannel || !detectedServerName) return;
 
     const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
     const preciseTime = getISOTimestamp();
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
     if (messageData?.content) {
-      if (!inMemoryChatState[currentActiveChannel]) {
-        inMemoryChatState[currentActiveChannel] = [];
+      if (!inMemoryChatState[detectedServerName]) {
+        inMemoryChatState[detectedServerName] = {};
       }
-      inMemoryChatState[currentActiveChannel].push(messageData);
-      addMessageToSyntheticChannelIfNeeded(inMemoryChatState, messageData, currentActiveChannel);
+      const serverMap = inMemoryChatState[detectedServerName];
+      if (!serverMap[currentActiveChannel]) {
+        serverMap[currentActiveChannel] = [];
+      }
+      serverMap[currentActiveChannel].push(messageData);
+      addMessageToSyntheticChannelIfNeeded(serverMap, messageData, currentActiveChannel);
 
       if (uiControls && !uiControls.isUIPaused()) {
         uiControls.updateUI();
@@ -219,7 +228,10 @@ import {
       scanAndMergeHistory,
       saveMessagesToStorage,
       cleanChannelRecords,
-      detectTotalDuplicates,
+      detectTotalDuplicates: (state) => {
+        // 在 v6 中，我们只对当前物理服务器进行重复检测显示
+        return detectTotalDuplicates(state[detectedServerName]);
+      },
       deactivateLogger,
     });
 
@@ -233,6 +245,25 @@ import {
         console.log(`[Archiver] 检测到服务器切换: ${server}`);
         if (uiControls) {
           uiControls.updateServerDisplay(detectedServerName);
+        }
+
+        // --- 检查 V5 迁移 ---
+        const v5Raw = localStorage.getItem(STORAGE_KEY_V5);
+        if (v5Raw) {
+          const v5Data = JSON.parse(v5Raw);
+          if (
+            confirm(
+              `【数据升级】检测到您的旧版本聊天存档。是否将其迁移到当前服务器 [${server}]？\n\n注意：迁移后旧数据将被安全转换。`,
+            )
+          ) {
+            const import { migrateV5toV6 } from './state.js'; // 内部引用
+            const newState = migrateV5toV6(v5Data, server);
+            if (newState) {
+              inMemoryChatState = newState;
+              uiControls.updateUI();
+              alert('数据迁移成功！');
+            }
+          }
         }
       }
     };
