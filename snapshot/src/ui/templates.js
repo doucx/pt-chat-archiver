@@ -12,7 +12,6 @@ export const getMainContainerHTML = (version) => `
                 <button id="log-archive-stats-button" class="log-archive-ui-button" title="数据统计">📊</button>
                 <button id="log-archive-settings-button" class="log-archive-ui-button" title="设置">⚙️</button>
                 <button id="log-archive-copy-button" class="log-archive-ui-button" title="复制当前页内容">📋</button>
-                <button id="log-archive-download-button" class="log-archive-ui-button" title="下载全部存档">💾</button>
                 <button id="log-archive-close-button" class="log-archive-ui-button" title="关闭界面">❌</button>
             </div>
         </div>
@@ -75,8 +74,9 @@ export const getMainContainerHTML = (version) => `
                         <span id="log-archive-last-saved-info" class="info-text-dim" style="font-size: 0.8em; white-space: nowrap;">未保存</span>
                     </div>
                     <div class="config-actions" style="display: flex; gap: 10px;">
-                        <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复记录</button>
+                        <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复</button>
                         <button id="log-archive-copy-all-button" class="log-archive-ui-button" style="flex-grow: 1;">导出 JSON</button>
+                        <button id="log-archive-download-button" class="log-archive-ui-button" style="flex-grow: 1;">下载备份</button>
                     </div>
                 </div>
             </div>

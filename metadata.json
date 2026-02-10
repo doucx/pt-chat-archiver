@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat(ui): 增强存档安全性：添加手动保存、自动保存间隔配置及状态显示", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770760054.918308, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(ui): 修复并迁移下载功能至设置页面", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770760189.8628116, "duration_ms": 0}}

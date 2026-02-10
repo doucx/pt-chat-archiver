@@ -30,10 +30,23 @@ export function createUI(initialAppState, appCallbacks) {
     const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 16);
     const baseFilename = `pt-saver-${timestamp}`;
     let allTextContent = '';
-    for (const channelName in appState) {
-      allTextContent += `\n\n==================== 频道: ${channelName} ====================\n\n`;
-      allTextContent += appState[channelName].map(formatMessageForDisplay).join('\n');
+
+    // V6 结构: appState[serverName][channelName]
+    for (const serverName in appState) {
+      allTextContent += `\n\n############################################################\n`;
+      allTextContent += `## 服务器: ${serverName}\n`;
+      allTextContent += `############################################################\n`;
+
+      const serverData = appState[serverName];
+      for (const channelName in serverData) {
+        allTextContent += `\n\n==================== 频道: ${channelName} ====================\n\n`;
+        const messages = serverData[channelName];
+        if (Array.isArray(messages)) {
+          allTextContent += messages.map(formatMessageForDisplay).join('\n');
+        }
+      }
     }
+
     const triggerDownload = (content, filename, mimeType) => {
       const blob = new Blob([content], { type: mimeType });
       const url = URL.createObjectURL(blob);
