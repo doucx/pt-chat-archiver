@@ -75,7 +75,10 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
 
   // --- Config view actions ---
   dom.selfNameInput.addEventListener('change', () => uiState.setSelfName(dom.selfNameInput.value));
-  dom.pageSizeInput.addEventListener('change', () => uiState.setPageSize(dom.pageSizeInput.value));
+  dom.pageSizeInput.addEventListener('change', () => {
+    uiState.setPageSize(dom.pageSizeInput.value);
+    fullRender();
+  });
 
   dom.cleanButton.addEventListener('click', () => {
     callbacks.cleanChannelRecords();

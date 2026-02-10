@@ -55,20 +55,19 @@ export function createRenderer(dom, uiState) {
 
     // Update channel selector
     const channels = Object.keys(appState);
-    if (dom.channelSelector.options.length !== channels.length) {
-      dom.channelSelector.innerHTML = '';
-      if (channels.length === 0) {
-        dom.channelSelector.innerHTML = '<option>无记录</option>';
-      } else {
-        for (const ch of channels) {
-          const opt = document.createElement('option');
-          opt.value = ch;
-          opt.textContent = `${ch} (${appState[ch].length})`;
-          dom.channelSelector.appendChild(opt);
-        }
-        if (selectedChannel && channels.includes(selectedChannel)) {
-          dom.channelSelector.value = selectedChannel;
-        }
+    const prevValue = dom.channelSelector.value;
+    dom.channelSelector.innerHTML = '';
+    if (channels.length === 0) {
+      dom.channelSelector.innerHTML = '<option>无记录</option>';
+    } else {
+      for (const ch of channels) {
+        const opt = document.createElement('option');
+        opt.value = ch;
+        opt.textContent = `${ch} (${appState[ch].length})`;
+        dom.channelSelector.appendChild(opt);
+      }
+      if (channels.includes(prevValue)) {
+        dom.channelSelector.value = prevValue;
       }
     }
 

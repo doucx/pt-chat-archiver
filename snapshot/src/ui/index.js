@@ -69,12 +69,7 @@ export function createUI(initialAppState, appCallbacks) {
       appCallbacks.saveMessagesToStorage(appState);
       dom.cleanButton.textContent = '清理完毕!';
       setTimeout(() => {
-        renderer.render(appState, {
-          ...appCallbacks,
-          cleanChannelRecords,
-          copyAllData,
-          downloadAllData,
-        }); // Re-render to update button
+        renderer.render(appState, uiCallbacks); // Re-render to update button
       }, 2000);
     }
   };
@@ -92,6 +87,7 @@ export function createUI(initialAppState, appCallbacks) {
       }
       appCallbacks.scanAndMergeHistory(); // This will repopulate appState
       appCallbacks.saveMessagesToStorage(appState);
+      renderer.render(appState, uiCallbacks);
     }
   };
 
