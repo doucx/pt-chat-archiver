@@ -1,68 +1,63 @@
-好的，Phase 3 的核心代码修改已经全部就绪。
+这是一个非常棒的 UX 细节改进。
 
-这次更新彻底改变了存档器的数据组织方式，从扁平结构升级到了按服务器隔离的嵌套结构，并提供了完善的迁移路径和 UI 交互支持。这标志着 v6 架构升级中最艰难的部分已经顺利完成。
+通过在下拉菜单中明确标识出“正在记录”的服务器，用户可以更直观地分辨出哪个服务器是当前活跃的实时数据源，哪个是纯粹的历史存档。这能有效降低在多服务器环境下操作时的认知负担。
 
-我将生成一个 `[COMMIT]` 计划，将这些变更提交到仓库。
+我将生成一个计划来应用这个视觉增强。
 
-## [COMMIT] feat: implement server-aware recording and V5-to-V6 migration
+## [WIP] tune(ui): highlight currently recording server in view selector
 
 ### 用户需求
-根据已完成的 Phase 3 实施代码，提交所有关于服务器感知录制、数据隔离存储、跨服务器查看以及 V5 到 V6 数据迁移的变更。
+在设置界面的“查看存档服务器”下拉菜单中，如果某个选项是当前正在录制数据的服务器，则在其名称后面增加“（正在记录）”的后缀。
 
 ### 评论
-这是项目的一个里程碑。它不仅解决了多服务器数据混淆的问题，还通过迁移算法保护了老用户的历史资产，同时通过 `setState` 模式提升了架构的健壮性。
+这个微调极大提升了多服务器管理功能的可发现性和易用性。它能够通过简单的文字提示，向用户传达复杂的后台状态，符合“所见即所得”的设计原则。
 
 ### 目标
-1. 提交所有涉及 v6 架构升级的核心逻辑变更。
-2. 确保 Git 历史记录清晰地反映了这次重大的功能演进。
+1. 修改 `src/ui/renderer.js` 中的服务器选择器渲染逻辑。
+2. 根据 `activeServer` 状态动态调整选项的 `textContent`。
 
 ### 基本原理
-按照 Quipu 协议，在所有逻辑修改完成后，通过一个独立的计划执行 Git 提交操作。这有助于保持变更的可追溯性和原子性。
+在 `renderer.js` 的 `render` 函数中，我们已经拥有了 `activeServer`（物理检测到的服务器）和 `servers`（存档中的服务器列表）。在遍历列表生成 `<option>` 元素时，我们只需加入一个简单的条件判断：如果当前遍历的服务器 ID 等于 `activeServer`，则在显示文本中追加标注。
 
 ### 标签
-#intent/build #flow/ready #priority/high #comp/engine #comp/ui #comp/runtime #concept/state #concept/navigation #scope/core #ai/instruct #task/domain/storage #task/object/v6-migration #task/action/implementation #task/state/end #task/status/completed
+#intent/tune #flow/ready #priority/low #comp/ui #concept/ui #scope/ux #ai/instruct #task/domain/ui #task/object/server-selector #task/action/refine #task/state/begin
 
 ---
 
 ### Script
 
-#### Acts 1: 提交 Phase 3 核心变更
+#### Acts 1: 增强服务器选择器的显示逻辑
 
-我们将涉及到的所有文件添加到暂存区并创建提交。
+修改 `src/ui/renderer.js` 中负责填充 `serverViewSelector` 的循环。
 
 ~~~~~act
-git_add
-src/constants.js
-src/main.js
-src/state.js
-src/storage.js
-src/templates.js
-src/ui/dom.js
-src/ui/events.js
-src/ui/index.js
+patch_file
 src/ui/renderer.js
-src/ui/state.js
 ~~~~~
-
-~~~~~act
-git_commit
+~~~~~javascript.old
+      } else {
+        for (const s of servers) {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s;
+          dom.serverViewSelector.appendChild(opt);
+        }
+        dom.serverViewSelector.value = viewingServer || prevServer || servers[0] || '';
+      }
 ~~~~~
-~~~~~text
-feat(core): implement server-aware recording and V5-to-V6 migration
-
-This major architectural update introduces the v6 storage schema, which organizes chat logs by game server (Server -> Channel -> Messages).
-
-Key changes:
-- Data Isolation: Messages are now recorded into server-specific namespaces based on real-time DOM detection.
-- Migration Path: Implemented an interactive migration flow that allows users to move their legacy V5 (flat) data into the new V6 structure for a specific server.
-- Multi-Server Viewer: Enhanced the UI with a server selector in the settings, allowing users to view archives from different servers in a 'Read-only' mode.
-- State Sync: Introduced a 'setState' bridge between the main logic and UI module to ensure robust data synchronization when the state tree is replaced.
-- Storage Driver: Updated to support V6 keys, proper cleanup of V5 data, and accurate storage usage calculation.
-
-This upgrade resolves the long-standing issue of data overlapping in multi-server environments.
+~~~~~javascript.new
+      } else {
+        for (const s of servers) {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s === activeServer ? `${s} (正在记录)` : s;
+          dom.serverViewSelector.appendChild(opt);
+        }
+        dom.serverViewSelector.value = viewingServer || prevServer || servers[0] || '';
+      }
 ~~~~~
 
 ### 下一步建议
-- **回归测试**: 建议在不同服务器环境下运行脚本，验证录制是否完全隔离，以及 UI 的只读提示是否准确。
-- **清理与优化**: 在 v6 稳定运行一个周期后，可以考虑移除 `src/state.js` 中极其古老的 `migrateDataV4toV5` 逻辑，进一步精简代码库。
-- **文档更新**: 如果有外部用户手册，请更新关于“多服务器支持”的使用说明。
+- **测试录制中状态**: 进入游戏后打开设置，确认当前服务器是否带有了“（正在记录）”的后缀。
+- **测试离线状态**: 刷新页面并在主界面（未进入游戏，`activeServer` 为空）时打开设置，确认所有服务器名称都恢复为普通显示。
+- **CSS 优化**: 如果需要更明显的视觉区分，可以考虑为“正在记录”的选项增加不同的文字颜色（通过为 `option` 添加 class 或 inline style，虽然部分浏览器对 `option` 的样式支持有限）。

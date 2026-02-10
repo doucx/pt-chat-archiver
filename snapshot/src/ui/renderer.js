@@ -62,7 +62,7 @@ export function createRenderer(dom, uiState) {
         for (const s of servers) {
           const opt = document.createElement('option');
           opt.value = s;
-          opt.textContent = s;
+          opt.textContent = s === activeServer ? `${s} (正在记录)` : s;
           dom.serverViewSelector.appendChild(opt);
         }
         dom.serverViewSelector.value = viewingServer || prevServer || servers[0] || '';
