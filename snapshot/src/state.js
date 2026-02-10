@@ -2,39 +2,6 @@ import { storage } from './storage.js';
 import { getISOTimestamp } from './utils.js';
 
 /**
- * 检查并执行一次性的数据迁移，将 v4 版本的数据转换为 v5 格式。
- */
-export function migrateDataV4toV5() {
-  try {
-    const oldData = storage.getLegacyV4Data();
-    if (!oldData) return;
-
-    console.log('检测到旧版本(v4)数据，正在执行一次性迁移...');
-    const newData = {};
-
-    for (const channel in oldData) {
-      newData[channel] = oldData[channel].map((msg) => {
-        const newMsg = { ...msg };
-        try {
-          const localDate = new Date(msg.time.replace(/-/g, '/'));
-          newMsg.time = localDate.toISOString();
-        } catch (e) {
-          newMsg.time = new Date().toISOString();
-        }
-        newMsg.is_historical = true;
-        return newMsg;
-      });
-    }
-
-    storage.saveMessages(newData);
-    storage.removeLegacyV4Data();
-    console.log('数据迁移成功！');
-  } catch (error) {
-    console.error('数据迁移失败，旧数据可能已损坏，将予以保留。', error);
-  }
-}
-
-/**
  * 智能合并消息数组，用于处理聊天记录不连续的情况。
  */
 export function mergeAndDeduplicateMessages(oldMessages, newMessages) {

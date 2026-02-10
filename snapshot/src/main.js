@@ -1,11 +1,7 @@
 import './style.css';
 import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
-import {
-  OLD_STORAGE_KEY_V4,
-  SELF_NAME_KEY,
-  STORAGE_KEY_V5,
-  STORAGE_WARNING_THRESHOLD_MB,
-} from './constants.js';
+import { SELF_NAME_KEY } from './constants.js';
+import { MigrationManager } from './migrations.js';
 import {
   extractServerFromDOM,
   extractUsefulData,
@@ -16,18 +12,11 @@ import {
   addMessageToSyntheticChannelIfNeeded,
   loadMessagesFromStorage,
   mergeAndDeduplicateMessages,
-  migrateDataV4toV5,
-  migrateV5toV6,
   saveMessagesToStorage,
 } from './state.js';
 import { storage } from './storage.js';
 import { createUI } from './ui/index.js';
-import {
-  debounce,
-  formatISOTimeForDisplay,
-  getISOTimestamp,
-  getStorageUsageInMB,
-} from './utils.js';
+import { debounce, getISOTimestamp } from './utils.js';
 
 (() => {
   // --- 全局状态 ---
