@@ -31,4 +31,24 @@ describe('Analysis Module', () => {
     expect(report).toContain('Local');
     expect(report).toContain('Alice');
   });
+
+  it('cleanChannelRecords 应当能识别并在爆发期内清理重复项', () => {
+    // 构造一个爆发期：1秒内有25条相同的消息
+    const now = Date.now();
+    const burstMessages = [];
+    for (let i = 0; i < 25; i++) {
+      burstMessages.push({
+        content: 'SpamContent',
+        time: new Date(now + i).toISOString(),
+        is_historical: false,
+        type: 'say',
+      });
+    }
+
+    const { cleanedRecords, removedCount } = cleanChannelRecords(burstMessages);
+    // 第一条保留，后续 24 条因为在爆发期内且内容重复，应当被删除
+    expect(removedCount).toBe(24);
+    expect(cleanedRecords.length).toBe(1);
+    expect(cleanedRecords[0].content).toBe('SpamContent');
+  });
 });

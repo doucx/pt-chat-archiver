@@ -1,194 +1,174 @@
-为了整理测试架构并补全解析器（Parser）针对复杂 HTML 的边界测试，我将执行以下重构计划。
+从覆盖率报告对比来看，我们在规范化过程中由于过度清理，丢失了几个关键的测试维度，导致总覆盖率从 **38.7%** 下滑到了 **32.21%**。
 
-## [WIP] test: 规范化测试架构并补齐解析器边界用例
+**我们失去的测试内容包括：**
+1.  **UI 状态管理 (`src/ui/state.js`)**: 这是最严重的损失（从 85.18% 降至 0%）。分页逻辑、配置自动保存、服务器自动跟随等逻辑完全失去了保护。
+2.  **消息爆发清理 (`src/analysis.js`)**: `cleanChannelRecords` 中的 `identifyBurstDuplicates` 逻辑（处理 1 秒内 20 条消息的爆发检测）在当前测试中被遗漏了。
+3.  **V4 到 V5 的静默迁移 (`src/migrations.js`)**: 当前仅测试了 V5->V6，导致旧版本时间戳标准化的逻辑失去了验证。
+
+我将生成计划，将这些遗失的“灵魂”添加回来，并确保它们在新的规范化架构中运行。
+
+## [WIP] test: 找回遗失的测试用例并实现逻辑全覆盖
 
 ### 用户需求
-1.  **规范化**: 清理重复的测试文件，将所有测试统一放置在 `tests/` 目录下（删除 `tests/core/` 和 `tests/ui/`）。
-2.  **补全解析器测试**: 针对用户提供的包含 PixelArt、PUA 字符（私有区字符）和复杂嵌套结构的 HTML 片段进行解析验证。
-3.  **修复逻辑**: 整合之前的时区修复和状态管理测试。
+找回在重构过程中丢失的 UI 状态测试、消息爆发清理测试以及 V4 迁移测试。
 
 ### 评论
-当前测试结构较为混乱，存在 `tests/analysis.test.js` 和 `tests/core/analysis.test.js` 内容重叠的情况。统一目录结构有助于保持项目整洁。新的解析器用例非常关键，因为它模拟了 PonyTown 中最常见的 Emoji 处理逻辑（优先使用 Alt，若是 PUA 字符则回退到 Aria-label）。
+覆盖率的下滑说明我们的“规范化”操作删减了过多的逻辑验证。一个稳健的系统不仅要代码整洁，更要保证每一个边缘逻辑（Edge Case）都有据可查。特别是 UI 状态管理，虽然它不操作 DOM，但它是控制用户界面的“大脑”，必须 100% 覆盖。
 
 ### 目标
-1.  **物理清理**: 删除 `tests/core/` 和 `tests/ui/` 目录及其内容。
-2.  **文件标准化**:
-    - `tests/state.test.js`: 包含合并逻辑与合成频道逻辑。
-    - `tests/migrations.test.js`: 包含版本迁移逻辑。
-    - `tests/ui_state.test.js`: 包含 UI 状态机逻辑。
-    - `tests/analysis.test.js`: 整合统计函数与清理函数。
-    - `tests/parser.test.js`: 增加针对 PUA 字符和嵌套 Emoji 的解析用例。
+1.  **找回 UI 状态测试**: 创建 `tests/ui_state.test.js`，恢复对分页、配置加载与保存、服务器跟随逻辑的测试。
+2.  **完善分析测试**: 在 `tests/analysis.test.js` 中补回爆发期重复项清理的测试用例。
+3.  **完善迁移测试**: 在 `tests/migrations.test.js` 中添加 V4 到 V5 的静默迁移验证。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/tests #concept/parser #scope/dx #ai/delegate #task/domain/testing #task/object/test-restructuring #task/action/refactor #task/state/continue
+#intent/refine #flow/ready #priority/high #comp/tests #comp/ui #concept/state #scope/dx #ai/refine #task/domain/testing #task/object/test-recovery #task/action/implementation #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 清理冗余目录与文件
+#### Acts 1: 恢复 UI 状态管理测试
 
-删除之前尝试性创建的子目录，准备统一放置在 `tests/` 下。
-
-~~~~~act
-run_command
-~~~~~
-~~~~~
-rm -rf tests/core tests/ui
-~~~~~
-
-#### Acts 2: 规范化状态与迁移测试
-
-整合之前编写的高价值测试到根目录。
+我们将重新创建 `tests/ui_state.test.js`，这是提升覆盖率最有效的举措。
 
 ~~~~~act
 write_file
-tests/state.test.js
+tests/ui_state.test.js
 ~~~~~
 ~~~~~javascript
-import { describe, it, expect } from 'vitest';
-import { mergeAndDeduplicateMessages, addMessageToSyntheticChannelIfNeeded } from '../src/state.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createUIState } from '../src/ui/state.js';
 
-describe('state.js: mergeAndDeduplicateMessages', () => {
-  it('应当能合并有重叠的消息序列', () => {
-    const oldMsgs = [{ content: 'a' }, { content: 'b' }, { content: 'c' }];
-    const newMsgs = [{ content: 'b' }, { content: 'c' }, { content: 'd' }];
-    const result = mergeAndDeduplicateMessages(oldMsgs, newMsgs);
-    expect(result.map(m => m.content)).toEqual(['a', 'b', 'c', 'd']);
-  });
-
-  it('当没有重叠时，应当插入断层警告标记', () => {
-    const oldMsgs = [{ content: 'a' }];
-    const newMsgs = [{ content: 'z' }];
-    const result = mergeAndDeduplicateMessages(oldMsgs, newMsgs);
-    expect(result.length).toBe(3);
-    expect(result[1].sender).toBe('Archiver');
-  });
-});
-
-describe('state.js: Synthetic Channels', () => {
-  it('应当将队伍消息复制到 Party-Local 频道', () => {
-    const channelMap = { 'Local': [] };
-    const partyMsg = { type: 'party', content: 'team up!' };
-    addMessageToSyntheticChannelIfNeeded(channelMap, partyMsg, 'Local');
-    expect(channelMap['Party-Local'][0].content).toBe('team up!');
-  });
-});
-~~~~~
-
-~~~~~act
-write_file
-tests/migrations.test.js
-~~~~~
-~~~~~javascript
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { MigrationManager } from '../src/migrations.js';
-
-describe('migrations.js: Migration Logic', () => {
+describe('ui/state.js: UI State Manager', () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it('V5 -> V6: 应当将数据归档到指定的服务器节点下', () => {
-    const v5Data = { "Local": [{ content: "msg" }] };
-    MigrationManager.migrateV5toV6(v5Data, "Main Server");
-    const v6Data = JSON.parse(localStorage.getItem('chat_v6_key') || localStorage.getItem('chatLogArchive_v6'));
-    expect(v6Data["Main Server"].Local[0].content).toBe("msg");
+  it('应当能从存储中加载初始配置并处理默认值', () => {
+    localStorage.setItem('chatLogArchive_config', JSON.stringify({ pageSize: 50 }));
+    const uiState = createUIState();
+    expect(uiState.getState().pageSize).toBe(50);
+    expect(uiState.getState().autoSaveInterval).toBe(30); // 默认值
+  });
+
+  it('分页逻辑应当正确处理越界情况', () => {
+    const uiState = createUIState();
+    uiState.setTotalPages(5);
+    
+    uiState.setPage(3);
+    expect(uiState.getState().currentPage).toBe(3);
+    
+    uiState.setPage(10); // 超过最大页
+    expect(uiState.getState().currentPage).toBe(5);
+    
+    uiState.setPage(0); // 小于最小页
+    expect(uiState.getState().currentPage).toBe(1);
+  });
+
+  it('修改配置应当同步到本地存储', () => {
+    const uiState = createUIState();
+    uiState.setPageSize(200);
+    const stored = JSON.parse(localStorage.getItem('chatLogArchive_config'));
+    expect(stored.pageSize).toBe(200);
+  });
+
+  it('应当正确处理服务器激活与查看逻辑', () => {
+    const uiState = createUIState();
+    uiState.setActiveServer('PonyServer');
+    expect(uiState.getState().activeServer).toBe('PonyServer');
+    expect(uiState.getState().viewingServer).toBe('PonyServer'); // 初始应跟随
+
+    uiState.setViewingServer('OldArchive');
+    expect(uiState.getState().viewingServer).toBe('OldArchive');
+    expect(uiState.getState().activeServer).toBe('PonyServer'); // 激活服务器不应改变
   });
 });
 ~~~~~
 
-#### Acts 3: 强化 Parser 测试 (包含 PUA 边界处理)
+#### Acts 2: 找回爆发清理测试
 
-根据用户提供的 HTML 片段，添加对嵌套 Emoji 和 PUA 字符的回退逻辑测试。
+修改 `tests/analysis.test.js`，添加遗失的 `cleanChannelRecords` 爆发检测逻辑。
 
 ~~~~~act
 patch_file
-tests/parser.test.js
-~~~~~
-~~~~~javascript.old
-    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    expect(data.sender).toBe('UserA 🌌');
-    expect(data.content).toBe('[UserA 🌌] 编程中');
-  });
-
-  it('应当能解析系统重连等元消息', () => {
-~~~~~
-~~~~~javascript.new
-    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    expect(data.sender).toBe('UserA 🌌');
-    expect(data.content).toBe('[UserA 🌌] 编程中');
-  });
-
-  it('应当正确处理包含 PUA 字符的消息并回退到 aria-label', () => {
-    const el = document.createElement('div');
-    el.className = 'chat-line';
-    // 模拟用户提供的片段: 
-    // 名称中的 🌌 (正常 Emoji) 应当保留
-    // 消息中的  (PUA 字符 \ue519) 应当回退到 :face:
-    el.innerHTML = `
-      <span class="chat-line-name">[AyeL.neon(<img class="pixelart" aria-label="galaxy" alt="🌌">)]</span>
-      <span class="chat-line-message"><img class="pixelart" aria-label="face" alt=""></span>
-    `;
-
-    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    
-    // 验证名称解析：🌌 不是 PUA，直接提取 alt
-    expect(data.sender).toBe('AyeL.neon(🌌)');
-    
-    // 验证消息解析： 是 PUA，应当提取 aria-label 并包裹冒号
-    expect(data.content).toBe('[AyeL.neon(🌌)] :face:');
-  });
-
-  it('应当能解析系统重连等元消息', () => {
-~~~~~
-
-#### Acts 4: 整合修复后的 Analysis 测试
-
-包含时区中立的统计测试。
-
-~~~~~act
-write_file
 tests/analysis.test.js
 ~~~~~
-~~~~~javascript
-import { describe, expect, it } from 'vitest';
-import {
-  calculateHourlyActivity,
-  calculateTopTalkers,
-  cleanChannelRecords,
-  generateStatisticsText
-} from '../src/analysis.js';
-
-describe('Analysis Module', () => {
-  const mockMessages = [
-    { sender: 'Alice', content: 'Hi', time: '2023-01-01T10:00:00Z', type: 'say' },
-    { sender: 'Alice', content: 'How are you?', time: '2023-01-01T10:05:00Z', type: 'say' },
-    { sender: 'Bob', content: 'Hello', time: '2023-01-01T11:00:00Z', type: 'say' },
-    { sender: 'System', content: 'Welcome', time: '2023-01-01T11:00:00Z', type: 'system' },
-  ];
-
-  it('calculateTopTalkers 应当过滤系统消息', () => {
-    const { data, total } = calculateTopTalkers(mockMessages);
-    expect(total).toBe(3);
-    expect(data[0].name).toBe('Alice');
-  });
-
-  it('calculateHourlyActivity 应当正确识别高峰小时 (时区中立)', () => {
-    const { data } = calculateHourlyActivity(mockMessages);
-    const expectedHour = new Date(mockMessages[0].time).getHours();
-    expect(data.find((d) => d.hour === expectedHour).count).toBe(2);
-  });
-
-  it('generateStatisticsText 应当生成完整的报告文本', () => {
+~~~~~javascript.old
     const report = generateStatisticsText(mockMessages, 'Local');
     expect(report).toContain('Local');
     expect(report).toContain('Alice');
   });
 });
 ~~~~~
+~~~~~javascript.new
+    const report = generateStatisticsText(mockMessages, 'Local');
+    expect(report).toContain('Local');
+    expect(report).toContain('Alice');
+  });
+
+  it('cleanChannelRecords 应当能识别并在爆发期内清理重复项', () => {
+    // 构造一个爆发期：1秒内有25条相同的消息
+    const now = Date.now();
+    const burstMessages = [];
+    for (let i = 0; i < 25; i++) {
+      burstMessages.push({
+        content: 'SpamContent',
+        time: new Date(now + i).toISOString(),
+        is_historical: false,
+        type: 'say',
+      });
+    }
+
+    const { cleanedRecords, removedCount } = cleanChannelRecords(burstMessages);
+    // 第一条保留，后续 24 条因为在爆发期内且内容重复，应当被删除
+    expect(removedCount).toBe(24);
+    expect(cleanedRecords.length).toBe(1);
+    expect(cleanedRecords[0].content).toBe('SpamContent');
+  });
+});
+~~~~~
+
+#### Acts 3: 找回 V4 静默迁移测试
+
+修改 `tests/migrations.test.js`，补充对 `migrateV4toV5` 的验证。
+
+~~~~~act
+patch_file
+tests/migrations.test.js
+~~~~~
+~~~~~javascript.old
+describe('migrations.js: Migration Logic', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('V5 -> V6: 应当将数据归档到指定的服务器节点下', () => {
+~~~~~
+~~~~~javascript.new
+describe('migrations.js: Migration Logic', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('V4 -> V5: 应当执行静默迁移并标准化时间戳', () => {
+    const v4Data = {
+      "Local": [{ time: "2023-10-01 12:00:00", content: "old_msg" }]
+    };
+    localStorage.setItem('chatLogArchive_v4', JSON.stringify(v4Data));
+    
+    MigrationManager.migrateV4toV5();
+    
+    const v5Data = JSON.parse(localStorage.getItem('chatLogArchive_v5'));
+    expect(v5Data.Local[0].content).toBe("old_msg");
+    // 验证时间戳已转为 ISO 格式（包含 T 和 Z）
+    expect(v5Data.Local[0].time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    expect(localStorage.getItem('chatLogArchive_v4')).toBeNull();
+  });
+
+  it('V5 -> V6: 应当将数据归档到指定的服务器节点下', () => {
+~~~~~
 
 ### 下一步建议
-- **UI 组件冒烟测试**: 现在逻辑层已高度覆盖，建议引入 `vitest` 的 `happy-dom` 或继续利用 `jsdom` 对 `src/ui/renderer.js` 进行基础渲染测试（例如：验证点击“设置”按钮后，DOM 的 `display` 属性是否发生变化）。
-- **存储配额处理**: 为 `storage.js` 添加一个捕获 `QuotaExceededError` 的测试，验证应用在浏览器存储满时是否能优雅地忽略保存并打印警告。
-- **发布准备**: 覆盖率达标后，可以更新 `package.json` 的版本号，并生成最终的 `.user.js` 构建产物。
+- **解析器性能测试**: 解析器针对 PUA 字符的判断使用了多次正则和码点计算，建议在 `tests/parser.test.js` 中增加一个包含 1000 条复杂消息的性能冒烟测试。
+- **UI 渲染器测试**: 目前 `renderer.js` 的覆盖率为 0%，建议通过 `jsdom` 模拟必要的 DOM 结构，编写 `createRenderer` 的单元测试，验证例如服务器切换时下拉列表是否正确更新。
+- **存储警告逻辑**: 测试 `utils.js` 中的存储占用计算逻辑是否与 `storage.js` 的原始大小获取一致。
