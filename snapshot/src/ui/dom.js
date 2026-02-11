@@ -48,6 +48,8 @@ export function getDOMElements() {
     statsButton: document.getElementById('log-archive-stats-button'),
     settingsButton: document.getElementById('log-archive-settings-button'),
     pauseButton: document.getElementById('log-archive-pause-button'),
+    mainResetButton: document.getElementById('log-archive-main-reset-button'),
+    readOnlyIndicator: document.getElementById('log-archive-readonly-indicator'),
     toggleButton: document.getElementById('log-archive-ui-toggle-button'),
 
     // Config View Controls

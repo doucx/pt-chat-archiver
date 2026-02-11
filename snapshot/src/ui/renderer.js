@@ -70,19 +70,25 @@ export function createRenderer(dom, uiState) {
       }
     }
 
-    // 2. 更新服务器状态显示
+    // 2. 状态判断与 UI 反馈
+    const isReadOnly = viewingServer !== activeServer && activeServer !== null;
+    dom.uiContainer.classList.toggle('is-readonly', isReadOnly);
+
+    if (dom.readOnlyIndicator) dom.readOnlyIndicator.style.display = isReadOnly ? 'block' : 'none';
+    if (dom.mainResetButton) dom.mainResetButton.style.display = isReadOnly ? 'block' : 'none';
+
     if (dom.serverStatus) {
       if (!activeServer) {
         dom.serverStatus.textContent = '等待进入游戏...';
         dom.serverStatus.style.color = '';
         if (dom.resetServerButton) dom.resetServerButton.disabled = true;
-      } else if (viewingServer === activeServer) {
+      } else if (!isReadOnly) {
         dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}`;
         dom.serverStatus.style.color = 'var(--color-primary-hover)';
         if (dom.resetServerButton) dom.resetServerButton.disabled = true;
       } else {
-        dom.serverStatus.textContent = `⚠️ 只读模式: 正在查看 ${viewingServer} 存档`;
-        dom.serverStatus.style.color = 'var(--color-warning)';
+        dom.serverStatus.textContent = `📖 浏览存档: ${viewingServer}`;
+        dom.serverStatus.style.color = 'var(--color-text-dim)';
         if (dom.resetServerButton) dom.resetServerButton.disabled = false;
       }
     }

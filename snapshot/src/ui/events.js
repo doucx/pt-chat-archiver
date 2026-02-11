@@ -39,14 +39,17 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     fullRender();
   });
 
-  dom.resetServerButton.addEventListener('click', () => {
+  const handleResetServer = () => {
     const { activeServer } = uiState.getState();
     if (activeServer) {
       uiState.setViewingServer(activeServer);
       uiState.setPage(1);
       fullRender();
     }
-  });
+  };
+
+  dom.resetServerButton.addEventListener('click', handleResetServer);
+  dom.mainResetButton.addEventListener('click', handleResetServer);
 
   // --- View switching ---
   dom.settingsButton.addEventListener('click', () => {

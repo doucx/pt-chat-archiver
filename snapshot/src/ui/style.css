@@ -34,6 +34,22 @@
   padding: 15px;
   font-family: monospace;
   color: var(--color-text);
+  overflow: hidden; /* 防止水印溢出 */
+}
+
+/* 只读模式水印 */
+#log-archive-ui-container.is-readonly::before {
+  content: 'ARCHIVE READ-ONLY';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+  font-size: 5rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.03);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 0;
 }
 
 #log-archive-ui-header {
@@ -140,6 +156,24 @@
 .info-text-dim {
   color: var(--color-text-dim);
   font-size: 0.85em;
+}
+
+.readonly-pill {
+  background-color: var(--color-warning);
+  color: #111;
+  font-size: 0.75em;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 10px;
+  align-self: center;
+  margin-top: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.config-input-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
 }
 
 /* 设置视图 */
