@@ -18,8 +18,8 @@ describe('Analysis Module', () => {
 
   it('calculateHourlyActivity 应当正确识别高峰小时', () => {
     const { data } = calculateHourlyActivity(mockMessages);
-    // 10点有2条，11点有2条（包含系统消息，因为此函数目前不检查 sender）
-    expect(data.find(d => d.hour === 10).count).toBe(2);
+    const expectedHour = new Date(mockMessages[0].time).getHours();
+    expect(data.find(d => d.hour === expectedHour).count).toBe(2);
   });
 
   it('cleanChannelRecords 应当能识别并在爆发期清理重复项', () => {

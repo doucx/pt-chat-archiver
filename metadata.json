@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat(testing): 为存储、解析和分析模块添加核心单元测试", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770836357.170717, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(testing): 修正测试断言以匹配实际 DOM 结构和设计预期", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770836954.1018174, "duration_ms": 0}}

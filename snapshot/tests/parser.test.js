@@ -17,21 +17,25 @@ describe('Parser Module', () => {
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
     expect(data.type).toBe('say');
     expect(data.sender).toBe('SenderName');
-    expect(data.content).toBe('Hello World');
+    // 确认 content 包含名称是符合预期的设计
+    expect(data.content).toBe('[SenderName] Hello World');
   });
 
   it('应当能识别发出的私聊 (To ...)', () => {
     const el = document.createElement('div');
+    // 模拟真实的真实 DOM：To 文本在 name 之前
     el.className = 'chat-line chat-line-whisper';
     el.innerHTML = `
-      <span class="chat-line-name">[Target]</span>
-      <span class="chat-line-message">To Target: private message</span>
+      <span class="chat-line-timestamp">03:03</span>
+      To <span class="chat-line-name">[Target]</span>
+      <span class="chat-line-message">晚好</span>
     `;
     
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
     expect(data.type).toBe('whisper');
     expect(data.sender).toBe('Me');
     expect(data.receiver).toBe('Target');
+    expect(data.content).toBe('To [Target] 晚好');
   });
 
   it('findActiveTabByClass 应当识别活跃标签页', () => {

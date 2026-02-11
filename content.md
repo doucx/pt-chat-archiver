@@ -1,148 +1,77 @@
-太棒了！既然基础环境已经跑通，我们现在为项目的核心逻辑——存储管理、数据解析和统计分析——建立全面的测试覆盖。
+你的反馈非常关键。通过分析实际的 DOM 结构，我发现之前的测试用例对 PonyTown 的渲染机制理解有误。
 
-这不仅能确保当前功能的稳定性，还能为后续可能的重构（例如优化解析算法或升级存储结构）提供安全保障。
+特别是关于 **Whisper (私聊)**，"To " 文本实际上是在 `.chat-line-name` 之前的文本节点中，而不是在 `.chat-line-message` 内部。此外，关于 `content` 包含名称和图标的行为，既然这是你的设计初衷，我将修正测试用例的断言以匹配这一预期。
 
-## [WIP] feat(testing): 为存储、解析和分析模块添加核心单元测试
+最后，针对时区导致的统计测试失败，我将改进测试逻辑以使其在任何时区环境下都能通过。
+
+## [WIP] fix(testing): 修正测试断言以匹配实际 DOM 结构和设计预期
+
+### 错误分析
+
+1.  **`calculateHourlyActivity` 失败**:
+    *   **原因**: `new Date('...Z').getHours()` 会根据运行环境的时区返回不同的小时数。在 UTC+8 环境下，10:00Z 会变成 18:00。
+    *   **修复**: 在测试中动态获取 mock 日期的小时数进行断言，而不是硬编码 `10`。
+
+2.  **`Parser` 普通发言解析失败**:
+    *   **原因**: 实际代码中 `content` 的提取逻辑确实包含了名称节点，而测试断言期望的是纯消息内容。
+    *   **修复**: 更新断言，使其包含预期的名称前缀。
+
+3.  **`Parser` 私聊方向识别失败**:
+    *   **原因**: 测试中的 Mock DOM 结构不正确。在 PonyTown 中，"To " 是紧跟在 `.chat-line-lead` 之后、`.chat-line-name` 之前的文本。
+    *   **修复**: 构造与真实环境完全一致的 Mock DOM。
 
 ### 用户需求
-针对项目的核心功能模块编写详细的单元测试。
+修复测试套件中的错误断言，确保测试能够真实反映代码在实际生产环境中的表现。
 
 ### 评论
-随着项目复杂度的增加，手动测试 DOM 节点解析和复杂的重复清理逻辑变得非常低效且容易遗漏边缘情况。建立这些测试将极大地提升开发信心。
+单元测试必须服务于真实需求。既然你确认 `content` 包含名称是故意的，那么测试就应该验证这一“特性”是否稳定，而不是试图去“修正”它。
 
 ### 目标
-1.  **Storage 测试**: 验证 `localStorage` 的分层读写和配置管理。
-2.  **Analysis 测试**: 验证统计分析算法（活跃用户、高峰时段）和重复记录识别逻辑（Burst Detection）。
-3.  **Parser 测试**: 验证对 PonyTown 聊天 DOM 结构的解析准确性，包括对 Emoji 和私聊方向的识别。
+1.  修正 `tests/analysis.test.js` 以兼容不同时区的测试运行。
+2.  修正 `tests/parser.test.js` 中的 Mock DOM 结构和断言字符串。
 
 ### 基本原理
-我们利用 Vitest 提供的 `jsdom` 环境来模拟浏览器行为。对于 `storage.js`，我们直接操作模拟的 `localStorage`；对于 `parser.js`，我们在测试中动态创建 DOM 结构并传给解析函数。
+通过调整测试代码，使其对环境（时区）和业务逻辑（故意保留的名称）具有更强的适应性。对于 DOM 解析，我们将使用更接近实际 HTML 的构造方式。
 
 ### 标签
-#intent/tooling #flow/ready #priority/high #comp/tests #scope/dx #ai/instruct #task/domain/testing #task/object/test-suite #task/action/expansion #task/state/continue
+#intent/fix #flow/ready #priority/high #comp/tests #scope/dx #ai/instruct #task/domain/testing #task/object/test-fixes #task/action/refinement #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 创建存储模块测试 (`tests/storage.test.js`)
+#### Acts 1: 修正统计逻辑测试
 
-验证 `storage.js` 是否能正确处理 V6 数据结构、配置信息以及用户身份信息。
-
-~~~~~act
-write_file
-tests/storage.test.js
-~~~~~
-~~~~~javascript
-import { describe, it, expect, beforeEach } from 'vitest';
-import { storage } from '../src/storage.js';
-import { STORAGE_KEY_V6, CONFIG_KEY, SELF_NAME_KEY } from '../src/constants.js';
-
-describe('Storage Module', () => {
-  beforeEach(() => {
-    localStorage.clear();
-  });
-
-  it('应当能正确保存和读取 V6 消息数据', () => {
-    const mockData = { "Main Server": { "Local": [{ content: 'hello' }] } };
-    storage.saveV6Messages(mockData);
-    expect(storage.getV6Messages()).toEqual(mockData);
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY_V6))).toEqual(mockData);
-  });
-
-  it('应当能正确管理配置项并提供默认值', () => {
-    const defaultConfig = storage.getConfig();
-    expect(defaultConfig.pageSize).toBe(1000);
-
-    const newConfig = { pageSize: 50, autoSaveInterval: 60 };
-    storage.saveConfig(newConfig);
-    expect(storage.getConfig()).toEqual(newConfig);
-  });
-
-  it('应当能保存和检索用户昵称', () => {
-    storage.setSelfName('TestUser  ');
-    expect(storage.getSelfName()).toBe('TestUser'); // 验证 trim
-    expect(localStorage.getItem(SELF_NAME_KEY)).toBe('TestUser');
-  });
-
-  it('清空操作应当移除相关 key', () => {
-    storage.saveV6Messages({ a: 1 });
-    storage.clearAllMessages();
-    expect(storage.getV6Messages()).toEqual({});
-  });
-});
-~~~~~
-
-#### Acts 2: 创建统计与清理逻辑测试 (`tests/analysis.test.js`)
-
-验证统计报表生成逻辑和关键的“爆发期重复记录”识别逻辑。
+我们将不再硬编码小时数，而是从日期对象中动态提取，以应对不同开发机器的时区设置。
 
 ~~~~~act
-write_file
+patch_file
 tests/analysis.test.js
 ~~~~~
-~~~~~javascript
-import { describe, it, expect } from 'vitest';
-import { calculateTopTalkers, calculateHourlyActivity, cleanChannelRecords } from '../src/analysis.js';
-
-describe('Analysis Module', () => {
-  const mockMessages = [
-    { sender: 'Alice', content: 'Hi', time: '2023-01-01T10:00:00Z', type: 'say' },
-    { sender: 'Alice', content: 'How are you?', time: '2023-01-01T10:05:00Z', type: 'say' },
-    { sender: 'Bob', content: 'Hello', time: '2023-01-01T11:00:00Z', type: 'say' },
-    { sender: 'System', content: 'Welcome', time: '2023-01-01T11:00:00Z', type: 'system' }
-  ];
-
-  it('calculateTopTalkers 应当正确计算用户发言权重并过滤系统消息', () => {
-    const { data, total } = calculateTopTalkers(mockMessages);
-    expect(total).toBe(3);
-    expect(data[0].name).toBe('Alice');
-    expect(data[0].count).toBe(2);
-  });
-
+~~~~~javascript.old
   it('calculateHourlyActivity 应当正确识别高峰小时', () => {
     const { data } = calculateHourlyActivity(mockMessages);
     // 10点有2条，11点有2条（包含系统消息，因为此函数目前不检查 sender）
     expect(data.find(d => d.hour === 10).count).toBe(2);
   });
-
-  it('cleanChannelRecords 应当能识别并在爆发期清理重复项', () => {
-    // 构造一个爆发期：1秒内有20条相同的消息
-    const now = Date.now();
-    const burstMessages = [];
-    for (let i = 0; i < 25; i++) {
-      burstMessages.push({
-        content: 'Spam',
-        time: new Date(now + i).toISOString(),
-        is_historical: false,
-        type: 'say'
-      });
-    }
-
-    const { cleanedRecords, removedCount } = cleanChannelRecords(burstMessages);
-    // 第一条会保留（作为内容源），后续重复且在爆发期内的会被删
-    expect(removedCount).toBeGreaterThan(0);
-    expect(cleanedRecords.length).toBeLessThan(25);
+~~~~~
+~~~~~javascript.new
+  it('calculateHourlyActivity 应当正确识别高峰小时', () => {
+    const { data } = calculateHourlyActivity(mockMessages);
+    const expectedHour = new Date(mockMessages[0].time).getHours();
+    expect(data.find(d => d.hour === expectedHour).count).toBe(2);
   });
-});
 ~~~~~
 
-#### Acts 3: 创建解析引擎测试 (`tests/parser.test.js`)
+#### Acts 2: 修正解析引擎测试
 
-通过模拟 DOM 节点，验证解析器对不同消息类型（普通发言、私聊）的识别能力。
+根据你提供的真实 DOM 结构，我们调整 Mock HTML 和相应的断言。
 
 ~~~~~act
-write_file
+patch_file
 tests/parser.test.js
 ~~~~~
-~~~~~javascript
-import { describe, it, expect } from 'vitest';
-import { extractUsefulData, findActiveTabByClass } from '../src/parser.js';
-
-describe('Parser Module', () => {
-  // 模拟窗口环境
-  global.window = { location: { hostname: 'pony.town' } };
-
+~~~~~javascript.old
   it('应当能从 DOM 元素中解析普通发言', () => {
     const el = document.createElement('div');
     el.className = 'chat-line';
@@ -171,21 +100,44 @@ describe('Parser Module', () => {
     expect(data.sender).toBe('Me');
     expect(data.receiver).toBe('Target');
   });
-
-  it('findActiveTabByClass 应当识别活跃标签页', () => {
-    const html = `
-      <div class="chat-log-tabs">
-        <a class="chat-log-tab">Local</a>
-        <a class="chat-log-tab active">Party</a>
-      </div>
+~~~~~
+~~~~~javascript.new
+  it('应当能从 DOM 元素中解析普通发言', () => {
+    const el = document.createElement('div');
+    el.className = 'chat-line';
+    el.innerHTML = `
+      <span class="chat-line-timestamp">10:00</span>
+      <span class="chat-line-name">[SenderName]</span>
+      <span class="chat-line-message">Hello World</span>
     `;
-    expect(findActiveTabByClass(html)).toBe('Party');
+    
+    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
+    expect(data.type).toBe('say');
+    expect(data.sender).toBe('SenderName');
+    // 确认 content 包含名称是符合预期的设计
+    expect(data.content).toBe('[SenderName] Hello World');
   });
-});
+
+  it('应当能识别发出的私聊 (To ...)', () => {
+    const el = document.createElement('div');
+    // 模拟真实的真实 DOM：To 文本在 name 之前
+    el.className = 'chat-line chat-line-whisper';
+    el.innerHTML = `
+      <span class="chat-line-timestamp">03:03</span>
+      To <span class="chat-line-name">[Target]</span>
+      <span class="chat-line-message">晚好</span>
+    `;
+    
+    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
+    expect(data.type).toBe('whisper');
+    expect(data.sender).toBe('Me');
+    expect(data.receiver).toBe('Target');
+    expect(data.content).toBe('To [Target] 晚好');
+  });
 ~~~~~
 
 ### 下一步建议
 
-1.  **执行测试**: 运行 `npm test`。现在你应该能看到 4 个测试文件（包含之前的 utils）全部通过。
-2.  **集成测试**: 下一步可以考虑编写 `tests/integration.test.js`，模拟从“发现新 DOM 节点”到“存入内存状态”再到“保存到本地存储”的完整链路。
-3.  **覆盖率报告**: 如果需要，可以配置 `c8` 或 `istanbul` 来查看代码测试覆盖率。
+1.  **重新运行测试**: 执行 `npm test`。现在测试应当能正确处理你提供的真实 DOM 结构并全量通过。
+2.  **验证图标解析**: 既然你提供了一个包含图标 (`img.pixelart`) 的例子，建议再添加一个专门针对图标 `alt` 和 `aria-label` 提取的测试用例，确保复杂的名称不会破坏解析。
+3.  **边界情况测试**: 考虑测试“系统提示”（不带名称的消息）是否会被解析器正确归类。
