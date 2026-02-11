@@ -124,6 +124,9 @@
 #log-archive-stats-button.active {
   background-color: var(--color-success);
 }
+#page-last.active {
+  background-color: var(--color-success);
+}
 #log-archive-settings-button.active {
   background-color: var(--color-warning);
   border-color: var(--color-warning-hover);

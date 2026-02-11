@@ -206,6 +206,10 @@ export function createRenderer(dom, uiState) {
       const isLast = currentPage === totalPages;
       dom.pageFirstBtn.disabled = dom.pagePrevBtn.disabled = isFirst;
       dom.pageNextBtn.disabled = isLast;
+
+      // 状态反馈：锁定模式下按钮变绿
+      dom.pageLastBtn.classList.toggle('active', isLockedToBottom);
+
       // 最后一页按钮仅在“已处于吸附模式”且“已经在最后一页”时才禁用
       dom.pageLastBtn.disabled = isLast && isLockedToBottom;
     }
