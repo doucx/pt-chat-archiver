@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(testing): 修正测试断言以匹配实际 DOM 结构和设计预期", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770836954.1018174, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test(parser): 增加收到私聊及复杂 Emoji 名称的解析测试", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770837213.236156, "duration_ms": 0}}
