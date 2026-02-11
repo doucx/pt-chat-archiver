@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] test: 恢复遗失的测试用例并补全核心与 UI 状态逻辑覆盖", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770838649.9084687, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M package-lock.json, M package.json", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770839731.5893216, "duration_ms": 0}}
