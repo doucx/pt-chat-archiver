@@ -1,4 +1,4 @@
-import './style.css';
+import './ui/style.css';
 import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
 import { SELF_NAME_KEY } from './constants.js';
 import { MigrationManager } from './migrations.js';

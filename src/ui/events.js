@@ -39,14 +39,17 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     fullRender();
   });
 
-  dom.resetServerButton.addEventListener('click', () => {
+  const handleResetServer = () => {
     const { activeServer } = uiState.getState();
     if (activeServer) {
       uiState.setViewingServer(activeServer);
       uiState.setPage(1);
       fullRender();
     }
-  });
+  };
+
+  dom.resetServerButton.addEventListener('click', handleResetServer);
+  dom.mainResetButton.addEventListener('click', handleResetServer);
 
   // --- View switching ---
   dom.settingsButton.addEventListener('click', () => {
@@ -70,21 +73,48 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     }
   });
 
+  // 处理滚动时的自动吸附与解锁逻辑
+  dom.logDisplay.addEventListener('scroll', () => {
+    const { isLockedToBottom, currentPage, totalPages } = uiState.getState();
+    const threshold = 10; // 容差像素
+    const isAtBottom =
+      dom.logDisplay.scrollHeight - dom.logDisplay.scrollTop - dom.logDisplay.clientHeight <
+      threshold;
+
+    if (isLockedToBottom) {
+      // 1. 已锁定状态下，向上滑动则解锁
+      if (!isAtBottom) {
+        uiState.setLockedToBottom(false);
+        fullRender();
+      }
+    } else {
+      // 2. 未锁定状态下，如果在最后一页手动滑到底部，则自动加锁
+      if (isAtBottom && currentPage === totalPages) {
+        uiState.setLockedToBottom(true);
+        fullRender();
+      }
+    }
+  });
+
   // --- Pagination ---
   dom.pageFirstBtn.addEventListener('click', () => {
+    uiState.setLockedToBottom(false);
     uiState.setPage(1);
     fullRender();
   });
   dom.pagePrevBtn.addEventListener('click', () => {
+    uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage - 1);
     fullRender();
   });
   dom.pageNextBtn.addEventListener('click', () => {
+    uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage + 1);
     fullRender();
   });
   dom.pageLastBtn.addEventListener('click', () => {
     uiState.setPage(uiState.getState().totalPages);
+    uiState.setLockedToBottom(true);
     fullRender();
   });
 
@@ -100,6 +130,11 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
   dom.autoSaveIntervalInput.addEventListener('change', async () => {
     await uiState.setAutoSaveInterval(dom.autoSaveIntervalInput.value);
     callbacks.onAutoSaveIntervalChange();
+    fullRender();
+  });
+
+  dom.autoFollowInput.addEventListener('change', async () => {
+    await uiState.setAutoFollowServer(dom.autoFollowInput.checked);
     fullRender();
   });
 
@@ -160,4 +195,5 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
   dom.selfNameInput.value = await uiState.getSelfName();
   dom.pageSizeInput.value = uiState.getState().pageSize;
   dom.autoSaveIntervalInput.value = uiState.getState().autoSaveInterval;
+  dom.autoFollowInput.checked = uiState.getState().autoFollowServer;
 }

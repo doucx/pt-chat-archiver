@@ -48,11 +48,14 @@ export function getDOMElements() {
     statsButton: document.getElementById('log-archive-stats-button'),
     settingsButton: document.getElementById('log-archive-settings-button'),
     pauseButton: document.getElementById('log-archive-pause-button'),
+    mainResetButton: document.getElementById('log-archive-main-reset-button'),
+    readOnlyIndicator: document.getElementById('log-archive-readonly-indicator'),
     toggleButton: document.getElementById('log-archive-ui-toggle-button'),
 
     // Config View Controls
     serverViewSelector: document.getElementById('log-archive-server-view-selector'),
     resetServerButton: document.getElementById('log-archive-reset-server-button'),
+    autoFollowInput: document.getElementById('log-archive-auto-follow-input'),
     selfNameInput: document.getElementById('log-archive-self-name-input'),
     pageSizeInput: document.getElementById('log-archive-page-size-input'),
     autoSaveIntervalInput: document.getElementById('log-archive-auto-save-interval'),

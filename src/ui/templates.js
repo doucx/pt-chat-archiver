@@ -8,6 +8,7 @@ export const getMainContainerHTML = (version) => `
         <div id="log-archive-ui-controls" style="width: 100%; justify-content: space-between;">
             <select id="log-archive-channel-selector" class="log-archive-ui-button" style="flex-grow: 1; margin-right: 10px;"></select>
             <div style="display: flex; gap: 5px;">
+                <button id="log-archive-main-reset-button" class="log-archive-ui-button" title="回到正在记录的服务器" style="display: none;">📍</button>
                 <button id="log-archive-pause-button" class="log-archive-ui-button" title="暂停/恢复录制">⏸️ </button>
                 <button id="log-archive-stats-button" class="log-archive-ui-button" title="数据统计">📊</button>
                 <button id="log-archive-settings-button" class="log-archive-ui-button" title="设置">⚙️</button>
@@ -20,6 +21,7 @@ export const getMainContainerHTML = (version) => `
     <div id="log-archive-view-container" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
         <!-- 记录查看视图 -->
         <div id="log-archive-log-view" style="display: flex; flex-direction: column; height: 100%;">
+            <div id="log-archive-readonly-indicator" class="readonly-pill">只读存档模式</div>
             <div id="log-archive-ui-pagination-controls" style="margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;">
                 <button id="page-first" class="log-archive-ui-button">«</button>
                 <button id="page-prev" class="log-archive-ui-button">‹</button>
@@ -45,9 +47,13 @@ export const getMainContainerHTML = (version) => `
 
             <div class="config-group">
                 <label for="log-archive-server-view-selector">查看存档服务器</label>
-                <div style="display: flex; gap: 8px;">
-                    <select id="log-archive-server-view-selector" class="log-archive-ui-button" style="flex-grow: 1;"></select>
-                    <button id="log-archive-reset-server-button" class="log-archive-ui-button" title="回到正在记录的服务器">📍</button>
+                <div class="config-input-row">
+                    <select id="log-archive-server-view-selector" class="log-archive-ui-button" style="flex-grow: 1; min-width: 0;"></select>
+                    <button id="log-archive-reset-server-button" class="log-archive-ui-button" title="回到正在记录的服务器" style="flex-shrink: 0;">📍</button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+                    <input type="checkbox" id="log-archive-auto-follow-input" style="width: auto; margin: 0;">
+                    <label for="log-archive-auto-follow-input" style="font-weight: normal; color: var(--color-text-dim); font-size: 0.85em; cursor: pointer;">跟随游戏服务器切换</label>
                 </div>
                 <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
                     切换查看不同服务器的历史记录。注意：此切换仅影响显示，不影响当前的数据录制。

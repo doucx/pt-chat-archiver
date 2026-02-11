@@ -50,7 +50,8 @@ export function createRenderer(dom, uiState) {
 
   // --- Main Render Logic ---
   const render = (appState, callbacks) => {
-    const { viewMode, currentPage, pageSize, viewingServer, activeServer } = uiState.getState();
+    const { viewMode, currentPage, pageSize, viewingServer, activeServer, isLockedToBottom } =
+      uiState.getState();
 
     // 1. 更新服务器选择器 (v6 特有)
     const servers = Object.keys(appState);
@@ -70,19 +71,26 @@ export function createRenderer(dom, uiState) {
       }
     }
 
-    // 2. 更新服务器状态显示
+    // 2. 状态判断与 UI 反馈
+    const isReadOnly = viewingServer !== activeServer && activeServer !== null;
+    dom.uiContainer.classList.toggle('is-readonly', isReadOnly);
+
+    if (dom.readOnlyIndicator) dom.readOnlyIndicator.style.display = isReadOnly ? 'block' : 'none';
+    if (dom.mainResetButton) dom.mainResetButton.style.display = isReadOnly ? 'block' : 'none';
+    if (dom.pauseButton) dom.pauseButton.style.display = isReadOnly ? 'none' : 'block';
+
     if (dom.serverStatus) {
       if (!activeServer) {
         dom.serverStatus.textContent = '等待进入游戏...';
         dom.serverStatus.style.color = '';
         if (dom.resetServerButton) dom.resetServerButton.disabled = true;
-      } else if (viewingServer === activeServer) {
+      } else if (!isReadOnly) {
         dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}`;
         dom.serverStatus.style.color = 'var(--color-primary-hover)';
         if (dom.resetServerButton) dom.resetServerButton.disabled = true;
       } else {
-        dom.serverStatus.textContent = `⚠️ 只读模式: 正在查看 ${viewingServer} 存档`;
-        dom.serverStatus.style.color = 'var(--color-warning)';
+        dom.serverStatus.textContent = `📖 浏览存档: ${viewingServer}`;
+        dom.serverStatus.style.color = 'var(--color-text-dim)';
         if (dom.resetServerButton) dom.resetServerButton.disabled = false;
       }
     }
@@ -165,10 +173,20 @@ export function createRenderer(dom, uiState) {
       // 'log' view
       dom.paginationControls.style.display = 'flex';
       uiState.setTotalPages(Math.ceil(messages.length / pageSize));
-      const { totalPages } = uiState.getState(); // Re-fetch after update
-      if (currentPage > totalPages) uiState.setPage(totalPages);
+      const { totalPages } = uiState.getState();
 
-      const startIndex = (currentPage - 1) * pageSize;
+      // 自动翻页逻辑：如果吸附到底部，强制同步到最后一页
+      if (isLockedToBottom) {
+        uiState.setPage(totalPages);
+      } else if (currentPage > totalPages) {
+        uiState.setPage(totalPages);
+      }
+
+      // 重新获取最新的状态值进行渲染
+      const activeState = uiState.getState();
+      const activePage = activeState.currentPage;
+
+      const startIndex = (activePage - 1) * pageSize;
       const paginatedMessages = messages.slice(startIndex, startIndex + pageSize);
 
       updateTextareaAndPreserveSelection(() => {
@@ -178,11 +196,22 @@ export function createRenderer(dom, uiState) {
             : `--- 在频道 [${selectedChannel}] 中没有记录 ---`;
       });
 
-      dom.pageInfoSpan.textContent = `${currentPage} / ${totalPages}`;
+      // 如果处于吸附模式，确保滚动到底部
+      if (isLockedToBottom && activePage === totalPages) {
+        dom.logDisplay.scrollTop = dom.logDisplay.scrollHeight;
+      }
+
+      dom.pageInfoSpan.textContent = `${activePage} / ${totalPages}`;
       const isFirst = currentPage === 1;
       const isLast = currentPage === totalPages;
       dom.pageFirstBtn.disabled = dom.pagePrevBtn.disabled = isFirst;
-      dom.pageNextBtn.disabled = dom.pageLastBtn.disabled = isLast;
+      dom.pageNextBtn.disabled = isLast;
+
+      // 状态反馈：锁定模式下按钮变绿
+      dom.pageLastBtn.classList.toggle('active', isLockedToBottom);
+
+      // 最后一页按钮仅在“已处于吸附模式”且“已经在最后一页”时才禁用
+      dom.pageLastBtn.disabled = isLast && isLockedToBottom;
     }
   };
 
