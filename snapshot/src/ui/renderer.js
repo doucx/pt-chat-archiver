@@ -123,8 +123,10 @@ export function createRenderer(dom, uiState) {
     dom.settingsButton.classList.toggle('active', viewMode === 'config');
 
     if (viewMode === 'config') {
-      const usageMB = getStorageUsageInMB();
-      dom.configStorageInfo.textContent = `当前本地存储占用: ${usageMB.toFixed(2)} MB / 5.00 MB`;
+      // 异步更新存储信息，不阻塞渲染
+      getStorageUsageInMB().then((usageMB) => {
+        dom.configStorageInfo.textContent = `当前本地存储占用: ${usageMB.toFixed(2)} MB / 5.00 MB`;
+      });
 
       const { lastSavedTime } = uiState.getState();
       if (lastSavedTime) {
