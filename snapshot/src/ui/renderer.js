@@ -86,17 +86,14 @@ export function createRenderer(dom, uiState) {
       }
     }
 
-    // 3. 获取当前查看服务器的数据切片
+    // 3. 获取当前服务器数据并更新频道选择器
     const serverData = appState[viewingServer] || {};
-    const selectedChannel = dom.channelSelector.value;
-    const messages = serverData[selectedChannel] || [];
-
-    // 4. 更新频道选择器
     const channels = Object.keys(serverData);
     const prevChannelValue = dom.channelSelector.value;
+
     dom.channelSelector.innerHTML = '';
     if (channels.length === 0) {
-      dom.channelSelector.innerHTML = '<option>无记录</option>';
+      dom.channelSelector.innerHTML = '<option value="">无记录</option>';
     } else {
       for (const ch of channels) {
         const opt = document.createElement('option');
@@ -104,10 +101,17 @@ export function createRenderer(dom, uiState) {
         opt.textContent = `${ch} (${serverData[ch].length})`;
         dom.channelSelector.appendChild(opt);
       }
-      if (channels.includes(prevChannelValue)) {
+      // 尝试恢复之前的选择，或者默认选择第一个可用频道
+      if (prevChannelValue && channels.includes(prevChannelValue)) {
         dom.channelSelector.value = prevChannelValue;
+      } else if (channels.length > 0) {
+        dom.channelSelector.value = channels[0];
       }
     }
+
+    // 4. 现在可以安全地获取选中频道的消息了
+    const selectedChannel = dom.channelSelector.value;
+    const messages = serverData[selectedChannel] || [];
 
     // Toggle view visibility
     dom.logView.style.display = viewMode === 'config' ? 'none' : 'flex';

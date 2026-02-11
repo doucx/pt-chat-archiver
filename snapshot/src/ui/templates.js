@@ -44,7 +44,7 @@ export const getMainContainerHTML = (version) => `
             </div>
 
             <div class="config-group">
-                <label>查看存档服务器</label>
+                <label for="log-archive-server-view-selector">查看存档服务器</label>
                 <div style="display: flex; gap: 8px;">
                     <select id="log-archive-server-view-selector" class="log-archive-ui-button" style="flex-grow: 1;"></select>
                     <button id="log-archive-reset-server-button" class="log-archive-ui-button" title="回到正在记录的服务器">📍</button>
@@ -54,15 +54,15 @@ export const getMainContainerHTML = (version) => `
                 </div>
             </div>
             <div class="config-group">
-                <label>用户昵称</label>
+                <label for="log-archive-self-name-input">用户昵称</label>
                 <input type="text" id="log-archive-self-name-input" placeholder="用于识别私聊方向...">
             </div>
             <div class="config-group">
-                <label>分页大小 (每页消息条数)</label>
+                <label for="log-archive-page-size-input">分页大小 (每页消息条数)</label>
                 <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
             </div>
             <div class="config-group">
-                <label>自动保存间隔 (秒)</label>
+                <label for="log-archive-auto-save-interval">自动保存间隔 (秒)</label>
                 <input type="number" id="log-archive-auto-save-interval" min="5" max="3600" step="5">
             </div>
             <div class="config-group">
