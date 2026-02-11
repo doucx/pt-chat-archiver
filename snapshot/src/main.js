@@ -255,6 +255,7 @@ import { debounce, getISOTimestamp } from './utils.js';
 
         // 3. 检查并触发交互式迁移 (如 v5 -> v6)
         await MigrationManager.checkAndTriggerInteractiveMigrations(
+          storageManager,
           server,
           inMemoryChatState,
           (newState) => {
