@@ -1,39 +1,3 @@
-为了确保清理逻辑在多层嵌套结构（V6）下始终稳定运行，我将为你创建一个专门的集成测试文件。该测试将模拟真实的“消息爆发期”（Spam），并验证 UI 是否能正确识别不同服务器、不同频道下的重复项并完成一键清理。
-
-## [WIP] test: 添加针对 V6 结构的清理重复项集成回归测试
-
-### 用户需求
-添加自动化测试，以验证“清理重复记录”功能在 Server -> Channel 嵌套结构下是否能正常工作。
-
-### 评论
-由于清理逻辑涉及复杂的嵌套遍历和“爆发期”算法识别，手动测试难以覆盖所有边界情况（如跨服务器清理）。自动化集成测试是保证数据一致性的最后防线。
-
-### 目标
-1.  新建 `tests/ui.clean_duplicates.test.js`。
-2.  模拟一个包含多个服务器、多个频道的 V6 `appState`。
-3.  在其中构造一组符合“爆发期”定义的重复消息（1秒内超过20条相同内容）。
-4.  验证 UI 渲染出的“清理重复”按钮上的计数是否准确。
-5.  验证触发清理后，`appState` 中的重复项被正确移除，且调用了存储保存函数。
-
-### 基本原理
-测试将利用 `vitest` 和 `jsdom` 构建一个真实的 UI 环境。我们将通过代码直接向 `appState` 注入 25 条在 500ms 内产生的相同消息。根据 `analysis.js` 的算法，这应当识别出 24 条可清理项。测试将断言 UI 按钮显示 “清理重复 (24)”，并模拟点击确认以观察状态变更。
-
-### 标签
-#intent/test #flow/ready #priority/medium #comp/tests #comp/ui #concept/state #scope/dx #ai/instruct #task/domain/testing #task/object/clean-logic #task/action/test-automation #task/state/continue
-
----
-
-### Script
-
-#### Acts 1: 创建清理逻辑集成测试文件
-
-我们将编写一个完整的测试套件来覆盖嵌套结构的清理场景。
-
-~~~~~act
-write_file
-tests/ui.clean_duplicates.test.js
-~~~~~
-~~~~~javascript
 import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
@@ -143,9 +107,3 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     expect(window.alert).toHaveBeenCalledWith('未发现可清理的重复记录。');
   });
 });
-~~~~~
-
-### 下一步建议
-- **运行测试**：执行 `npm test tests/ui.clean_duplicates.test.js` 观察结果。
-- **覆盖率检查**：建议运行 `npm run test:coverage` 以确保 `analysis.js` 中的清理分支被完整覆盖。
-- **UI 细节优化**：目前清理完毕后按钮文案会变回“清理完毕!”并持续 2 秒，可以考虑在清理过程中加入 Loading 状态（如果数据量极大）。
