@@ -1,5 +1,5 @@
-import { storageManager } from './storage/index.js';
 import { mergeAndDeduplicateMessages } from './state.js';
+import { storageManager } from './storage/index.js';
 
 /**
  * 版本迁移管理器
