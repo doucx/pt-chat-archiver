@@ -174,12 +174,44 @@ export class IndexedDBAdapter {
 
   /**
    * 获取估算的存储大小 (字节)
-   * IndexedDB 没有直接 API 获取大小，这里只能返回一个近似值或者 0。
-   * 精确计算需要遍历所有数据，这在性能上是不划算的。
+   * 遍历所有存储的消息和配置，并累加序列化后的字节大小。
    */
   async getRawSize() {
-    // 暂不支持 IDB 大小计算，或者可以在将来实现
-    return 0;
+    return new Promise((resolve) => {
+      const tx = this._tx([STORE_MESSAGES, STORE_CONFIG], 'readonly');
+      let totalSize = 0;
+
+      const countSize = (storeName) => {
+        return new Promise((res) => {
+          const store = tx.objectStore(storeName);
+          const request = store.getAll();
+          request.onsuccess = () => {
+            const data = request.result;
+            const size = new Blob([JSON.stringify(data)]).size;
+            res(size);
+          };
+          request.onerror = () => res(0);
+        });
+      };
+
+      Promise.all([countSize(STORE_MESSAGES), countSize(STORE_CONFIG)]).then((sizes) => {
+        totalSize = sizes.reduce((a, b) => a + b, 0);
+        resolve(totalSize);
+      });
+    });
+  }
+
+  /**
+   * 获取数据库中存储的消息总条数。
+   */
+  getTotalMessageCount() {
+    return new Promise((resolve) => {
+      const tx = this._tx([STORE_MESSAGES], 'readonly');
+      const store = tx.objectStore(STORE_MESSAGES);
+      const request = store.count();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(0);
+    });
   }
 
   // --- Legacy Support ---

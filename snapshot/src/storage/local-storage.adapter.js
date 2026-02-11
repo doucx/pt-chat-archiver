@@ -93,4 +93,13 @@ export class LocalStorageAdapter {
     localStorage.removeItem(STORAGE_KEY_V5);
     return Promise.resolve();
   }
+
+  hasV6Backup() {
+    return localStorage.getItem(`${STORAGE_KEY_V6}_backup`) !== null;
+  }
+
+  deleteV6Backup() {
+    localStorage.removeItem(`${STORAGE_KEY_V6}_backup`);
+    return Promise.resolve();
+  }
 }

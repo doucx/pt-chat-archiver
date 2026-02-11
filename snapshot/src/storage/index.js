@@ -81,6 +81,24 @@ class StorageManager {
     return this.adapter.getRawSize();
   }
 
+  getTotalMessageCount() {
+    if (this.adapter?.getTotalMessageCount) {
+      return this.adapter.getTotalMessageCount();
+    }
+    return Promise.resolve(0);
+  }
+
+  hasV6Backup() {
+    // 只有 LocalStorageAdapter 有此方法，这里需要判断
+    const ls = new LocalStorageAdapter();
+    return ls.hasV6Backup();
+  }
+
+  deleteV6Backup() {
+    const ls = new LocalStorageAdapter();
+    return ls.deleteV6Backup();
+  }
+
   loadAllV4() {
     return this.adapter.loadAllV4();
   }

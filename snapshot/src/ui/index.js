@@ -104,12 +104,17 @@ export async function createUI(initialAppState, appCallbacks) {
     }
   };
 
+  const deleteV6Backup = async () => {
+    await storageManager.deleteV6Backup();
+  };
+
   const uiCallbacks = {
     ...appCallbacks,
     cleanChannelRecords,
     clearAllData,
     copyAllData,
     downloadAllData,
+    deleteV6Backup,
   };
 
   await bindUIEvents({

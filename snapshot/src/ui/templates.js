@@ -67,7 +67,8 @@ export const getMainContainerHTML = (version) => `
             </div>
             <div class="config-group">
                 <label>维护操作</label>
-                <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 5px;"></div>
+                <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 2px;"></div>
+                <div id="log-archive-config-msg-count" class="info-text-dim" style="margin-bottom: 8px;"></div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button id="log-archive-save-now-button" class="log-archive-ui-button" style="flex-grow: 1;">💾 立即保存</button>
@@ -80,7 +81,15 @@ export const getMainContainerHTML = (version) => `
                     </div>
                 </div>
             </div>
-            <div class="config-group" style="margin-top: auto; border-top: 1px dashed #444; padding-top: 20px;">
+            <div id="log-archive-delete-backup-group" class="config-group" style="margin-top: auto; display: none;">
+                <label>兼容性清理</label>
+                <button id="log-archive-delete-backup-button" class="log-archive-ui-button">删除旧版 LocalStorage 备份</button>
+                <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
+                    迁移至新数据库后生成的备份文件，删除可释放浏览器 LocalStorage 空间。
+                </div>
+            </div>
+
+            <div class="config-group" style="margin-top: 10px; border-top: 1px dashed #444; padding-top: 20px;">
                 <label style="color: #ff6666;">危险操作</label>
                 <button id="log-archive-clear-button" class="log-archive-ui-button">清空所有本地存档</button>
             </div>
