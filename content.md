@@ -1,155 +1,183 @@
-当前的测试覆盖率报告显示，项目的核心逻辑层（`src/`）存在严重的测试盲区，特别是涉及数据安全与一致性的模块（`state.js`, `migrations.js`）覆盖率为 0%，这在处理用户聊天存档这种持久化数据时具有极高的风险。
+目前仍**不充足**。
 
-我将生成一个计划，优先为这些核心逻辑补充单元测试，以确保数据合并、迁移和分析的准确性。
+虽然核心数据合并和基础迁移逻辑已经有了覆盖，但项目的两个关键功能区域仍然处于测试真空状态：
+1.  **UI 状态管理 (`src/ui/state.js`)**: 覆盖率为 0%。该模块负责分页、视图切换、配置保存（PageSize, Interval）等逻辑。虽然它位于 `ui/` 目录下，但它是纯逻辑实现，不依赖复杂的 DOM，完全可以且应当被 100% 覆盖。
+2.  **数据统计功能 (`src/analysis.js`)**: 尽管我们测试了清理逻辑，但 `calculateTopTalkers` 和 `calculateHourlyActivity`（即 UI 中“📊 统计”功能的核心）仍未被覆盖。
+3.  **合成频道逻辑 (`src/state.js`)**: `addMessageToSyntheticChannelIfNeeded` 负责将私聊/队伍消息自动复制到特定频道，这部分逻辑目前也是未覆盖的。
 
-## [WIP] test: 为核心数据处理与迁移逻辑补充单元测试
+我将生成一个计划，重点攻克这些逻辑模块，使核心业务逻辑的覆盖率迈向 80% 以上。
+
+## [WIP] test: 扩展测试覆盖范围至 UI 状态管理与数据统计逻辑
 
 ### 用户需求
-分析当前的测试覆盖率报告，找出测试薄弱环节，并编写必要的测试用例以提升系统的稳健性，特别是针对 `src/state.js`、`src/migrations.js` 和 `src/analysis.js` 中的复杂逻辑。
+进一步提升测试覆盖率，特别是针对 UI 的状态管理 (`src/ui/state.js`)、统计分析函数 (`src/analysis.js`) 以及合成频道处理逻辑 (`src/state.js`)。
 
 ### 评论
-当前覆盖率（22.59%）远低于安全基准。尤其是 `state.js` 中的 `mergeAndDeduplicateMessages` 算法和 `migrations.js` 中的版本迁移逻辑，它们直接决定了用户数据是否会丢失或损坏。UI 状态管理 (`src/ui/state.js`) 虽然是 UI 层的，但其逻辑不依赖 DOM，完全具备可测试性。
+目前的测试主要集中在“数据安全”维度（合并与迁移）。接下来的重点应转向“功能正确性”维度。UI 状态管理器是用户交互的中枢，如果分页逻辑或配置读取出现问题，将直接导致 UI 崩溃或数据展示异常。
 
 ### 目标
-1.  **覆盖核心合并算法**: 为 `src/state.js` 编写测试，涵盖消息重叠、完全不连续（空洞检测）以及空数据处理等场景。
-2.  **覆盖数据迁移逻辑**: 为 `src/migrations.js` 编写测试，模拟 `localStorage` 环境验证 V4->V5 和 V5->V6 的迁移正确性。
-3.  **强化分析与清理逻辑**: 提升 `src/analysis.js` 的覆盖率，重点测试“消息爆发检测 (Burst Identification)”和“重复记录清理”。
-4.  **建立 UI 状态测试**: 为 `src/ui/state.js` 建立基础测试。
+1.  **实现 UI 状态测试**: 为 `src/ui/state.js` 编写完整测试，涵盖初始配置加载、分页边界处理、服务器切换状态等。
+2.  **覆盖统计分析**: 为 `src/analysis.js` 中的 `calculateTopTalkers` 和 `calculateHourlyActivity` 编写测试。
+3.  **验证合成频道**: 在 `tests/core/state.test.js` 中补充 `addMessageToSyntheticChannelIfNeeded` 的测试。
 
 ### 基本原理
-利用 `vitest` 和 `jsdom` 环境，通过模拟 `localStorage` 和构造边缘情况的输入数据，对纯逻辑函数进行黑盒测试。由于 `src/main.js` 涉及大量无法在 jsdom 中完美模拟的浏览器事件流，维持其排除状态是合理的，但其调用的底层原子函数必须实现 90% 以上的覆盖。
+由于项目采用了模块化设计，`createUIState` 等函数返回的是闭包对象，通过在测试中调用这些对象的方法并观察其内部状态的变化（通过 `getState()`），可以非常方便地进行单元测试，而无需模拟真实的浏览器点击事件。
 
 ### 标签
-#intent/tooling #flow/ready #priority/high #comp/tests #concept/state #concept/history #scope/dx #ai/brainstorm #task/domain/testing #task/object/core-logic-tests #task/action/implementation #task/state/begin
+#intent/tooling #flow/ready #priority/medium #comp/tests #comp/ui #concept/state #scope/dx #ai/brainstorm #task/domain/testing #task/object/ui-and-stats-logic #task/action/implementation #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 创建测试目录结构
+#### Acts 1: 编写 UI 状态管理测试
 
-由于当前环境中缺乏对应的测试文件，首先建立测试目录。
-
-~~~~~act
-run_command
-~~~~~
-~~~~~
-mkdir -p tests/core tests/ui
-~~~~~
-
-#### Acts 2: 编写 `src/state.js` 的测试用例
-
-针对核心的 `mergeAndDeduplicateMessages` 算法，这是防止数据重复和检测断层的关键。
+这是目前最大的盲区，我们将测试 `createUIState` 的所有公开接口。
 
 ~~~~~act
 write_file
-tests/core/state.test.js
+tests/ui/state.test.js
 ~~~~~
 ~~~~~javascript
-import { describe, it, expect, vi } from 'vitest';
-import { mergeAndDeduplicateMessages } from '../../src/state.js';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createUIState } from '../../src/ui/state.js';
+import { storage } from '../../src/storage.js';
 
-describe('state.js: mergeAndDeduplicateMessages', () => {
-  it('应当能合并有重叠的消息序列', () => {
-    const oldMsgs = [{ content: 'a' }, { content: 'b' }, { content: 'c' }];
-    const newMsgs = [{ content: 'b' }, { content: 'c' }, { content: 'd' }];
-    const result = mergeAndDeduplicateMessages(oldMsgs, newMsgs);
-    expect(result.map(m => m.content)).toEqual(['a', 'b', 'c', 'd']);
+describe('ui/state.js: UI State Manager', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    // 模拟存储中的基础配置
+    localStorage.setItem('chatLogArchive_config', JSON.stringify({ pageSize: 50, autoSaveInterval: 60 }));
   });
 
-  it('当没有重叠时，应当插入断层警告标记', () => {
-    const oldMsgs = [{ content: 'a' }];
-    const newMsgs = [{ content: 'z' }];
-    const result = mergeAndDeduplicateMessages(oldMsgs, newMsgs);
-    expect(result.length).toBe(3); // a + system_mark + z
-    expect(result[1].sender).toBe('Archiver');
-    expect(result[1].content).toContain('可能存在记录丢失');
+  it('应当能从存储中加载初始配置', () => {
+    const uiState = createUIState();
+    const state = uiState.getState();
+    expect(state.pageSize).toBe(50);
+    expect(state.autoSaveInterval).toBe(60);
   });
 
-  it('应当处理空输入的情况', () => {
-    expect(mergeAndDeduplicateMessages([], [{ content: 'a' }])).toEqual([{ content: 'a' }]);
+  it('分页逻辑应当正确处理边界', () => {
+    const uiState = createUIState();
+    uiState.setTotalPages(10);
+    
+    uiState.setPage(5);
+    expect(uiState.getState().currentPage).toBe(5);
+    
+    uiState.setPage(999); // 超出上限
+    expect(uiState.getState().currentPage).toBe(10);
+    
+    uiState.setPage(-1); // 低于下限
+    expect(uiState.getState().currentPage).toBe(1);
+  });
+
+  it('应当能正确更新并保存配置', () => {
+    const uiState = createUIState();
+    uiState.setPageSize(200);
+    expect(uiState.getState().pageSize).toBe(200);
+    
+    const storedConfig = JSON.parse(localStorage.getItem('chatLogArchive_config'));
+    expect(storedConfig.pageSize).toBe(200);
+  });
+
+  it('应当正确处理服务器切换', () => {
+    const uiState = createUIState();
+    uiState.setActiveServer('Server A');
+    expect(uiState.getState().activeServer).toBe('Server A');
+    expect(uiState.getState().viewingServer).toBe('Server A'); // 首次设置时自动同步
+
+    uiState.setViewingServer('Server B');
+    expect(uiState.getState().viewingServer).toBe('Server B');
+    expect(uiState.getState().activeServer).toBe('Server A'); // 查看服务器不改变活动服务器
+  });
+});
+~~~~~
+
+#### Acts 2: 补充数据统计逻辑测试
+
+在 `tests/core/analysis.test.js` 中添加针对统计函数的测试。
+
+~~~~~act
+patch_file
+tests/core/analysis.test.js
+~~~~~
+~~~~~javascript.old
+    expect(cleanedRecords.filter(r => r.content === "duplicate").length).toBe(1);
+  });
+});
+~~~~~
+~~~~~javascript.new
+    expect(cleanedRecords.filter(r => r.content === "duplicate").length).toBe(1);
+  });
+});
+
+describe('analysis.js: Statistics Functions', () => {
+  const mockMessages = [
+    { sender: 'Alice', time: '2024-01-01T10:00:00Z', content: 'hi' },
+    { sender: 'Alice', time: '2024-01-01T10:05:00Z', content: 'hello' },
+    { sender: 'Bob', time: '2024-01-01T11:00:00Z', content: 'hey' },
+    { sender: 'System', time: '2024-01-01T11:30:00Z', content: 'ignore' },
+  ];
+
+  it('calculateTopTalkers 应当正确计算用户比例并忽略系统消息', () => {
+    const { data, total } = require('../../src/analysis.js').calculateTopTalkers(mockMessages);
+    expect(total).toBe(3); // Alice(2) + Bob(1)
+    expect(data[0]).toEqual({ name: 'Alice', count: 2 });
+  });
+
+  it('calculateHourlyActivity 应当正确按小时统计', () => {
+    const { data } = require('../../src/analysis.js').calculateHourlyActivity(mockMessages);
+    // 10点有2条，11点有2条（含系统）
+    const hour10 = data.find(d => d.hour === 10);
+    const hour11 = data.find(d => d.hour === 11);
+    expect(hour10.count).toBe(2);
+    expect(hour11.count).toBe(2);
+  });
+});
+~~~~~
+
+#### Acts 3: 补充合成频道逻辑测试
+
+在 `tests/core/state.test.js` 中添加测试。
+
+~~~~~act
+patch_file
+tests/core/state.test.js
+~~~~~
+~~~~~javascript.old
     expect(mergeAndDeduplicateMessages([{ content: 'a' }], [])).toEqual([{ content: 'a' }]);
   });
 });
 ~~~~~
-
-#### Acts 3: 编写 `src/migrations.js` 的测试用例
-
-模拟 V4 格式数据并验证其是否正确转换为 V6。
-
-~~~~~act
-write_file
-tests/core/migrations.test.js
-~~~~~
-~~~~~javascript
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { MigrationManager } from '../../src/migrations.js';
-import { storage } from '../../src/storage.js';
-
-describe('migrations.js: Migration Logic', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.clearAllMocks();
-  });
-
-  it('V4 -> V5: 应当能将本地时间字符串转换为 ISO 格式', () => {
-    const v4Data = {
-      "Local": [{ time: "2023-10-01 12:00:00", content: "hello" }]
-    };
-    localStorage.setItem('chatLogArchive_v4', JSON.stringify(v4Data));
-    
-    MigrationManager.migrateV4toV5();
-    
-    const v5Data = JSON.parse(localStorage.getItem('chatLogArchive_v5'));
-    expect(new Date(v5Data.Local[0].time).toISOString()).toBeDefined();
-    expect(localStorage.getItem('chatLogArchive_v4')).toBeNull();
-  });
-
-  it('V5 -> V6: 应当将数据归档到指定的服务器节点下', () => {
-    const v5Data = { "Local": [{ content: "msg" }] };
-    MigrationManager.migrateV5toV6(v5Data, "Main Server");
-    
-    const v6Data = JSON.parse(localStorage.getItem('chatLogArchive_v6'));
-    expect(v6Data["Main Server"].Local[0].content).toBe("msg");
-    expect(localStorage.getItem('chatLogArchive_v5')).toBeNull();
+~~~~~javascript.new
+    expect(mergeAndDeduplicateMessages([{ content: 'a' }], [])).toEqual([{ content: 'a' }]);
   });
 });
-~~~~~
 
-#### Acts 4: 编写 `src/analysis.js` 的测试用例
-
-补全爆发检测（Burst Detection）逻辑的测试，这部分在报告中处于“未覆盖”状态。
-
-~~~~~act
-write_file
-tests/core/analysis.test.js
-~~~~~
-~~~~~javascript
-import { describe, it, expect } from 'vitest';
-import { cleanChannelRecords, detectTotalDuplicates } from '../../src/analysis.js';
-
-describe('analysis.js: Data Cleaning', () => {
-  it('应当能识别并在爆发期内清理重复记录', () => {
-    // 构造一个超过阈值的爆发序列 (20条消息，1秒内)
-    const baseTime = new Date('2024-01-01T10:00:00Z').getTime();
-    const records = [];
-    for (let i = 0; i < 25; i++) {
-      records.push({
-        time: new Date(baseTime + i).toISOString(), // 间隔1ms
-        content: i < 5 ? "unique" + i : "duplicate",
-        is_historical: false
-      });
-    }
+describe('state.js: Synthetic Channels', () => {
+  it('应当将队伍消息复制到 Party-Local 频道', () => {
+    const { addMessageToSyntheticChannelIfNeeded } = require('../../src/state.js');
+    const channelMap = { 'Local': [] };
+    const partyMsg = { type: 'party', content: 'team up!' };
     
-    const { cleanedRecords, removedCount } = cleanChannelRecords(records);
-    // 只有第一条 "duplicate" 会被保留，后续在爆发期内的会被移除
-    expect(removedCount).toBeGreaterThan(0);
-    expect(cleanedRecords.filter(r => r.content === "duplicate").length).toBe(1);
+    addMessageToSyntheticChannelIfNeeded(channelMap, partyMsg, 'Local');
+    
+    expect(channelMap['Party-Local']).toBeDefined();
+    expect(channelMap['Party-Local'][0].content).toBe('team up!');
+  });
+
+  it('非 Local 频道的消息不应触发合成', () => {
+    const { addMessageToSyntheticChannelIfNeeded } = require('../../src/state.js');
+    const channelMap = { 'Party': [] };
+    const partyMsg = { type: 'party', content: 'inner msg' };
+    
+    addMessageToSyntheticChannelIfNeeded(channelMap, partyMsg, 'Party');
+    expect(channelMap['Party-Local']).toBeUndefined();
   });
 });
 ~~~~~
 
 ### 下一步建议
-- **UI 状态测试**: 下一步建议为 `src/ui/state.js` 补充测试，特别是分页逻辑和配置保存逻辑。
-- **集成测试**: 考虑使用 `vitest` 模拟更复杂的 `MutationObserver` 序列，以测试 `main.js` 中的 `handleNewChatMessage` 处理流程。
-- **自动化**: 将覆盖率检查集成到预提交钩子（pre-commit hook）中，确保新代码不会拉低平均水平。
+- **DOM 解析测试**: `src/parser.js` 仍有约 30% 未覆盖，下一步建议针对 `customTextContent` 编写测试，模拟各种复杂的 HTML 结构（含 Emoji 图片、PUA 字符等）以验证解析鲁棒性。
+- **渲染器冒烟测试**: 虽然 `renderer.js` 与 UI 紧密耦合，但可以尝试编写基础的单元测试，验证例如“正在记录”状态下颜色样式的逻辑判断。
+- **配置持久化边界**: 测试存储满（localStorage Quota Exceeded）时的异常处理逻辑。

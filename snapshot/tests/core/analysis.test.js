@@ -20,3 +20,27 @@ describe('analysis.js: Data Cleaning', () => {
     expect(cleanedRecords.filter(r => r.content === "duplicate").length).toBe(1);
   });
 });
+
+describe('analysis.js: Statistics Functions', () => {
+  const mockMessages = [
+    { sender: 'Alice', time: '2024-01-01T10:00:00Z', content: 'hi' },
+    { sender: 'Alice', time: '2024-01-01T10:05:00Z', content: 'hello' },
+    { sender: 'Bob', time: '2024-01-01T11:00:00Z', content: 'hey' },
+    { sender: 'System', time: '2024-01-01T11:30:00Z', content: 'ignore' },
+  ];
+
+  it('calculateTopTalkers 应当正确计算用户比例并忽略系统消息', () => {
+    const { data, total } = require('../../src/analysis.js').calculateTopTalkers(mockMessages);
+    expect(total).toBe(3); // Alice(2) + Bob(1)
+    expect(data[0]).toEqual({ name: 'Alice', count: 2 });
+  });
+
+  it('calculateHourlyActivity 应当正确按小时统计', () => {
+    const { data } = require('../../src/analysis.js').calculateHourlyActivity(mockMessages);
+    // 10点有2条，11点有2条（含系统）
+    const hour10 = data.find(d => d.hour === 10);
+    const hour11 = data.find(d => d.hour === 11);
+    expect(hour10.count).toBe(2);
+    expect(hour11.count).toBe(2);
+  });
+});

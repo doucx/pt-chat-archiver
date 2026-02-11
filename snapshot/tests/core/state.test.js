@@ -23,3 +23,25 @@ describe('state.js: mergeAndDeduplicateMessages', () => {
     expect(mergeAndDeduplicateMessages([{ content: 'a' }], [])).toEqual([{ content: 'a' }]);
   });
 });
+
+describe('state.js: Synthetic Channels', () => {
+  it('应当将队伍消息复制到 Party-Local 频道', () => {
+    const { addMessageToSyntheticChannelIfNeeded } = require('../../src/state.js');
+    const channelMap = { 'Local': [] };
+    const partyMsg = { type: 'party', content: 'team up!' };
+    
+    addMessageToSyntheticChannelIfNeeded(channelMap, partyMsg, 'Local');
+    
+    expect(channelMap['Party-Local']).toBeDefined();
+    expect(channelMap['Party-Local'][0].content).toBe('team up!');
+  });
+
+  it('非 Local 频道的消息不应触发合成', () => {
+    const { addMessageToSyntheticChannelIfNeeded } = require('../../src/state.js');
+    const channelMap = { 'Party': [] };
+    const partyMsg = { type: 'party', content: 'inner msg' };
+    
+    addMessageToSyntheticChannelIfNeeded(channelMap, partyMsg, 'Party');
+    expect(channelMap['Party-Local']).toBeUndefined();
+  });
+});
