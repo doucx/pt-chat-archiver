@@ -51,6 +51,10 @@ export const getMainContainerHTML = (version) => `
                     <select id="log-archive-server-view-selector" class="log-archive-ui-button" style="flex-grow: 1; min-width: 0;"></select>
                     <button id="log-archive-reset-server-button" class="log-archive-ui-button" title="回到正在记录的服务器" style="flex-shrink: 0;">📍</button>
                 </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+                    <input type="checkbox" id="log-archive-auto-follow-input" style="width: auto; margin: 0;">
+                    <label for="log-archive-auto-follow-input" style="font-weight: normal; color: var(--color-text-dim); font-size: 0.85em; cursor: pointer;">跟随游戏服务器切换</label>
+                </div>
                 <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
                     切换查看不同服务器的历史记录。注意：此切换仅影响显示，不影响当前的数据录制。
                 </div>

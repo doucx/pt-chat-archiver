@@ -9,6 +9,7 @@ export async function createUIState() {
     currentPage: 1,
     pageSize: 1000,
     autoSaveInterval: 30,
+    autoFollowServer: true,
     lastSavedTime: null,
     totalPages: 1,
     viewMode: 'log', // 'log' | 'stats' | 'config'
@@ -19,13 +20,15 @@ export async function createUIState() {
 
   // Async load config
   const config = await storageManager.getConfig();
-  state.pageSize = config.pageSize;
-  state.autoSaveInterval = config.autoSaveInterval;
+  state.pageSize = config.pageSize || 1000;
+  state.autoSaveInterval = config.autoSaveInterval || 30;
+  state.autoFollowServer = config.autoFollowServer !== false; // 默认为 true
 
   const saveConfig = async () => {
     await storageManager.saveConfig({
       pageSize: state.pageSize,
       autoSaveInterval: state.autoSaveInterval,
+      autoFollowServer: state.autoFollowServer,
     });
   };
 
@@ -57,6 +60,10 @@ export async function createUIState() {
         await saveConfig();
       }
     },
+    setAutoFollowServer: async (enabled) => {
+      state.autoFollowServer = !!enabled;
+      await saveConfig();
+    },
     setLastSavedTime: (isoString) => {
       state.lastSavedTime = isoString;
     },
@@ -69,8 +76,8 @@ export async function createUIState() {
     },
     setActiveServer: (serverName) => {
       state.activeServer = serverName;
-      // 如果还没有选择查看哪个服务器，默认跟随当前服务器
-      if (!state.viewingServer) {
+      // 如果开启了自动跟随，或者这是第一次检测到服务器，则更新查看视图
+      if (state.autoFollowServer || !state.viewingServer) {
         state.viewingServer = serverName;
       }
     },

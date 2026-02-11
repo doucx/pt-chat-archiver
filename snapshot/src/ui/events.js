@@ -106,6 +106,11 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     fullRender();
   });
 
+  dom.autoFollowInput.addEventListener('change', async () => {
+    await uiState.setAutoFollowServer(dom.autoFollowInput.checked);
+    fullRender();
+  });
+
   dom.saveNowButton.addEventListener('click', async () => {
     await callbacks.manualSave();
     const originalText = dom.saveNowButton.textContent;
@@ -163,4 +168,5 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
   dom.selfNameInput.value = await uiState.getSelfName();
   dom.pageSizeInput.value = uiState.getState().pageSize;
   dom.autoSaveIntervalInput.value = uiState.getState().autoSaveInterval;
+  dom.autoFollowInput.checked = uiState.getState().autoFollowServer;
 }
