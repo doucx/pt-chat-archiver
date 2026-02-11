@@ -50,7 +50,8 @@ export function createRenderer(dom, uiState) {
 
   // --- Main Render Logic ---
   const render = (appState, callbacks) => {
-    const { viewMode, currentPage, pageSize, viewingServer, activeServer } = uiState.getState();
+    const { viewMode, currentPage, pageSize, viewingServer, activeServer, isLockedToBottom } =
+      uiState.getState();
 
     // 1. 更新服务器选择器 (v6 特有)
     const servers = Object.keys(appState);
@@ -185,11 +186,18 @@ export function createRenderer(dom, uiState) {
             : `--- 在频道 [${selectedChannel}] 中没有记录 ---`;
       });
 
+      // 如果处于吸附模式，确保滚动到底部
+      if (isLockedToBottom && currentPage === totalPages) {
+        dom.logDisplay.scrollTop = dom.logDisplay.scrollHeight;
+      }
+
       dom.pageInfoSpan.textContent = `${currentPage} / ${totalPages}`;
       const isFirst = currentPage === 1;
       const isLast = currentPage === totalPages;
       dom.pageFirstBtn.disabled = dom.pagePrevBtn.disabled = isFirst;
-      dom.pageNextBtn.disabled = dom.pageLastBtn.disabled = isLast;
+      dom.pageNextBtn.disabled = isLast;
+      // 最后一页按钮仅在“已处于吸附模式”且“已经在最后一页”时才禁用
+      dom.pageLastBtn.disabled = isLast && isLockedToBottom;
     }
   };
 

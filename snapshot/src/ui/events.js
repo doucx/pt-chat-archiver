@@ -73,24 +73,42 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     }
   });
 
+  // 手动向上滚动时解除“吸附到底部”模式
+  dom.logDisplay.addEventListener('scroll', () => {
+    const { isLockedToBottom } = uiState.getState();
+    if (isLockedToBottom) {
+      const threshold = 10; // 容差像素
+      const isAtBottom =
+        dom.logDisplay.scrollHeight - dom.logDisplay.scrollTop - dom.logDisplay.clientHeight <
+        threshold;
+      if (!isAtBottom) {
+        uiState.setLockedToBottom(false);
+        // 刷新渲染以更新按钮状态（>> 会从禁用变为启用）
+        fullRender();
+      }
+    }
+  });
+
   // --- Pagination ---
   dom.pageFirstBtn.addEventListener('click', () => {
+    uiState.setLockedToBottom(false);
     uiState.setPage(1);
     fullRender();
   });
   dom.pagePrevBtn.addEventListener('click', () => {
+    uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage - 1);
     fullRender();
   });
   dom.pageNextBtn.addEventListener('click', () => {
+    uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage + 1);
     fullRender();
   });
   dom.pageLastBtn.addEventListener('click', () => {
     uiState.setPage(uiState.getState().totalPages);
+    uiState.setLockedToBottom(true);
     fullRender();
-    // 自动滚动到最底端以查看最新记录
-    dom.logDisplay.scrollTop = dom.logDisplay.scrollHeight;
   });
 
   // --- Config view actions ---

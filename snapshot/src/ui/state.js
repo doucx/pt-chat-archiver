@@ -13,6 +13,7 @@ export async function createUIState() {
     lastSavedTime: null,
     totalPages: 1,
     viewMode: 'log', // 'log' | 'stats' | 'config'
+    isLockedToBottom: false, // 是否锁定在最底端跟随新消息
     isUIPaused: false,
     activeServer: null, // 当前物理所在的服务器
     viewingServer: null, // 当前正在查看的存档服务器
@@ -70,6 +71,9 @@ export async function createUIState() {
     togglePause: () => {
       state.isUIPaused = !state.isUIPaused;
       return state.isUIPaused;
+    },
+    setLockedToBottom: (locked) => {
+      state.isLockedToBottom = !!locked;
     },
     forcePause: (paused) => {
       state.isUIPaused = paused;
