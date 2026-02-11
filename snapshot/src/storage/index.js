@@ -32,7 +32,7 @@ class StorageManager {
       // --- 迁移逻辑集成 ---
       // 在正式切换到 IndexedDB 之前，检查是否需要迁移
       // 我们创建一个临时的 LocalStorageAdapter 来读取旧数据
-      const sourceAdapter = new LocalStorageAdapter(); 
+      const sourceAdapter = new LocalStorageAdapter();
       // LocalStorageAdapter 不需要 await init() 因为它是同步模拟的，但为了接口一致性...
       await sourceAdapter.init();
 
@@ -45,7 +45,7 @@ class StorageManager {
       this.adapter = new LocalStorageAdapter();
       await this.adapter.init();
     }
-    
+
     console.info(`[StorageManager] Initialized with ${this.adapter.constructor.name}`);
   }
 

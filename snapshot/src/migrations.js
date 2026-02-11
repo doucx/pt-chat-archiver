@@ -1,5 +1,5 @@
-import { mergeAndDeduplicateMessages } from './state.js';
 import { STORAGE_KEY_V6 } from './constants.js';
+import { mergeAndDeduplicateMessages } from './state.js';
 
 /**
  * 版本迁移管理器
@@ -14,7 +14,7 @@ export const MigrationManager = {
   async runSilentMigrations(sourceAdapter, targetAdapter) {
     // 检查是否需要从 V6 (LocalStorage) 迁移到 V7 (IndexedDB)
     const v6DataExists = localStorage.getItem(STORAGE_KEY_V6) !== null;
-    
+
     // 如果源数据存在，且目标适配器是 IndexedDB，则尝试迁移
     if (v6DataExists && targetAdapter.constructor.name === 'IndexedDBAdapter') {
       console.info('[Migration] 检测到旧版 V6 数据，准备迁移至 IndexedDB...');
@@ -46,7 +46,7 @@ export const MigrationManager = {
       const raw = localStorage.getItem(STORAGE_KEY_V6);
       localStorage.setItem(`${STORAGE_KEY_V6}_backup`, raw);
       localStorage.removeItem(STORAGE_KEY_V6);
-      
+
       console.info('[Migration] V6 -> V7 迁移成功！旧数据已备份为 _backup');
     } catch (e) {
       console.error('[Migration] V6 -> V7 迁移失败，已中止操作:', e);

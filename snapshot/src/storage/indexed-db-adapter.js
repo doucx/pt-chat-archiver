@@ -181,10 +181,18 @@ export class IndexedDBAdapter {
     // 暂不支持 IDB 大小计算，或者可以在将来实现
     return 0;
   }
-  
+
   // --- Legacy Support ---
-  loadAllV4() { return Promise.resolve(null); }
-  removeV4Data() { return Promise.resolve(); }
-  loadAllV5() { return Promise.resolve(null); }
-  removeV5Data() { return Promise.resolve(); }
+  loadAllV4() {
+    return Promise.resolve(null);
+  }
+  removeV4Data() {
+    return Promise.resolve();
+  }
+  loadAllV5() {
+    return Promise.resolve(null);
+  }
+  removeV5Data() {
+    return Promise.resolve();
+  }
 }

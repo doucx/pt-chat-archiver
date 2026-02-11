@@ -12,7 +12,12 @@ describe('migrations.js: Migration Logic', () => {
   it('V5 -> V6: 应当将数据归档到指定的服务器节点下', async () => {
     const v5Data = { Local: [{ content: 'msg' }] };
     const currentV6 = {};
-    const result = await MigrationManager.migrateV5toV6(storageManager, v5Data, 'Main Server', currentV6);
+    const result = await MigrationManager.migrateV5toV6(
+      storageManager,
+      v5Data,
+      'Main Server',
+      currentV6,
+    );
 
     expect(result['Main Server'].Local[0].content).toBe('msg');
 

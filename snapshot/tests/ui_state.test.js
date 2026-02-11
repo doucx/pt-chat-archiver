@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createUIState } from '../src/ui/state.js';
 import { storageManager } from '../src/storage/index.js';
+import { createUIState } from '../src/ui/state.js';
 
 describe('ui/state.js: UI State Manager Logic', () => {
   beforeEach(async () => {
