@@ -7,6 +7,16 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/**/*.js'],
+      exclude: ['src/main.js'], // main.js 包含大量 DOM 监听器，单元测试覆盖成本较高
+    },
+  },
   plugins: [
     monkey({
       entry: 'src/main.js',
