@@ -147,7 +147,12 @@ export function createRenderer(dom, uiState) {
         dom.lastSavedInfo.textContent = '尚未保存';
       }
 
-      updateCleanButtonState(callbacks.detectTotalDuplicates(appState));
+      // 计算所有服务器的重复项总数
+      let totalDuplicates = 0;
+      for (const server in appState) {
+        totalDuplicates += callbacks.detectTotalDuplicates(appState[server]);
+      }
+      updateCleanButtonState(totalDuplicates);
       return;
     }
 

@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修复 renderer.js 中 storageManager 未定义的引用错误", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770843358.8534539, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(ui): 修正清理重复记录功能在 V6 嵌套结构下的遍历逻辑", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770843648.7097042, "duration_ms": 0}}
