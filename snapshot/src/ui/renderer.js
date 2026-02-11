@@ -169,8 +169,8 @@ export function createRenderer(dom, uiState) {
 
   return {
     render,
-    checkStorageUsage: () => {
-      const usageMB = getStorageUsageInMB();
+    checkStorageUsage: async () => {
+      const usageMB = await getStorageUsageInMB();
       let warningElement = document.getElementById('log-archive-storage-warning');
       if (usageMB > 3.5) {
         if (!warningElement) {

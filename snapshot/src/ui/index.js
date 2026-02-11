@@ -1,4 +1,4 @@
-import { storage } from '../storage.js';
+import { storageManager } from '../storage/index.js';
 import { getDOMElements, initDOM } from './dom.js';
 import { bindUIEvents } from './events.js';
 import { createRenderer, formatMessageForDisplay } from './renderer.js';
@@ -8,9 +8,9 @@ import { createUIState } from './state.js';
  * Initializes and orchestrates the entire UI module.
  * @param {object} initialAppState - The initial application state (inMemoryChatState).
  * @param {object} appCallbacks - Callbacks for application-level actions.
- * @returns {object} Public API for the UI module.
+ * @returns {Promise<object>} Public API for the UI module.
  */
-export function createUI(initialAppState, appCallbacks) {
+export async function createUI(initialAppState, appCallbacks) {
   let appState = initialAppState;
 
   // 1. Initialize DOM structure
@@ -18,7 +18,7 @@ export function createUI(initialAppState, appCallbacks) {
   const dom = getDOMElements();
 
   // 2. Create state and renderer instances
-  const uiState = createUIState();
+  const uiState = await createUIState();
   const renderer = createRenderer(dom, uiState);
 
   // 3. Prepare callbacks and bind events
@@ -67,7 +67,7 @@ export function createUI(initialAppState, appCallbacks) {
     navigator.clipboard.writeText(messages);
   };
 
-  const cleanChannelRecords = () => {
+  const cleanChannelRecords = async () => {
     const duplicateCount = appCallbacks.detectTotalDuplicates(appState);
     if (duplicateCount === 0) return alert('未发现可清理的重复记录。');
     if (
@@ -79,7 +79,7 @@ export function createUI(initialAppState, appCallbacks) {
         const { cleanedRecords } = appCallbacks.cleanChannelRecords(appState[channel]);
         appState[channel] = cleanedRecords;
       }
-      appCallbacks.saveMessagesToStorage(appState);
+      await appCallbacks.saveMessagesToStorage(appState);
       dom.cleanButton.textContent = '清理完毕!';
       setTimeout(() => {
         renderer.render(appState, uiCallbacks); // Re-render to update button
@@ -87,19 +87,19 @@ export function createUI(initialAppState, appCallbacks) {
     }
   };
 
-  const clearAllData = () => {
+  const clearAllData = async () => {
     if (
       confirm(
         '【严重警告】此操作将清空所有本地存储的聊天存档，并以当前屏幕可见记录重置。此操作不可恢复！确定要执行吗？',
       )
     ) {
       appCallbacks.deactivateLogger();
-      storage.clearAllMessages();
+      await storageManager.clearAllData();
       for (const key of Object.keys(appState)) {
         delete appState[key];
       }
-      appCallbacks.scanAndMergeHistory(); // This will repopulate appState
-      appCallbacks.saveMessagesToStorage(appState);
+      await appCallbacks.scanAndMergeHistory(); // This will repopulate appState
+      await appCallbacks.saveMessagesToStorage(appState);
       renderer.render(appState, uiCallbacks);
     }
   };
@@ -112,7 +112,7 @@ export function createUI(initialAppState, appCallbacks) {
     downloadAllData,
   };
 
-  bindUIEvents({
+  await bindUIEvents({
     dom,
     uiState,
     renderer,
@@ -134,7 +134,7 @@ export function createUI(initialAppState, appCallbacks) {
       appState = newState;
       renderer.render(appState, uiCallbacks);
     },
-    checkStorageUsage: renderer.checkStorageUsage,
+    checkStorageUsage: async () => await renderer.checkStorageUsage(),
     isUIPaused: () => uiState.getState().isUIPaused,
     updateServerDisplay: (serverName) => {
       uiState.setActiveServer(serverName);
