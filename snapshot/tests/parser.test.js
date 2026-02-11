@@ -67,6 +67,26 @@ describe('Parser Module', () => {
     expect(data.content).toBe('[UserA 🌌] 编程中');
   });
 
+  it('应当正确处理包含 PUA 字符的消息并回退到 aria-label', () => {
+    const el = document.createElement('div');
+    el.className = 'chat-line';
+    // 模拟用户提供的片段: 
+    // 名称中的 🌌 (正常 Emoji) 应当保留
+    // 消息中的  (PUA 字符 \ue519) 应当回退到 :face:
+    el.innerHTML = `
+      <span class="chat-line-name">[AyeL.neon(<img class="pixelart" aria-label="galaxy" alt="🌌">)]</span>
+      <span class="chat-line-message"><img class="pixelart" aria-label="face" alt=""></span>
+    `;
+
+    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
+    
+    // 验证名称解析：🌌 不是 PUA，直接提取 alt
+    expect(data.sender).toBe('AyeL.neon(🌌)');
+    
+    // 验证消息解析： 是 PUA，应当提取 aria-label 并包裹冒号
+    expect(data.content).toBe('[AyeL.neon(🌌)] :face:');
+  });
+
   it('应当能解析系统重连等元消息', () => {
     const el = document.createElement('div');
     el.className = 'chat-line chat-line-meta-line';

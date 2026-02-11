@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修复时区敏感的测试用例并提升分析模块覆盖率", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770837928.429677, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test: 规范化测试架构并补齐解析器边界用例", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770838443.628159, "duration_ms": 0}}
