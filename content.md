@@ -1,86 +1,69 @@
-这是一个非常符合直觉的改进。就像大多数现代聊天软件（如 Discord 或 Telegram）一样，当用户手动翻到最下面时，系统应该理解用户“想要看最新消息”的意图，并自动进入追踪状态。
+我们已经完成了对 UI 架构的重构以及一系列深度交互优化。现在将这些变更作为一个完整的逻辑单元提交到版本库中。
 
-## [WIP] feat: 增加手动滚动触底自动吸附功能
+## [COMMIT] feat(ui): 增强只读模式体验并实现智能吸附翻页逻辑
 
 ### 用户需求
-当用户处于最后一页且手动向下滚动到 `textarea` 的绝对底部时，自动激活“吸附到底部”模式。
+将近期完成的 UI 重构、只读模式增强、服务器自动跟随功能以及智能“吸附到底部”分页逻辑正式提交。
 
 ### 评论
-这种“隐式激活”极大提升了用户体验。用户不需要专门去寻找并点击 `>>` 按钮，只需自然的滑动操作就能开启跟随。这使得整个 UI 的交互感更加丝滑且符合主流应用的操作逻辑。
+这次更新显著提升了 pt-chat-archiver 的成熟度。特别是“吸附到底部”模式的实现，结合了主动触发与隐式感知的交互设计，使工具在处理实时高频聊天数据时的体验更接近原生聊天应用。同时，代码结构的重构（CSS 归位）也提升了项目的维护性。
 
 ### 目标
-1.  修改 `events.js` 中的 `scroll` 监听逻辑。
-2.  在用户触底时检测当前是否为最后一页。
-3.  如果满足条件（最后一页 + 触底），则自动调用 `uiState.setLockedToBottom(true)` 并触发重绘。
+1.  将所有修改后的 UI 模块文件及重构后的 CSS 文件添加到 Git 暂存区。
+2.  创建一个详尽的提交说明，记录本次 UI/UX 的重大演进。
 
 ### 基本原理
-我们通过计算 `scrollTop`, `scrollHeight` 和 `clientHeight` 的关系来判断是否触底。在原有的 `scroll` 监听器中，我们不仅处理“向上滑动解锁”，也添加“触底加锁”的逻辑。
+按照 Quipu 协议的要求，在功能开发和验证完成后，通过一个独立的 `[COMMIT]` 计划来固化成果。这确保了版本历史的清晰，并允许我们在一个干净的状态下开启下一个阶段的任务。
 
 ### 标签
-#intent/refine #flow/ready #priority/medium #comp/ui #concept/navigation #scope/ux #ai/instruct #task/domain/ui #task/object/auto-scroll-lock #task/action/implementation #task/state/continue
+#intent/refine #intent/build #flow/ready #priority/high #comp/ui #concept/ui #scope/ux #scope/dx #ai/instruct #task/domain/ui #task/object/ui-ux-enhancement #task/action/integration #task/state/end #task/status/completed
 
 ---
 
 ### Script
 
-#### Acts 1: 升级滚动监听逻辑以支持双向状态切换
+#### Acts 1: 提交 UI 与重构变更
 
-我们将更新 `src/ui/events.js` 中的滚动监听器，使其能够根据滚动位置自动切换吸附状态。
+我们将所有涉及到的文件添加到暂存区并提交。注意：由于 `src/style.css` 已移动，Git 会自动识别此重命名操作。
 
 ~~~~~act
-patch_file
+git_add
+src/main.js
+src/ui/style.css
+src/ui/templates.js
+src/ui/dom.js
 src/ui/events.js
+src/ui/renderer.js
+src/ui/state.js
 ~~~~~
-~~~~~javascript.old
-  // 手动向上滚动时解除“吸附到底部”模式
-  dom.logDisplay.addEventListener('scroll', () => {
-    const { isLockedToBottom } = uiState.getState();
-    if (isLockedToBottom) {
-      const threshold = 10; // 容差像素
-      const isAtBottom =
-        dom.logDisplay.scrollHeight - dom.logDisplay.scrollTop - dom.logDisplay.clientHeight <
-        threshold;
-      if (!isAtBottom) {
-        uiState.setLockedToBottom(false);
-        // 刷新渲染以更新按钮状态（>> 会从禁用变为启用）
-        fullRender();
-      }
-    }
-  });
-~~~~~
-~~~~~javascript.new
-  // 处理滚动时的自动吸附与解锁逻辑
-  dom.logDisplay.addEventListener('scroll', () => {
-    const { isLockedToBottom, currentPage, totalPages } = uiState.getState();
-    const threshold = 10; // 容差像素
-    const isAtBottom =
-      dom.logDisplay.scrollHeight - dom.logDisplay.scrollTop - dom.logDisplay.clientHeight <
-      threshold;
 
-    if (isLockedToBottom) {
-      // 1. 已锁定状态下，向上滑动则解锁
-      if (!isAtBottom) {
-        uiState.setLockedToBottom(false);
-        fullRender();
-      }
-    } else {
-      // 2. 未锁定状态下，如果在最后一页手动滑到底部，则自动加锁
-      if (isAtBottom && currentPage === totalPages) {
-        uiState.setLockedToBottom(true);
-        fullRender();
-      }
-    }
-  });
+~~~~~act
+git_commit
+~~~~~
+~~~~~text
+feat(ui): enhance read-only UX and implement smart stick-to-bottom logic
+
+This commit introduces significant UI/UX improvements and refactors the stylesheet structure.
+
+Key Changes:
+- **Refactoring**: Moved `src/style.css` to `src/ui/style.css` for better module isolation.
+- **Read-Only Mode**: 
+    - Replaced the intrusive top banner with a subtle background watermark ("ARCHIVE READ-ONLY").
+    - Added a 📍 button and status indicator to the main log view for quick return to the active server.
+    - Hidden the pause button in read-only mode to prevent ambiguity.
+- **Auto-Follow Server**: 
+    - Added a feature to automatically switch the UI view when the active game server changes.
+    - Introduced a configuration toggle in the settings (default: ON).
+- **Smart Stick-to-Bottom Paging**:
+    - Enhanced the `>>` button to activate a "Locked to Bottom" mode with visual feedback (green background).
+    - Implemented automatic paging and scrolling while in locked mode.
+    - Added smart interaction: manually scrolling to the bottom on the last page auto-locks the view, while scrolling up auto-unlocks it.
+- **Layout Optimization**: Fixed the server reset button layout for mobile devices to prevent horizontal overflow.
 ~~~~~
 
 ### 下一步建议
 
-现在“吸附模式”的交互已经达到了工业级的水准：
-- **主动激活**: 点击 `>>`。
-- **隐式激活**: 在最后一页手动划到底。
-- **隐式解除**: 向上滑动。
-- **状态同步**: 自动翻页并维持锁定。
-
-建议下一步：
-- **移动端体验确认**: 在触屏设备上，手势滑动可能产生的 `scroll` 事件频率和值与鼠标略有不同，建议在实机上确认 10px 的 `threshold` 是否足够。
-- **整理提交**: 这一系列 UI 改进已经非常完整，可以考虑将当前所有变更整理并进行一次 `[COMMIT]`，为本阶段的 UI 优化任务画上句号。
+本阶段的 UI 优化已圆满完成。建议下一步的方向：
+- **性能剖析**: 随着数据量的增加，可以开始关注 `renderer.js` 在处理超长频道（如超过 50,000 条消息）时的渲染性能，并考虑引入虚拟列表（Virtual List）技术。
+- **数据导出增强**: 目前支持 JSON 和纯文本导出，可以考虑添加按时间范围导出或按关键词过滤后导出的功能。
+- **多语言支持**: 随着 UI 元素的增多，可以考虑引入简单的 i18n 机制以支持英文界面。
