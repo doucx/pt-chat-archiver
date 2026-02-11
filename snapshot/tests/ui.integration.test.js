@@ -22,10 +22,13 @@ async function renderUI(initialState) {
   return ui;
 }
 
+import { storageManager } from '../src/storage';
+
 describe('UI Integration Smoke Tests', () => {
   let mockAppState;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await storageManager.init();
     mockAppState = {
       'Test Server': {
         Local: Array.from({ length: 250 }, (_, i) => ({

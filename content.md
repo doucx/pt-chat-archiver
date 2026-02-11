@@ -1,349 +1,212 @@
-好的，我们正式进入第三阶段的核心——实现 IndexedDB 适配器。这将是新架构的心脏，负责与浏览器数据库进行所有异步交互。
+Excellent. You've correctly identified a critical step in the development workflow: running tests after a major refactoring. The test failures are not a setback; they are the expected and desired outcome of our safety net, and they point directly to the architectural change we just made.
 
-我将为你生成一个计划，该计划会创建一个功能完整的 `IndexedDBAdapter`。它将使用我们上一步创建的 `transformer` 来无缝地处理数据结构的转换，同时保持对 `IStorageAdapter` 接口的严格遵守。
+Your analysis is spot on.
 
-## [WIP] feat: 实现 IndexedDB 存储适配器
+The root cause of all 12 test failures is identical: our new `StorageManager` has an **asynchronous initialization process**.
+
+1.  **Old Sync Way**: `new StorageManager()` was enough. The adapter was created in the constructor.
+2.  **New Async Way**: We must now explicitly call `await storageManager.init()` before using any of its methods. The `adapter` property is `undefined` until `init()` completes.
+3.  **The Problem**: Our test suites (`*.test.js`) import the `storageManager` singleton and immediately start calling methods like `.getConfig()` or `.saveAllV6()` without ever calling `init()`. This results in the error `Cannot read properties of undefined (reading 'someMethod')` because it's trying to call `undefined.someMethod()`.
+
+The solution is to update all affected test suites to properly initialize the `storageManager` within a `beforeEach` block. This ensures that for every single test, the manager is in a clean, ready state.
+
+I will now generate a plan to fix all failing tests.
+
+## [WIP] fix(tests): Initialize StorageManager before each test run
 
 ### 用户需求
-创建一个 `IndexedDBAdapter` 类，它实现了标准的异步存储接口 (`IStorageAdapter`)，负责处理所有与 IndexedDB 的交互，包括数据库初始化、版本升级、数据读写，并集成数据转换逻辑。
+The test suite is failing after the `StorageManager` was refactored to use asynchronous initialization. The tests need to be updated to correctly `await` the initialization before executing test logic.
 
 ### 评论
-这是整个 V7 架构升级中最具体、最关键的编码步骤。一个健壮的 IndexedDB 适配器将彻底解决 LocalStorage 的性能瓶颈和存储容量限制。通过将所有数据库操作封装在一个独立的、可替换的模块中，我们极大地提高了代码的可测试性和未来的可维护性。
+This is a necessary and healthy step in a major refactor. Fixing the test suite validates that our new asynchronous, adapter-based architecture is fundamentally sound and behaves as expected, paving the way for the final migration logic.
 
 ### 目标
-1.  创建 `src/storage/indexed-db.adapter.js` 文件。
-2.  实现 `init()` 方法，负责打开数据库连接并在 `onupgradeneeded` 事件中创建 V7 的数据表（Object Store）和索引。
-3.  实现 `loadAll()` 方法，从 IndexedDB 中读取所有扁平化的消息记录，并使用 `nestV7Messages` 将其转换为 UI 层兼容的嵌套对象。
-4.  实现 `saveAll()` 方法，接收 UI 层的嵌套状态对象，使用 `flattenV6State` 将其展平，然后通过一个事务（Transaction）批量写入 IndexedDB。
-5.  实现 `clearAllData()` 方法，以清空 `messages` 表。
-6.  为保持接口统一，将配置相关的 `getConfig/saveConfig` 等方法暂时代理到 LocalStorage，但同样包裹在 Promise 中。
+1.  Modify `tests/storage.test.js` to initialize `storageManager` before each test.
+2.  Modify `tests/ui_state.test.js` to initialize `storageManager` before each test.
+3.  Modify `tests/ui.integration.test.js` to initialize `storageManager` before each UI render.
+4.  Modify `tests/migrations.test.js` to initialize `storageManager` before its methods are implicitly called.
 
 ### 基本原理
-我们将创建一个 `IndexedDBAdapter` 类来封装所有 IndexedDB 的原生 API 调用。通过将回调式的原生 API 转换为 Promise，我们可以为上层应用提供简洁的 `async/await` 调用方式。在 `onupgradeneeded` 回调中，我们会定义 `messages` 表，使用 `id` (ULID) 作为主键，并创建一个复合索引 `['server', 'channel']` 以便未来进行高效的按频道查询。`saveAll` 将采用“先清空后批量写入”的策略，这对于全量保存操作来说是最简单直接且事务安全的实现。
+By using `vitest`'s `beforeEach` hook in each test file, we can ensure that `await storageManager.init()` is called and completes before any test case within that file is executed. This guarantees that `storageManager.adapter` is always defined during test execution, resolving the widespread `TypeError`.
 
 ### 标签
-#intent/build #flow/ready #priority/critical #comp/engine #concept/storage #scope/core #ai/instruct #task/domain/storage #task/object/indexeddb-adapter #task/action/implementation #task/state/continue
+#intent/fix #flow/ready #priority/critical #comp/tests #concept/dx #scope/core #ai/instruct #task/domain/storage #task/object/indexeddb-adapter #task/action/implementation #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 创建 `indexed-db.adapter.js` 文件
-
-首先，我们创建适配器文件。
-
-~~~~~act
-write_file
-src/storage/indexed-db.adapter.js
-~~~~~
-~~~~~javascript
-import { flattenV6State, nestV7Messages } from '../data/transformer.js';
-import { CONFIG_KEY, SELF_NAME_KEY, STORAGE_KEY_V5, STORAGE_KEY_V6 } from '../constants.js';
-
-const DB_NAME = 'PTChatArchiverDB';
-const DB_VERSION = 1;
-const MESSAGES_STORE = 'messages';
-const CONFIG_STORE = 'config'; // Future use, for now delegate to localStorage
-
-/**
- * An adapter that implements the IStorageAdapter interface for IndexedDB.
- * @implements {IStorageAdapter}
- */
-export class IndexedDBAdapter {
-  /** @type {IDBDatabase | null} */
-  db = null;
-
-  init() {
-    return new Promise((resolve, reject) => {
-      if (this.db) return resolve();
-
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onerror = () => {
-        console.error('[Storage/IDB] Database error:', request.error);
-        reject(new Error('Failed to open IndexedDB.'));
-      };
-
-      request.onupgradeneeded = (event) => {
-        console.log('[Storage/IDB] Database upgrade needed.');
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(MESSAGES_STORE)) {
-          const store = db.createObjectStore(MESSAGES_STORE, { keyPath: 'id' });
-          store.createIndex('by_channel', ['server', 'channel'], { unique: false });
-          console.log(`[Storage/IDB] Object store "${MESSAGES_STORE}" created.`);
-        }
-      };
-
-      request.onsuccess = (event) => {
-        this.db = event.target.result;
-        console.log('[Storage/IDB] Database initialized successfully.');
-        resolve();
-      };
-    });
-  }
-
-  loadAllV6() {
-    return new Promise((resolve, reject) => {
-      if (!this.db) return reject(new Error('Database not initialized.'));
-
-      const transaction = this.db.transaction(MESSAGES_STORE, 'readonly');
-      const store = transaction.objectStore(MESSAGES_STORE);
-      const request = store.getAll();
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        resolve(nestV7Messages(request.result));
-      };
-    });
-  }
-
-  saveAllV6(state) {
-    return new Promise((resolve, reject) => {
-      if (!this.db) return reject(new Error('Database not initialized.'));
-
-      const flatMessages = flattenV6State(state);
-      const transaction = this.db.transaction(MESSAGES_STORE, 'readwrite');
-      const store = transaction.objectStore(MESSAGES_STORE);
-
-      transaction.onerror = () => reject(transaction.error);
-      transaction.oncomplete = () => resolve();
-
-      store.clear(); // Simple strategy for full-state save
-      for (const msg of flatMessages) {
-        store.put(msg);
-      }
-    });
-  }
-
-  // --- Configuration methods (delegated to localStorage for now) ---
-
-  getConfig() {
-    const defaultCfg = { pageSize: 1000, autoSaveInterval: 30 };
-    try {
-      const stored = localStorage.getItem(CONFIG_KEY);
-      return Promise.resolve(stored ? { ...defaultCfg, ...JSON.parse(stored) } : defaultCfg);
-    } catch (e) {
-      return Promise.resolve(defaultCfg);
-    }
-  }
-
-  saveConfig(config) {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-    return Promise.resolve();
-  }
-
-  getSelfName() {
-    return Promise.resolve(localStorage.getItem(SELF_NAME_KEY) || '');
-  }
-
-  setSelfName(name) {
-    localStorage.setItem(SELF_NAME_KEY, name.trim());
-    return Promise.resolve();
-  }
-
-  clearAllData() {
-    return new Promise((resolve, reject) => {
-      // Clear legacy localStorage keys as well
-      localStorage.removeItem(STORAGE_KEY_V6);
-      localStorage.removeItem(STORAGE_KEY_V5);
-
-      if (!this.db) return reject(new Error('Database not initialized.'));
-      const transaction = this.db.transaction(MESSAGES_STORE, 'readwrite');
-      const store = transaction.objectStore(MESSAGES_STORE);
-      const request = store.clear();
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
-  }
-
-  // Note: Accurately getting IDB size is complex. This is a placeholder.
-  getRawSize() {
-    return Promise.resolve(0); // Placeholder
-  }
-
-  // --- Legacy Migration Support ---
-  // These are for the migration manager, not direct use
-  loadAllV4() {
-    return Promise.resolve(null); // Deprecated
-  }
-  removeV4Data() {
-    return Promise.resolve(); // Deprecated
-  }
-  loadAllV5() {
-    const data = localStorage.getItem(STORAGE_KEY_V5);
-    return Promise.resolve(data ? JSON.parse(data) : null);
-  }
-  removeV5Data() {
-    localStorage.removeItem(STORAGE_KEY_V5);
-    return Promise.resolve();
-  }
-}
-~~~~~
-
-#### Acts 2: 调整 `storage/index.js` 以适应适配器模式
-
-为了让 `StorageManager` 能够持有并管理不同的适配器实例，我们需要重构 `storage/index.js`。
+#### Acts 1: Fix `storage.test.js`
 
 ~~~~~act
 patch_file
-src/storage/index.js
+tests/storage.test.js
 ~~~~~
 ~~~~~javascript.old
-import { LocalStorageAdapter } from './local-storage.adapter.js';
+describe('Storage Module (Async Manager)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
 
-/**
- * Manages the storage backend for the application.
- * It holds an instance of a storage adapter and exposes its methods.
- * This abstracts the storage implementation from the rest of the app.
- */
-class StorageManager {
-  /** @type {import('./local-storage.adapter.js').LocalStorageAdapter} */
-  adapter;
-
-  constructor() {
-    // For now, we only have one adapter. In the future, this class
-    // would contain logic to decide which adapter to instantiate.
-    this.adapter = new LocalStorageAdapter();
-  }
-
-  // --- Delegate all methods to the adapter ---
-
-  init() {
-    return this.adapter.init();
-  }
-
-  loadAllV6() {
-    return this.adapter.loadAllV6();
-  }
-
-  saveAllV6(state) {
-    return this.adapter.saveAllV6(state);
-  }
-
-  getConfig() {
-    return this.adapter.getConfig();
-  }
-
-  saveConfig(config) {
-    return this.adapter.saveConfig(config);
-  }
-
-  getSelfName() {
-    return this.adapter.getSelfName();
-  }
-
-  setSelfName(name) {
-    return this.adapter.setSelfName(name);
-  }
-
-  clearAllData() {
-    return this.adapter.clearAllData();
-  }
-
-  getRawSize() {
-    return this.adapter.getRawSize();
-  }
-
-  loadAllV4() {
-    return this.adapter.loadAllV4();
-  }
-
-  removeV4Data() {
-    return this.adapter.removeV4Data();
-  }
-
-  loadAllV5() {
-    return this.adapter.loadAllV5();
-  }
-
-  removeV5Data() {
-    return this.adapter.removeV5Data();
-  }
-}
-
-// Export a singleton instance
-export const storageManager = new StorageManager();
+  it('应当能正确保存和读取 V6 消息数据', async () => {
 ~~~~~
 ~~~~~javascript.new
-import { IndexedDBAdapter } from './indexed-db.adapter.js';
-import { LocalStorageAdapter } from './local-storage.adapter.js';
+describe('Storage Module (Async Manager)', () => {
+  beforeEach(async () => {
+    localStorage.clear();
+    // Vitest's jsdom env doesn't have a real indexedDB, but it has a mock that supports the API.
+    // We must initialize the manager to get an adapter instance.
+    await storageManager.init();
+  });
 
-/**
- * Manages the storage backend for the application.
- * It holds an instance of a storage adapter, decides which adapter to use,
- * and exposes its methods.
- */
-class StorageManager {
-  /** @type {IStorageAdapter} */
-  adapter;
+  it('应当能正确保存和读取 V6 消息数据', async () => {
+~~~~~
 
-  /**
-   * Initializes the storage manager, selecting the best available adapter.
-   */
-  async init() {
-    // For now, we'll default to IndexedDB.
-    // In the migration step, we will add logic here to check compatibility
-    // and decide which adapter to instantiate.
-    this.adapter = new IndexedDBAdapter();
-    await this.adapter.init();
-  }
+#### Acts 2: Fix `ui_state.test.js`
 
-  // --- Delegate all methods to the adapter ---
+~~~~~act
+patch_file
+tests/ui_state.test.js
+~~~~~
+~~~~~javascript.old
+describe('ui/state.js: UI State Manager Logic', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
 
-  loadAllV6() {
-    return this.adapter.loadAllV6();
-  }
+  it('状态初始化：应正确合并存储中的配置与默认值', async () => {
+~~~~~
+~~~~~javascript.new
+import { storageManager } from '../src/storage';
 
-  saveAllV6(state) {
-    return this.adapter.saveAllV6(state);
-  }
+describe('ui/state.js: UI State Manager Logic', () => {
+  beforeEach(async () => {
+    localStorage.clear();
+    await storageManager.init();
+  });
 
-  getConfig() {
-    return this.adapter.getConfig();
-  }
+  it('状态初始化：应正确合并存储中的配置与默认值', async () => {
+~~~~~
 
-  saveConfig(config) {
-    return this.adapter.saveConfig(config);
-  }
+#### Acts 3: Fix `ui.integration.test.js`
 
-  getSelfName() {
-    return this.adapter.getSelfName();
-  }
+The integration test has a helper function `renderUI` which calls `createUI`. `createUI` internally depends on `storageManager`. We need to ensure initialization happens before `renderUI` is called.
 
-  setSelfName(name) {
-    return this.adapter.setSelfName(name);
-  }
+~~~~~act
+patch_file
+tests/ui.integration.test.js
+~~~~~
+~~~~~javascript.old
+describe('UI Integration Smoke Tests', () => {
+  let mockAppState;
 
-  clearAllData() {
-    return this.adapter.clearAllData();
-  }
-
-  getRawSize() {
-    return this.adapter.getRawSize();
-  }
-
-  // --- Legacy accessors for migration ---
-
-  getLegacyAdapters() {
-    return {
-      localStorage: new LocalStorageAdapter(),
+  beforeEach(() => {
+    mockAppState = {
+      'Test Server': {
+        Local: Array.from({ length: 250 }, (_, i) => ({
+          time: new Date().toISOString(),
+          content: `Message ${i + 1}`,
+          type: 'say',
+        })),
+        Party: [{ time: new Date().toISOString(), content: 'Party Message', type: 'party' }],
+      },
     };
-  }
-}
+    vi.clearAllMocks();
+  });
 
-// Export a singleton instance
-export const storageManager = new StorageManager();
+  it('初始加载时应正确渲染数据和默认频道', async () => {
+~~~~~
+~~~~~javascript.new
+import { storageManager } from '../src/storage';
+
+describe('UI Integration Smoke Tests', () => {
+  let mockAppState;
+
+  beforeEach(async () => {
+    await storageManager.init();
+    mockAppState = {
+      'Test Server': {
+        Local: Array.from({ length: 250 }, (_, i) => ({
+          time: new Date().toISOString(),
+          content: `Message ${i + 1}`,
+          type: 'say',
+        })),
+        Party: [{ time: new Date().toISOString(), content: 'Party Message', type: 'party' }],
+      },
+    };
+    vi.clearAllMocks();
+  });
+
+  it('初始加载时应正确渲染数据和默认频道', async () => {
+~~~~~
+
+#### Acts 4: Fix `migrations.test.js`
+
+This one is failing because `migrateV5toV6` calls `storageManager.saveAllV6`, which needs an adapter.
+
+~~~~~act
+patch_file
+tests/migrations.test.js
+~~~~~
+~~~~~javascript.old
+import { beforeEach, describe, expect, it } from 'vitest';
+import { STORAGE_KEY_V5, STORAGE_KEY_V6 } from '../src/constants.js';
+import { MigrationManager } from '../src/migrations.js';
+
+describe('migrations.js: Migration Logic', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('V5 -> V6: 应当将数据归档到指定的服务器节点下', async () => {
+    const v5Data = { Local: [{ content: 'msg' }] };
+    const currentV6 = {};
+    const result = await MigrationManager.migrateV5toV6(v5Data, 'Main Server', currentV6);
+
+    expect(result['Main Server'].Local[0].content).toBe('msg');
+
+    const storedV6 = JSON.parse(localStorage.getItem(STORAGE_KEY_V6));
+    expect(storedV6['Main Server'].Local[0].content).toBe('msg');
+    expect(localStorage.getItem(STORAGE_KEY_V5)).toBeNull();
+  });
+});
+~~~~~
+~~~~~javascript.new
+import { beforeEach, describe, expect, it } from 'vitest';
+import { STORAGE_KEY_V5 } from '../src/constants.js';
+import { MigrationManager } from '../src/migrations.js';
+import { storageManager } from '../src/storage/index.js';
+
+describe('migrations.js: Migration Logic', () => {
+  beforeEach(async () => {
+    localStorage.clear();
+    // The migration functions call storageManager methods, so it must be initialized.
+    await storageManager.init();
+  });
+
+  it('V5 -> V6: 应当将数据归档到指定的服务器节点下', async () => {
+    const v5Data = { Local: [{ content: 'msg' }] };
+    const currentV6 = {};
+
+    // Mock the IndexedDBAdapter's save method to write to localStorage for this test
+    storageManager.adapter.saveAllV6 = (state) => {
+      localStorage.setItem('MIGRATION_TEST_DB', JSON.stringify(state));
+      return Promise.resolve();
+    };
+
+    const result = await MigrationManager.migrateV5toV6(v5Data, 'Main Server', currentV6);
+
+    expect(result['Main Server'].Local[0].content).toBe('msg');
+
+    const storedV6 = JSON.parse(localStorage.getItem('MIGRATION_TEST_DB'));
+    expect(storedV6['Main Server'].Local[0].content).toBe('msg');
+    expect(localStorage.getItem(STORAGE_KEY_V5)).toBeNull();
+  });
+});
 ~~~~~
 
 ### 下一步建议
 
-我们已经成功地构建了 V7 架构的核心 `IndexedDBAdapter`，并且重构了 `StorageManager` 以支持适配器模式。现在，我们的应用理论上已经具备了使用 IndexedDB 的能力。
+我们已经定位并修复了所有因异步初始化导致的测试失败。在执行完这个计划后，我们的测试套件应该会恢复到全绿状态，为我们进行最后一步——数据迁移——提供一个坚实、可靠的基础。
 
-然而，还有一个至关重要的环节：**数据迁移**。用户的旧数据仍然存在于 LocalStorage 中。
-
-下一步，**Step 4: 编写迁移逻辑与装配**，我们将：
-1.  修改 `migrations.js`，添加一个 `migrateV6toV7` 函数，它会使用 `LocalStorageAdapter` 读取旧数据，并使用 `IndexedDBAdapter` 写入新数据库。
-2.  在 `main.js` 的启动流程中调用这个迁移逻辑，向用户显示升级提示，并在后台完成无感的数据搬迁。
-
-准备好后，我们就可以开始这最后也是最关键的一步。
+请确认此修复计划，执行后我们就可以信心满满地开始编写 **Step 4: 迁移逻辑**。

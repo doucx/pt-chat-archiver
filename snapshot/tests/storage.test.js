@@ -3,8 +3,11 @@ import { CONFIG_KEY, SELF_NAME_KEY, STORAGE_KEY_V6 } from '../src/constants.js';
 import { storageManager } from '../src/storage/index.js';
 
 describe('Storage Module (Async Manager)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    // Vitest's jsdom env doesn't have a real indexedDB, but it has a mock that supports the API.
+    // We must initialize the manager to get an adapter instance.
+    await storageManager.init();
   });
 
   it('应当能正确保存和读取 V6 消息数据', async () => {
