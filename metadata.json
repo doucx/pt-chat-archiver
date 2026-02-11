@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat: 增强只读模式 UI 体验并重构 CSS 目录", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770844562.3324974, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] feat: 进一步精细化只读模式 UI 交互", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770844774.0773647, "duration_ms": 0}}

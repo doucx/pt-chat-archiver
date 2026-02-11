@@ -8,7 +8,7 @@ export const getMainContainerHTML = (version) => `
         <div id="log-archive-ui-controls" style="width: 100%; justify-content: space-between;">
             <select id="log-archive-channel-selector" class="log-archive-ui-button" style="flex-grow: 1; margin-right: 10px;"></select>
             <div style="display: flex; gap: 5px;">
-                <button id="log-archive-main-reset-button" class="log-archive-ui-button" title="回到正在记录的服务器" style="display: none; background-color: var(--color-warning);">📍</button>
+                <button id="log-archive-main-reset-button" class="log-archive-ui-button" title="回到正在记录的服务器" style="display: none;">📍</button>
                 <button id="log-archive-pause-button" class="log-archive-ui-button" title="暂停/恢复录制">⏸️ </button>
                 <button id="log-archive-stats-button" class="log-archive-ui-button" title="数据统计">📊</button>
                 <button id="log-archive-settings-button" class="log-archive-ui-button" title="设置">⚙️</button>

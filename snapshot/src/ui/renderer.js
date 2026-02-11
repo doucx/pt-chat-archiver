@@ -76,6 +76,7 @@ export function createRenderer(dom, uiState) {
 
     if (dom.readOnlyIndicator) dom.readOnlyIndicator.style.display = isReadOnly ? 'block' : 'none';
     if (dom.mainResetButton) dom.mainResetButton.style.display = isReadOnly ? 'block' : 'none';
+    if (dom.pauseButton) dom.pauseButton.style.display = isReadOnly ? 'none' : 'block';
 
     if (dom.serverStatus) {
       if (!activeServer) {
