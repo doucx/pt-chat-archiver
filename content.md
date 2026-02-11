@@ -1,151 +1,60 @@
-为了确保清理逻辑在多层嵌套结构（V6）下始终稳定运行，我将为你创建一个专门的集成测试文件。该测试将模拟真实的“消息爆发期”（Spam），并验证 UI 是否能正确识别不同服务器、不同频道下的重复项并完成一键清理。
+我们已经完成了从底层存储引擎到 UI 交互逻辑的全面升级。现在，所有的功能都已经过验证，包括修正后的清理逻辑和新的测试用例。
 
-## [WIP] test: 添加针对 V6 结构的清理重复项集成回归测试
+我将生成一个 `[COMMIT]` 计划，将这些更改作为一个逻辑单元提交到代码库。
+
+## [COMMIT] feat: 升级存储统计功能并支持旧版备份清理
 
 ### 用户需求
-添加自动化测试，以验证“清理重复记录”功能在 Server -> Channel 嵌套结构下是否能正常工作。
+将存储容量展示从误导性的“5MB 限制”切换为基于 IndexedDB 的真实估算，并提供清理旧版 LocalStorage 备份的功能。
 
 ### 评论
-由于清理逻辑涉及复杂的嵌套遍历和“爆发期”算法识别，手动测试难以覆盖所有边界情况（如跨服务器清理）。自动化集成测试是保证数据一致性的最后防线。
+这次提交标志着存储架构从 LocalStorage 完全转向 IndexedDB 后的“收尾工作”完成。它不仅改善了用户在设置页面的信息获取体验（显示消息总数），还通过修正清理逻辑和增加回归测试，确保了在多服务器嵌套结构下的数据健壮性。
 
 ### 目标
-1.  新建 `tests/ui.clean_duplicates.test.js`。
-2.  模拟一个包含多个服务器、多个频道的 V6 `appState`。
-3.  在其中构造一组符合“爆发期”定义的重复消息（1秒内超过20条相同内容）。
-4.  验证 UI 渲染出的“清理重复”按钮上的计数是否准确。
-5.  验证触发清理后，`appState` 中的重复项被正确移除，且调用了存储保存函数。
+1.  提交所有涉及存储引擎增强、UI 统计更新和逻辑修复的代码。
+2.  包含新添加的 `tests/ui.clean_duplicates.test.js` 回归测试文件。
 
 ### 基本原理
-测试将利用 `vitest` 和 `jsdom` 构建一个真实的 UI 环境。我们将通过代码直接向 `appState` 注入 25 条在 500ms 内产生的相同消息。根据 `analysis.js` 的算法，这应当识别出 24 条可清理项。测试将断言 UI 按钮显示 “清理重复 (24)”，并模拟点击确认以观察状态变更。
+按照 Quipu 协议，我们将所有造成文件系统变更的操作（之前的 `write_file` / `patch_file`）在验证后，通过此 `[COMMIT]` 计划正式记录到历史中。
 
 ### 标签
-#intent/test #flow/ready #priority/medium #comp/tests #comp/ui #concept/state #scope/dx #ai/instruct #task/domain/testing #task/object/clean-logic #task/action/test-automation #task/state/continue
+#intent/build #flow/ready #priority/medium #comp/storage #comp/ui #comp/tests #concept/state #scope/ux #scope/dx #ai/instruct #task/domain/storage #task/object/idb-optimization #task/action/implementation #task/state/end
 
 ---
 
 ### Script
 
-#### Acts 1: 创建清理逻辑集成测试文件
+#### Acts 1: 提交代码变更
 
-我们将编写一个完整的测试套件来覆盖嵌套结构的清理场景。
+我们将所有修改过的源文件和新测试文件添加到暂存区并创建提交。
 
 ~~~~~act
-write_file
+git_add
+src/constants.js
+src/storage/indexed-db-adapter.js
+src/storage/local-storage.adapter.js
+src/storage/index.js
+src/ui/templates.js
+src/ui/dom.js
+src/ui/renderer.js
+src/ui/events.js
+src/ui/index.js
 tests/ui.clean_duplicates.test.js
 ~~~~~
-~~~~~javascript
-import { fireEvent, screen, waitFor } from '@testing-library/dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.js';
-import { cleanChannelRecords, detectTotalDuplicates } from '../src/analysis.js';
-import '@testing-library/jest-dom/vitest';
 
-global.__APP_VERSION__ = '7.0.0-test';
+~~~~~act
+git_commit
+~~~~~
+~~~~~text
+feat: upgrade storage stats and support legacy backup cleanup
 
-describe('UI Clean Duplicates Regression (V6)', () => {
-  let mockAppState;
-  let mockCallbacks;
-
-  beforeEach(async () => {
-    document.body.innerHTML = '';
-    await storageManager.init();
-    
-    // 1. 构造 Mock 状态
-    // 我们在 "Server A" 的 "Local" 频道构造一个爆发期 (25条重复消息)
-    const now = Date.now();
-    const burstMessages = [];
-    for (let i = 0; i < 25; i++) {
-      burstMessages.push({
-        time: new Date(now + i * 10).toISOString(), // 10ms 间隔，极短时间内爆发
-        content: 'Spam Message',
-        sender: 'Spammer',
-        type: 'say',
-        is_historical: false
-      });
-    }
-
-    mockAppState = {
-      'Server A': {
-        'Local': burstMessages,
-        'Party': [{ time: new Date().toISOString(), content: 'Normal Msg', type: 'party' }]
-      },
-      'Server B': {
-        'Local': [{ time: new Date().toISOString(), content: 'Another Server Msg', type: 'say' }]
-      }
-    };
-
-    mockCallbacks = {
-      scanAndMergeHistory: vi.fn(),
-      saveMessagesToStorage: vi.fn(() => Promise.resolve()),
-      cleanChannelRecords, // 使用真实算法
-      detectTotalDuplicates, // 使用真实算法
-      deactivateLogger: vi.fn(),
-      manualSave: vi.fn(),
-      onAutoSaveIntervalChange: vi.fn(),
-    };
-
-    // 模拟确认对话框
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.spyOn(window, 'alert').mockImplementation(() => {});
-  });
-
-  it('应当能正确识别跨服务器的重复项并在 UI 按钮上显示总数', async () => {
-    const ui = await createUI(mockAppState, mockCallbacks);
-    ui.updateServerDisplay('Server A');
-
-    // 进入设置页面
-    const settingsButton = screen.getByTitle('设置');
-    fireEvent.click(settingsButton);
-
-    // 验证按钮计数：25 条重复消息，第一条保留，应显示 (24)
-    const cleanButton = await screen.findByText(/清理重复 \(24\)/);
-    expect(cleanButton).toBeInTheDocument();
-    expect(cleanButton).toHaveClass('active');
-  });
-
-  it('点击清理按钮应当递归处理嵌套结构并保存结果', async () => {
-    const ui = await createUI(mockAppState, mockCallbacks);
-    ui.updateServerDisplay('Server A');
-
-    fireEvent.click(screen.getByTitle('设置'));
-    const cleanButton = await screen.findByText(/清理重复 \(24\)/);
-
-    // 执行清理
-    fireEvent.click(cleanButton);
-
-    // 验证逻辑：
-    // 1. 弹出确认框 (已 mock)
-    expect(window.confirm).toHaveBeenCalled();
-
-    // 2. 数据被清理：25 条变 1 条
-    expect(mockAppState['Server A']['Local'].length).toBe(1);
-    expect(mockAppState['Server A']['Local'][0].content).toBe('Spam Message');
-
-    // 3. 调用了保存函数
-    expect(mockCallbacks.saveMessagesToStorage).toHaveBeenCalledWith(mockAppState);
-
-    // 4. UI 反馈
-    await waitFor(() => {
-      expect(cleanButton.textContent).toBe('清理完毕!');
-    });
-  });
-
-  it('当没有重复项时，点击按钮应当给出提示', async () => {
-    // 构造一个没有重复的状态
-    const cleanState = { 'S1': { 'L1': [{ content: 'unique', time: new Date().toISOString() }] } };
-    await createUI(cleanState, mockCallbacks);
-    
-    fireEvent.click(screen.getByTitle('设置'));
-    const cleanButton = screen.getByText('清理重复记录');
-    
-    fireEvent.click(cleanButton);
-    expect(window.alert).toHaveBeenCalledWith('未发现可清理的重复记录。');
-  });
-});
+- Modernized UI: Removed misleading 5MB limit warnings and added real-time display of total message count and estimated DB size.
+- IDB Enhancements: Implemented `getTotalMessageCount` and `getRawSize` for IndexedDBAdapter using serialization-based estimation.
+- Maintenance: Added "Delete Legacy Backup" feature to free up browser LocalStorage after V6->V7 migration.
+- Bug Fix: Refactored `cleanChannelRecords` logic to correctly navigate the nested Server-Channel (V6) structure.
+- Quality: Added integration regression tests for cleaning logic in nested environments.
 ~~~~~
 
 ### 下一步建议
-- **运行测试**：执行 `npm test tests/ui.clean_duplicates.test.js` 观察结果。
-- **覆盖率检查**：建议运行 `npm run test:coverage` 以确保 `analysis.js` 中的清理分支被完整覆盖。
-- **UI 细节优化**：目前清理完毕后按钮文案会变回“清理完毕!”并持续 2 秒，可以考虑在清理过程中加入 Loading 状态（如果数据量极大）。
+- **性能评估**：在拥有超大规模存档（如 50 万条消息以上）的环境中观察“设置”页面的打开速度。如果出现明显的阻塞，建议将大小计算逻辑改为按需触发或后台增量更新。
+- **发布准备**：考虑到这是一个涉及到存储展示和备份删除的重要更新，建议在正式发布说明中告知用户：5MB 的限制已解除，现在的容量上限主要取决于磁盘剩余空间。
