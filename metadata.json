@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M package-lock.json", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770837596.879033, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test: 为核心数据处理与迁移逻辑补充单元测试", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770837728.7059355, "duration_ms": 0}}
