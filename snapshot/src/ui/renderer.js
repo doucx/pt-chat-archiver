@@ -173,7 +173,7 @@ export function createRenderer(dom, uiState) {
       // 'log' view
       dom.paginationControls.style.display = 'flex';
       uiState.setTotalPages(Math.ceil(messages.length / pageSize));
-      let { totalPages } = uiState.getState();
+      const { totalPages } = uiState.getState();
 
       // 自动翻页逻辑：如果吸附到底部，强制同步到最后一页
       if (isLockedToBottom) {

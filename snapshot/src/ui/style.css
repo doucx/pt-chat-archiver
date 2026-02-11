@@ -39,7 +39,7 @@
 
 /* 只读模式水印 */
 #log-archive-ui-container.is-readonly::before {
-  content: 'ARCHIVE READ-ONLY';
+  content: "ARCHIVE READ-ONLY";
   position: absolute;
   top: 50%;
   left: 50%;
