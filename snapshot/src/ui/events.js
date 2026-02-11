@@ -89,6 +89,8 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
   dom.pageLastBtn.addEventListener('click', () => {
     uiState.setPage(uiState.getState().totalPages);
     fullRender();
+    // 自动滚动到最底端以查看最新记录
+    dom.logDisplay.scrollTop = dom.logDisplay.scrollHeight;
   });
 
   // --- Config view actions ---
