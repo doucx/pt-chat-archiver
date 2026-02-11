@@ -1,72 +1,91 @@
-这是一个典型的由于 JavaScript 模板字符串中的**换行符和缩进空格**被解析器当作普通文本节点处理而导致的测试失败。
+好的，为项目集成测试覆盖率报告是一个非常明智的决定。它能直观地告诉我们哪些逻辑路径还没有被测试覆盖到，从而指导我们编写更有针对性的测试。
 
-在真实的 PonyTown DOM 中，`[`、内容和 `]` 之间是没有多余空格的。我在测试用例中为了美观使用了多行 HTML，导致 `customTextContent` 提取到了缩进产生的空白符。我将修正测试用例，使用单行 HTML 字符串来精确模拟真实环境。
+我们将使用 Vitest 推荐的 **`@vitest/coverage-v8`** 插件。
 
-## [WIP] fix(tests): 修正测试用例中的 HTML 缩进导致的空白符错误
+## [WIP] feat(testing): 集成 Vitest 覆盖率报告功能
 
 ### 用户需求
-修复 `tests/parser.test.js` 中由于 HTML 模拟代码缩进导致的消息内容解析断言失败。
+在现有的测试套件中添加代码覆盖率统计功能，以便评估测试的全面性。
 
 ### 评论
-在进行 DOM 解析测试时，HTML 字符串的格式必须高度严谨。多行模板字符串中的每一个换行和空格都会被 `customTextContent` 捕获，并最终被 `replace(/\s+/g, ' ')` 转化为单个空格。
+覆盖率报告不仅是质量的度量工具，也是开发者的导航图。通过 HTML 报告，我们可以精确地看到 `parser.js` 或 `analysis.js` 中哪些复杂的 `if/else` 分支从未被执行过。
 
 ### 目标
-1.  将 `tests/parser.test.js` 中的测试 HTML 修改为单行形式，消除非预期的空格。
-2.  确保 `data.content` 的断言与真实解析逻辑完全匹配。
+1.  在 `package.json` 中添加覆盖率相关的开发依赖和运行脚本。
+2.  在 `vite.config.js` 中配置覆盖率选项，包括报告格式和包含/排除的文件范围。
 
 ### 基本原理
-通过消除 Mock HTML 中的换行和缩进，我们确保传递给解析器的数据与游戏环境产生的 DOM 字节级一致，从而使断言回归绿色。
+Vitest 能够利用 Node.js 原生的 V8 覆盖率采集能力。通过配置 `coverage` 选项，我们可以让 Vitest 在运行测试后自动生成报告。我们将配置生成 `text`（控制台预览）和 `html`（浏览器详细查看）两种格式的报告。
 
 ### 标签
-#intent/fix #flow/ready #priority/medium #comp/tests #scope/dx #ai/instruct #task/domain/testing #task/object/test-whitespace #task/action/refinement #task/state/continue
+#intent/tooling #flow/ready #priority/medium #comp/build #comp/tests #scope/dx #ai/instruct #task/domain/testing #task/object/coverage-integration #task/action/configuration #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 修正测试用例中的 HTML 字符串格式
+#### Acts 1: 更新配置文件以支持覆盖率报告
 
-我们将受影响的测试用例修改为单行 HTML，以保证解析出的字符串不含多余空格。
+我们将修改 `package.json` 以引入依赖并添加脚本，同时在 `vite.config.js` 中定义覆盖率的行为。
 
 ~~~~~act
 patch_file
-tests/parser.test.js
+package.json
+~~~~~
+~~~~~json.old
+    "test": "vitest",
+    "lint": "biome lint .",
+~~~~~
+~~~~~json.new
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome lint .",
+~~~~~
+
+~~~~~act
+patch_file
+package.json
+~~~~~
+~~~~~json.old
+    "vite-plugin-monkey": "^7.1.9",
+    "vitest": "^3.0.5"
+  }
+~~~~~
+~~~~~json.new
+    "vite-plugin-monkey": "^7.1.9",
+    "@vitest/coverage-v8": "^3.0.5",
+    "vitest": "^3.0.5"
+  }
+~~~~~
+
+~~~~~act
+patch_file
+vite.config.js
 ~~~~~
 ~~~~~javascript.old
-  it('应当能解析包含 Emoji 图片的复杂名称', () => {
-    const el = document.createElement('div');
-    el.className = 'chat-line';
-    el.innerHTML = `
-      <span class="chat-line-name">[<span class="chat-line-name-content">
-        UserA <img class="pixelart" alt="🌌">
-      </span>]</span>
-      <span class="chat-line-message">编程中</span>
-    `;
-    
-    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    expect(data.sender).toBe('UserA 🌌');
-    expect(data.content).toBe('[UserA 🌌] 编程中');
-  });
-
-  it('应当能解析系统重连等元消息', () => {
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
 ~~~~~
 ~~~~~javascript.new
-  it('应当能解析包含 Emoji 图片的复杂名称', () => {
-    const el = document.createElement('div');
-    el.className = 'chat-line';
-    // 使用单行字符串，避免 HTML 缩进引入多余空格
-    el.innerHTML = '<span class="chat-line-name">[<span class="chat-line-name-content">UserA <img class="pixelart" alt="🌌"></span>]</span> <span class="chat-line-message">编程中</span>';
-    
-    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    expect(data.sender).toBe('UserA 🌌');
-    expect(data.content).toBe('[UserA 🌌] 编程中');
-  });
-
-  it('应当能解析系统重连等元消息', () => {
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/**/*.js'],
+      exclude: ['src/main.js'], // main.js 包含大量 DOM 监听器，单元测试覆盖成本较高
+    },
+  },
 ~~~~~
 
 ### 下一步建议
 
-1.  **重新运行测试**: 执行 `npm test`。现在所有解析器的测试用例应该都能顺利通过了。
-2.  **COMMIT 准备**: 随着测试套件的完善，我们现在的代码基础已经非常稳固。你可以考虑将这些改动作为一个完整的 `feat(testing)` 提交到 Git。
-3.  **UI 渲染测试**: 如果你还有余力，可以考虑为 `src/ui/renderer.js` 添加测试，验证 `formatMessageForDisplay` 函数是否能正确处理包含 Emoji 的消息对象。
+1.  **安装依赖**: 请运行 `npm install`。
+2.  **生成报告**: 运行 `npm run test:coverage`。
+    *   你将在终端看到一个表格形式的汇总报告。
+    *   项目根目录下会生成一个 `coverage/` 文件夹。你可以用浏览器打开 `coverage/index.html`，通过交互界面查看每一行代码的覆盖情况。
+3.  **针对性增强**: 根据报告结果，针对那些覆盖率较低的模块（通常是 `renderer.js` 或复杂的 `analysis.js` 逻辑）补充测试用例。
+4.  **COMMIT 建议**: 现在可以执行一次完整的 Git 提交，将整个测试框架（环境、用例、覆盖率）永久合入项目。如果你需要我生成提交计划，请告诉我。
