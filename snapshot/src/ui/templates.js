@@ -6,8 +6,9 @@
 export const getMainContainerHTML = (version) => `
     <div id="log-archive-ui-header">
         <div id="log-archive-ui-controls" style="width: 100%; justify-content: space-between;">
-            <select id="log-archive-channel-selector" class="log-archive-ui-button" style="flex-grow: 1; margin-right: 10px;"></select>
-            <div style="display: flex; gap: 5px;">
+            <select id="log-archive-channel-selector" class="log-archive-ui-button" style="flex-grow: 1; margin-right: 5px; min-width: 0;"></select>
+            <div style="display: flex; gap: 5px; flex-shrink: 0;">
+                <button id="log-archive-header-reset-button" class="log-archive-ui-button" title="回到正在记录的服务器" style="display: none;">📍</button>
                 <button id="log-archive-pause-button" class="log-archive-ui-button" title="暂停/恢复录制">⏸️ </button>
                 <button id="log-archive-stats-button" class="log-archive-ui-button" title="数据统计">📊</button>
                 <button id="log-archive-settings-button" class="log-archive-ui-button" title="设置">⚙️</button>
@@ -20,6 +21,9 @@ export const getMainContainerHTML = (version) => `
     <div id="log-archive-view-container" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
         <!-- 记录查看视图 -->
         <div id="log-archive-log-view" style="display: flex; flex-direction: column; height: 100%;">
+            <div id="log-archive-readonly-hint" style="display: none; background: var(--color-warning); color: #000; padding: 4px 10px; font-size: 0.8em; font-weight: bold; text-align: center; flex-shrink: 0;">
+                ⚠️ 只读模式：正在查看 [<span></span>] 的存档
+            </div>
             <div id="log-archive-ui-pagination-controls" style="margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-shrink: 0;">
                 <button id="page-first" class="log-archive-ui-button">«</button>
                 <button id="page-prev" class="log-archive-ui-button">‹</button>

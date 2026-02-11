@@ -41,6 +41,7 @@ export function getDOMElements() {
 
     // Buttons & Inputs
     channelSelector: document.getElementById('log-archive-channel-selector'),
+    headerResetButton: document.getElementById('log-archive-header-reset-button'),
     logDisplay: document.getElementById('log-archive-ui-log-display'),
     copyButton: document.getElementById('log-archive-copy-button'),
     closeButton: document.getElementById('log-archive-close-button'),
@@ -76,6 +77,7 @@ export function getDOMElements() {
 
     // Status Display
     serverStatus: document.getElementById('log-archive-server-status'),
+    readonlyHint: document.getElementById('log-archive-readonly-hint'),
   };
   return domElements;
 }

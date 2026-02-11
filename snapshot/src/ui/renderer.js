@@ -70,20 +70,33 @@ export function createRenderer(dom, uiState) {
       }
     }
 
-    // 2. 更新服务器状态显示
+    // 2. 更新服务器状态/只读状态显示
+    const isReadOnly = activeServer && viewingServer !== activeServer;
+
+    if (dom.readonlyHint) {
+      dom.readonlyHint.style.display = isReadOnly && viewMode === 'log' ? 'block' : 'none';
+      if (isReadOnly) {
+        dom.readonlyHint.querySelector('span').textContent = viewingServer;
+      }
+    }
+
+    if (dom.headerResetButton) {
+      dom.headerResetButton.style.display = isReadOnly ? 'block' : 'none';
+    }
+
     if (dom.serverStatus) {
       if (!activeServer) {
         dom.serverStatus.textContent = '等待进入游戏...';
         dom.serverStatus.style.color = '';
-        if (dom.resetServerButton) dom.resetServerButton.disabled = true;
-      } else if (viewingServer === activeServer) {
+        if (dom.resetServerButton) dom.resetServerButton.style.display = 'none';
+      } else if (!isReadOnly) {
         dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}`;
         dom.serverStatus.style.color = 'var(--color-primary-hover)';
-        if (dom.resetServerButton) dom.resetServerButton.disabled = true;
+        if (dom.resetServerButton) dom.resetServerButton.style.display = 'none';
       } else {
         dom.serverStatus.textContent = `⚠️ 只读模式: 正在查看 ${viewingServer} 存档`;
         dom.serverStatus.style.color = 'var(--color-warning)';
-        if (dom.resetServerButton) dom.resetServerButton.disabled = false;
+        if (dom.resetServerButton) dom.resetServerButton.style.display = 'block';
       }
     }
 
