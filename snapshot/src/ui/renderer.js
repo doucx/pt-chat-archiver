@@ -173,10 +173,20 @@ export function createRenderer(dom, uiState) {
       // 'log' view
       dom.paginationControls.style.display = 'flex';
       uiState.setTotalPages(Math.ceil(messages.length / pageSize));
-      const { totalPages } = uiState.getState(); // Re-fetch after update
-      if (currentPage > totalPages) uiState.setPage(totalPages);
+      let { totalPages } = uiState.getState();
 
-      const startIndex = (currentPage - 1) * pageSize;
+      // 自动翻页逻辑：如果吸附到底部，强制同步到最后一页
+      if (isLockedToBottom) {
+        uiState.setPage(totalPages);
+      } else if (currentPage > totalPages) {
+        uiState.setPage(totalPages);
+      }
+
+      // 重新获取最新的状态值进行渲染
+      const activeState = uiState.getState();
+      const activePage = activeState.currentPage;
+
+      const startIndex = (activePage - 1) * pageSize;
       const paginatedMessages = messages.slice(startIndex, startIndex + pageSize);
 
       updateTextareaAndPreserveSelection(() => {
@@ -187,11 +197,11 @@ export function createRenderer(dom, uiState) {
       });
 
       // 如果处于吸附模式，确保滚动到底部
-      if (isLockedToBottom && currentPage === totalPages) {
+      if (isLockedToBottom && activePage === totalPages) {
         dom.logDisplay.scrollTop = dom.logDisplay.scrollHeight;
       }
 
-      dom.pageInfoSpan.textContent = `${currentPage} / ${totalPages}`;
+      dom.pageInfoSpan.textContent = `${activePage} / ${totalPages}`;
       const isFirst = currentPage === 1;
       const isLast = currentPage === totalPages;
       dom.pageFirstBtn.disabled = dom.pagePrevBtn.disabled = isFirst;
