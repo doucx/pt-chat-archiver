@@ -1,25 +1,27 @@
+import { IndexedDBAdapter } from './indexed-db.adapter.js';
 import { LocalStorageAdapter } from './local-storage.adapter.js';
 
 /**
  * Manages the storage backend for the application.
- * It holds an instance of a storage adapter and exposes its methods.
- * This abstracts the storage implementation from the rest of the app.
+ * It holds an instance of a storage adapter, decides which adapter to use,
+ * and exposes its methods.
  */
 class StorageManager {
-  /** @type {import('./local-storage.adapter.js').LocalStorageAdapter} */
+  /** @type {IStorageAdapter} */
   adapter;
 
-  constructor() {
-    // For now, we only have one adapter. In the future, this class
-    // would contain logic to decide which adapter to instantiate.
-    this.adapter = new LocalStorageAdapter();
+  /**
+   * Initializes the storage manager, selecting the best available adapter.
+   */
+  async init() {
+    // For now, we'll default to IndexedDB.
+    // In the migration step, we will add logic here to check compatibility
+    // and decide which adapter to instantiate.
+    this.adapter = new IndexedDBAdapter();
+    await this.adapter.init();
   }
 
   // --- Delegate all methods to the adapter ---
-
-  init() {
-    return this.adapter.init();
-  }
 
   loadAllV6() {
     return this.adapter.loadAllV6();
@@ -53,20 +55,12 @@ class StorageManager {
     return this.adapter.getRawSize();
   }
 
-  loadAllV4() {
-    return this.adapter.loadAllV4();
-  }
+  // --- Legacy accessors for migration ---
 
-  removeV4Data() {
-    return this.adapter.removeV4Data();
-  }
-
-  loadAllV5() {
-    return this.adapter.loadAllV5();
-  }
-
-  removeV5Data() {
-    return this.adapter.removeV5Data();
+  getLegacyAdapters() {
+    return {
+      localStorage: new LocalStorageAdapter(),
+    };
   }
 }
 

@@ -1,254 +1,349 @@
-你的分析和分阶段实施计划非常专业。异步化（Async-First）确实是向 IndexedDB 演进过程中最深层的痛苦，但它为后续的并发控制和按需加载打下了坚实的基础。
+好的，我们正式进入第三阶段的核心——实现 IndexedDB 适配器。这将是新架构的心脏，负责与浏览器数据库进行所有异步交互。
 
-现在我们将执行 **Step 2：引入 ID 生成与数据扁平化**。我们将实现一个轻量级的 ULID 生成器（确保时间有序性且易于在 IndexedDB 中作为主键），并编写数据转换器（Transformer），以便在当前的嵌套对象结构和未来的扁平化数组结构之间自由切换。
+我将为你生成一个计划，该计划会创建一个功能完整的 `IndexedDBAdapter`。它将使用我们上一步创建的 `transformer` 来无缝地处理数据结构的转换，同时保持对 `IStorageAdapter` 接口的严格遵守。
 
-## [WIP] feat: 引入唯一 ID 生成与数据扁平化转换器
+## [WIP] feat: 实现 IndexedDB 存储适配器
 
 ### 用户需求
-在消息解析阶段为每条消息生成唯一 ID，并提供一套转换逻辑，支持在 V6 嵌套结构（Server -> Channel -> Messages）与 V7 扁平数组结构之间进行转换。
+创建一个 `IndexedDBAdapter` 类，它实现了标准的异步存储接口 (`IStorageAdapter`)，负责处理所有与 IndexedDB 的交互，包括数据库初始化、版本升级、数据读写，并集成数据转换逻辑。
 
 ### 评论
-这是架构演进中的关键中间层。ID 的引入解决了消息唯一性识别问题（对去重和精准更新至关重要），而 Transformer 则允许我们在不破坏现有 UI 逻辑的前提下，开始小规模测试扁平化存储模型。
+这是整个 V7 架构升级中最具体、最关键的编码步骤。一个健壮的 IndexedDB 适配器将彻底解决 LocalStorage 的性能瓶颈和存储容量限制。通过将所有数据库操作封装在一个独立的、可替换的模块中，我们极大地提高了代码的可测试性和未来的可维护性。
 
 ### 目标
-1.  在 `utils.js` 中实现一个符合 ULID 规范的轻量级 ID 生成器。
-2.  更新 `parser.js`，使解析出的每条消息都携带唯一 ID。
-3.  创建 `src/data/transformer.js` 模块，实现 `flattenV6State` 和 `nestV7Messages` 函数。
+1.  创建 `src/storage/indexed-db.adapter.js` 文件。
+2.  实现 `init()` 方法，负责打开数据库连接并在 `onupgradeneeded` 事件中创建 V7 的数据表（Object Store）和索引。
+3.  实现 `loadAll()` 方法，从 IndexedDB 中读取所有扁平化的消息记录，并使用 `nestV7Messages` 将其转换为 UI 层兼容的嵌套对象。
+4.  实现 `saveAll()` 方法，接收 UI 层的嵌套状态对象，使用 `flattenV6State` 将其展平，然后通过一个事务（Transaction）批量写入 IndexedDB。
+5.  实现 `clearAllData()` 方法，以清空 `messages` 表。
+6.  为保持接口统一，将配置相关的 `getConfig/saveConfig` 等方法暂时代理到 LocalStorage，但同样包裹在 Promise 中。
 
 ### 基本原理
-- **ULID**: 相比 UUID，ULID 的前 10 位是基于时间戳的编码，这使得消息在数据库中天然按时间顺序排列，极大地提高了范围查询性能。
-- **数据转换**: 在迁移期，UI 仍然使用深度嵌套的内存状态以保持响应式，而存储层将通过 `flatten` 将其转换为适合 IndexedDB 存储的扁平列表。
+我们将创建一个 `IndexedDBAdapter` 类来封装所有 IndexedDB 的原生 API 调用。通过将回调式的原生 API 转换为 Promise，我们可以为上层应用提供简洁的 `async/await` 调用方式。在 `onupgradeneeded` 回调中，我们会定义 `messages` 表，使用 `id` (ULID) 作为主键，并创建一个复合索引 `['server', 'channel']` 以便未来进行高效的按频道查询。`saveAll` 将采用“先清空后批量写入”的策略，这对于全量保存操作来说是最简单直接且事务安全的实现。
 
 ### 标签
-#intent/build #flow/ready #priority/high #comp/engine #concept/state #scope/core #ai/instruct #task/domain/storage #task/object/transformer #task/action/implementation #task/state/begin
+#intent/build #flow/ready #priority/critical #comp/engine #concept/storage #scope/core #ai/instruct #task/domain/storage #task/object/indexeddb-adapter #task/action/implementation #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 在 `utils.js` 中添加 ULID 生成器
+#### Acts 1: 创建 `indexed-db.adapter.js` 文件
 
-我们将手写一个轻量级的 ULID 生成器，使用 Crockford's Base32 编码。
-
-~~~~~act
-patch_file
-src/utils.js
-~~~~~
-~~~~~javascript.old
-/** 获取当前时间的 ISO 8601 UTC 标准格式字符串。*/
-export function getISOTimestamp() {
-  return new Date().toISOString();
-}
-~~~~~
-~~~~~javascript.new
-/** 获取当前时间的 ISO 8601 UTC 标准格式字符串。*/
-export function getISOTimestamp() {
-  return new Date().toISOString();
-}
-
-const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-const ENCODING_LEN = ENCODING.length;
-
-/**
- * 生成一个类 ULID 的唯一 ID。
- * 前 10 位为时间戳编码，后 16 位为随机字符。
- * @param {number} seedTime - 种子时间戳（毫秒）。
- * @returns {string} 26 位的唯一标识符。
- */
-export function generateULID(seedTime = Date.now()) {
-  let time = seedTime;
-  let timeChars = '';
-  for (let i = 10; i > 0; i--) {
-    timeChars = ENCODING.charAt(time % ENCODING_LEN) + timeChars;
-    time = Math.floor(time / ENCODING_LEN);
-  }
-
-  let randomChars = '';
-  for (let i = 0; i < 16; i++) {
-    randomChars += ENCODING.charAt(Math.floor(Math.random() * ENCODING_LEN));
-  }
-
-  return timeChars + randomChars;
-}
-~~~~~
-
-#### Acts 2: 修改 `parser.js` 以包含唯一 ID
-
-我们在消息解析的入口处注入 ID 生成逻辑。
-
-~~~~~act
-patch_file
-src/parser.js
-~~~~~
-~~~~~javascript.old
-import { MAIN_SERVER_HOSTS } from './constants.js';
-
-/** 判断一个字符的 Unicode 码点是否位于私有使用区。*/
-~~~~~
-~~~~~javascript.new
-import { MAIN_SERVER_HOSTS } from './constants.js';
-import { generateULID } from './utils.js';
-
-/** 判断一个字符的 Unicode 码点是否位于私有使用区。*/
-~~~~~
-~~~~~act
-patch_file
-src/parser.js
-~~~~~
-~~~~~javascript.old
-export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
-  if (!chatLineElement || !precomputedTime) return null;
-
-  const hostname = window.location.hostname;
-  const isMainServerMode = MAIN_SERVER_HOSTS.some(
-    (h) => hostname === h || hostname.endsWith(`.${h}`),
-  );
-
-  if (isMainServerMode) {
-    // --- 主服务器精细解析模式 ---
-    const data = {
-      time: precomputedTime,
-      type: 'unknown',
-      sender: 'System',
-      receiver: 'Local',
-      content: '',
-    };
-~~~~~
-~~~~~javascript.new
-export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
-  if (!chatLineElement || !precomputedTime) return null;
-
-  const timestamp = new Date(precomputedTime).getTime();
-  const msgId = generateULID(timestamp);
-
-  const hostname = window.location.hostname;
-  const isMainServerMode = MAIN_SERVER_HOSTS.some(
-    (h) => hostname === h || hostname.endsWith(`.${h}`),
-  );
-
-  if (isMainServerMode) {
-    // --- 主服务器精细解析模式 ---
-    const data = {
-      id: msgId,
-      time: precomputedTime,
-      type: 'unknown',
-      sender: 'System',
-      receiver: 'Local',
-      content: '',
-    };
-~~~~~
-~~~~~act
-patch_file
-src/parser.js
-~~~~~
-~~~~~javascript.old
-  // --- 回落模式 (兼容私服) ---
-  const rawContent = customTextContent(chatLineElement);
-  if (!rawContent.trim()) return null;
-
-  return {
-    time: precomputedTime,
-    is_fallback: true,
-    type: '',
-    sender: '',
-    receiver: '',
-    content: rawContent.trim(),
-  };
-}
-~~~~~
-~~~~~javascript.new
-  // --- 回落模式 (兼容私服) ---
-  const rawContent = customTextContent(chatLineElement);
-  if (!rawContent.trim()) return null;
-
-  return {
-    id: msgId,
-    time: precomputedTime,
-    is_fallback: true,
-    type: '',
-    sender: '',
-    receiver: '',
-    content: rawContent.trim(),
-  };
-}
-~~~~~
-
-#### Acts 3: 创建 `src/data/transformer.js`
-
-这是用于 V6 <-> V7 数据转换的核心工具类。
-
-~~~~~act
-run_command
-~~~~~
-~~~~~
-mkdir -p src/data
-touch src/data/transformer.js
-~~~~~
+首先，我们创建适配器文件。
 
 ~~~~~act
 write_file
-src/data/transformer.js
+src/storage/indexed-db.adapter.js
 ~~~~~
 ~~~~~javascript
-/**
- * 数据结构转换器
- * 用于在 V6 (嵌套对象) 和 V7 (扁平化数组) 之间转换数据
- */
+import { flattenV6State, nestV7Messages } from '../data/transformer.js';
+import { CONFIG_KEY, SELF_NAME_KEY, STORAGE_KEY_V5, STORAGE_KEY_V6 } from '../constants.js';
+
+const DB_NAME = 'PTChatArchiverDB';
+const DB_VERSION = 1;
+const MESSAGES_STORE = 'messages';
+const CONFIG_STORE = 'config'; // Future use, for now delegate to localStorage
 
 /**
- * 将 V6 的嵌套结构 (Server -> Channel -> Messages) 展平为 V7 的消息数组。
- * 展平后的消息对象会显式包含 'server' 和 'channel' 字段。
- * @param {object} v6State - 嵌套的内存状态对象。
- * @returns {Array<object>} 展平后的消息数组。
+ * An adapter that implements the IStorageAdapter interface for IndexedDB.
+ * @implements {IStorageAdapter}
  */
-export function flattenV6State(v6State) {
-  const flatMessages = [];
-  if (!v6State) return flatMessages;
+export class IndexedDBAdapter {
+  /** @type {IDBDatabase | null} */
+  db = null;
 
-  for (const [serverName, channels] of Object.entries(v6State)) {
-    for (const [channelName, messages] of Object.entries(channels)) {
-      if (Array.isArray(messages)) {
-        for (const msg of messages) {
-          flatMessages.push({
-            ...msg,
-            server: serverName,
-            channel: channelName,
-          });
+  init() {
+    return new Promise((resolve, reject) => {
+      if (this.db) return resolve();
+
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+      request.onerror = () => {
+        console.error('[Storage/IDB] Database error:', request.error);
+        reject(new Error('Failed to open IndexedDB.'));
+      };
+
+      request.onupgradeneeded = (event) => {
+        console.log('[Storage/IDB] Database upgrade needed.');
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(MESSAGES_STORE)) {
+          const store = db.createObjectStore(MESSAGES_STORE, { keyPath: 'id' });
+          store.createIndex('by_channel', ['server', 'channel'], { unique: false });
+          console.log(`[Storage/IDB] Object store "${MESSAGES_STORE}" created.`);
         }
+      };
+
+      request.onsuccess = (event) => {
+        this.db = event.target.result;
+        console.log('[Storage/IDB] Database initialized successfully.');
+        resolve();
+      };
+    });
+  }
+
+  loadAllV6() {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject(new Error('Database not initialized.'));
+
+      const transaction = this.db.transaction(MESSAGES_STORE, 'readonly');
+      const store = transaction.objectStore(MESSAGES_STORE);
+      const request = store.getAll();
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        resolve(nestV7Messages(request.result));
+      };
+    });
+  }
+
+  saveAllV6(state) {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject(new Error('Database not initialized.'));
+
+      const flatMessages = flattenV6State(state);
+      const transaction = this.db.transaction(MESSAGES_STORE, 'readwrite');
+      const store = transaction.objectStore(MESSAGES_STORE);
+
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => resolve();
+
+      store.clear(); // Simple strategy for full-state save
+      for (const msg of flatMessages) {
+        store.put(msg);
       }
+    });
+  }
+
+  // --- Configuration methods (delegated to localStorage for now) ---
+
+  getConfig() {
+    const defaultCfg = { pageSize: 1000, autoSaveInterval: 30 };
+    try {
+      const stored = localStorage.getItem(CONFIG_KEY);
+      return Promise.resolve(stored ? { ...defaultCfg, ...JSON.parse(stored) } : defaultCfg);
+    } catch (e) {
+      return Promise.resolve(defaultCfg);
     }
   }
-  return flatMessages;
+
+  saveConfig(config) {
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+    return Promise.resolve();
+  }
+
+  getSelfName() {
+    return Promise.resolve(localStorage.getItem(SELF_NAME_KEY) || '');
+  }
+
+  setSelfName(name) {
+    localStorage.setItem(SELF_NAME_KEY, name.trim());
+    return Promise.resolve();
+  }
+
+  clearAllData() {
+    return new Promise((resolve, reject) => {
+      // Clear legacy localStorage keys as well
+      localStorage.removeItem(STORAGE_KEY_V6);
+      localStorage.removeItem(STORAGE_KEY_V5);
+
+      if (!this.db) return reject(new Error('Database not initialized.'));
+      const transaction = this.db.transaction(MESSAGES_STORE, 'readwrite');
+      const store = transaction.objectStore(MESSAGES_STORE);
+      const request = store.clear();
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+    });
+  }
+
+  // Note: Accurately getting IDB size is complex. This is a placeholder.
+  getRawSize() {
+    return Promise.resolve(0); // Placeholder
+  }
+
+  // --- Legacy Migration Support ---
+  // These are for the migration manager, not direct use
+  loadAllV4() {
+    return Promise.resolve(null); // Deprecated
+  }
+  removeV4Data() {
+    return Promise.resolve(); // Deprecated
+  }
+  loadAllV5() {
+    const data = localStorage.getItem(STORAGE_KEY_V5);
+    return Promise.resolve(data ? JSON.parse(data) : null);
+  }
+  removeV5Data() {
+    localStorage.removeItem(STORAGE_KEY_V5);
+    return Promise.resolve();
+  }
 }
+~~~~~
+
+#### Acts 2: 调整 `storage/index.js` 以适应适配器模式
+
+为了让 `StorageManager` 能够持有并管理不同的适配器实例，我们需要重构 `storage/index.js`。
+
+~~~~~act
+patch_file
+src/storage/index.js
+~~~~~
+~~~~~javascript.old
+import { LocalStorageAdapter } from './local-storage.adapter.js';
 
 /**
- * 将 V7 的展平数组转换回 V6 的嵌套结构。
- * 用于保持与现有依赖嵌套结构的 UI 渲染逻辑兼容。
- * @param {Array<object>} flatMessages - 扁平的消息数组。
- * @returns {object} 嵌套的 V6 结构对象。
+ * Manages the storage backend for the application.
+ * It holds an instance of a storage adapter and exposes its methods.
+ * This abstracts the storage implementation from the rest of the app.
  */
-export function nestV7Messages(flatMessages) {
-  const v6State = {};
-  if (!Array.isArray(flatMessages)) return v6State;
+class StorageManager {
+  /** @type {import('./local-storage.adapter.js').LocalStorageAdapter} */
+  adapter;
 
-  for (const msg of flatMessages) {
-    const { server, channel, ...rest } = msg;
-    if (!server || !channel) continue;
-
-    if (!v6State[server]) v6State[server] = {};
-    if (!v6State[server][channel]) v6State[server][channel] = [];
-    v6State[server][channel].push(rest);
+  constructor() {
+    // For now, we only have one adapter. In the future, this class
+    // would contain logic to decide which adapter to instantiate.
+    this.adapter = new LocalStorageAdapter();
   }
-  return v6State;
+
+  // --- Delegate all methods to the adapter ---
+
+  init() {
+    return this.adapter.init();
+  }
+
+  loadAllV6() {
+    return this.adapter.loadAllV6();
+  }
+
+  saveAllV6(state) {
+    return this.adapter.saveAllV6(state);
+  }
+
+  getConfig() {
+    return this.adapter.getConfig();
+  }
+
+  saveConfig(config) {
+    return this.adapter.saveConfig(config);
+  }
+
+  getSelfName() {
+    return this.adapter.getSelfName();
+  }
+
+  setSelfName(name) {
+    return this.adapter.setSelfName(name);
+  }
+
+  clearAllData() {
+    return this.adapter.clearAllData();
+  }
+
+  getRawSize() {
+    return this.adapter.getRawSize();
+  }
+
+  loadAllV4() {
+    return this.adapter.loadAllV4();
+  }
+
+  removeV4Data() {
+    return this.adapter.removeV4Data();
+  }
+
+  loadAllV5() {
+    return this.adapter.loadAllV5();
+  }
+
+  removeV5Data() {
+    return this.adapter.removeV5Data();
+  }
 }
+
+// Export a singleton instance
+export const storageManager = new StorageManager();
+~~~~~
+~~~~~javascript.new
+import { IndexedDBAdapter } from './indexed-db.adapter.js';
+import { LocalStorageAdapter } from './local-storage.adapter.js';
+
+/**
+ * Manages the storage backend for the application.
+ * It holds an instance of a storage adapter, decides which adapter to use,
+ * and exposes its methods.
+ */
+class StorageManager {
+  /** @type {IStorageAdapter} */
+  adapter;
+
+  /**
+   * Initializes the storage manager, selecting the best available adapter.
+   */
+  async init() {
+    // For now, we'll default to IndexedDB.
+    // In the migration step, we will add logic here to check compatibility
+    // and decide which adapter to instantiate.
+    this.adapter = new IndexedDBAdapter();
+    await this.adapter.init();
+  }
+
+  // --- Delegate all methods to the adapter ---
+
+  loadAllV6() {
+    return this.adapter.loadAllV6();
+  }
+
+  saveAllV6(state) {
+    return this.adapter.saveAllV6(state);
+  }
+
+  getConfig() {
+    return this.adapter.getConfig();
+  }
+
+  saveConfig(config) {
+    return this.adapter.saveConfig(config);
+  }
+
+  getSelfName() {
+    return this.adapter.getSelfName();
+  }
+
+  setSelfName(name) {
+    return this.adapter.setSelfName(name);
+  }
+
+  clearAllData() {
+    return this.adapter.clearAllData();
+  }
+
+  getRawSize() {
+    return this.adapter.getRawSize();
+  }
+
+  // --- Legacy accessors for migration ---
+
+  getLegacyAdapters() {
+    return {
+      localStorage: new LocalStorageAdapter(),
+    };
+  }
+}
+
+// Export a singleton instance
+export const storageManager = new StorageManager();
 ~~~~~
 
 ### 下一步建议
 
-我们已经成功引入了 ID 生成机制和数据转换器。现在的每一条新解析的消息都具备了“身份”。
+我们已经成功地构建了 V7 架构的核心 `IndexedDBAdapter`，并且重构了 `StorageManager` 以支持适配器模式。现在，我们的应用理论上已经具备了使用 IndexedDB 的能力。
 
-接下来的 **Step 3** 是核心攻坚期：
-1.  **实现 `IndexedDBAdapter`**: 编写基于 Promise 的 IndexedDB 操作封装。
-2.  **集成 Transformer**: 在 `IndexedDBAdapter.saveAll` 内部调用 `flatten` 进行存储，在 `loadAll` 内部调用 `nest` 返回给 UI。
+然而，还有一个至关重要的环节：**数据迁移**。用户的旧数据仍然存在于 LocalStorage 中。
 
-如果你准备好了，我们可以开始编写 `src/storage/indexed-db-adapter.js`。
+下一步，**Step 4: 编写迁移逻辑与装配**，我们将：
+1.  修改 `migrations.js`，添加一个 `migrateV6toV7` 函数，它会使用 `LocalStorageAdapter` 读取旧数据，并使用 `IndexedDBAdapter` 写入新数据库。
+2.  在 `main.js` 的启动流程中调用这个迁移逻辑，向用户显示升级提示，并在后台完成无感的数据搬迁。
+
+准备好后，我们就可以开始这最后也是最关键的一步。

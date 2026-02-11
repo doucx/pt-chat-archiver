@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat: 引入唯一 ID 生成与数据扁平化转换器", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770841595.0890896, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] feat: 实现 IndexedDB 存储适配器", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770841832.7917933, "duration_ms": 0}}
