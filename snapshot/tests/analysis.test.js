@@ -3,7 +3,7 @@ import {
   calculateHourlyActivity,
   calculateTopTalkers,
   cleanChannelRecords,
-  generateStatisticsText
+  generateStatisticsText,
 } from '../src/analysis.js';
 
 describe('Analysis Module', () => {

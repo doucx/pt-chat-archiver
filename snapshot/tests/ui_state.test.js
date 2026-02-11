@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createUIState } from '../src/ui/state.js';
 
 describe('ui/state.js: UI State Manager', () => {
@@ -16,13 +16,13 @@ describe('ui/state.js: UI State Manager', () => {
   it('分页逻辑应当正确处理越界情况', () => {
     const uiState = createUIState();
     uiState.setTotalPages(5);
-    
+
     uiState.setPage(3);
     expect(uiState.getState().currentPage).toBe(3);
-    
+
     uiState.setPage(10); // 超过最大页
     expect(uiState.getState().currentPage).toBe(5);
-    
+
     uiState.setPage(0); // 小于最小页
     expect(uiState.getState().currentPage).toBe(1);
   });

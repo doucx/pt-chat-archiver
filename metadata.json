@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] test: 找回遗失的测试用例并实现逻辑全覆盖", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770838540.51097, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M analysis.test.js, M migrations.test.js, M parser.test.js ... and 2 more files", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770838606.6262264, "duration_ms": 0}}

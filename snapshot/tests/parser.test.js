@@ -70,7 +70,7 @@ describe('Parser Module', () => {
   it('应当正确处理包含 PUA 字符的消息并回退到 aria-label', () => {
     const el = document.createElement('div');
     el.className = 'chat-line';
-    // 模拟用户提供的片段: 
+    // 模拟用户提供的片段:
     // 名称中的 🌌 (正常 Emoji) 应当保留
     // 消息中的  (PUA 字符 \ue519) 应当回退到 :face:
     el.innerHTML = `
@@ -79,10 +79,10 @@ describe('Parser Module', () => {
     `;
 
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    
+
     // 验证名称解析：🌌 不是 PUA，直接提取 alt
     expect(data.sender).toBe('AyeL.neon(🌌)');
-    
+
     // 验证消息解析： 是 PUA，应当提取 aria-label 并包裹冒号
     expect(data.content).toBe('[AyeL.neon(🌌)] :face:');
   });
