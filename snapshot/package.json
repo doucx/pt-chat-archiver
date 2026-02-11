@@ -12,7 +12,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "biome lint .",
     "format": "biome format . --write",
-    "check": "biome check --write ."
+    "check": "biome check --write .",
+    "checkf": "biome check --fix --unsafe ."
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",

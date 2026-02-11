@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] feat: 升级存储统计功能并支持旧版备份清理", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770843838.8052301, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M package.json, M events.js, M ui.clean_duplicates.test.js", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770844231.0966518, "duration_ms": 0}}

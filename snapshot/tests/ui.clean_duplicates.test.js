@@ -1,8 +1,8 @@
 import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanChannelRecords, detectTotalDuplicates } from '../src/analysis.js';
 import { storageManager } from '../src/storage/index.js';
 import { createUI } from '../src/ui/index.js';
-import { cleanChannelRecords, detectTotalDuplicates } from '../src/analysis.js';
 import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
@@ -14,7 +14,7 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   beforeEach(async () => {
     document.body.innerHTML = '';
     await storageManager.init();
-    
+
     // 1. 构造 Mock 状态
     // 我们在 "Server A" 的 "Local" 频道构造一个爆发期 (25条重复消息)
     const now = Date.now();
@@ -25,18 +25,18 @@ describe('UI Clean Duplicates Regression (V6)', () => {
         content: 'Spam Message',
         sender: 'Spammer',
         type: 'say',
-        is_historical: false
+        is_historical: false,
       });
     }
 
     mockAppState = {
       'Server A': {
-        'Local': burstMessages,
-        'Party': [{ time: new Date().toISOString(), content: 'Normal Msg', type: 'party' }]
+        Local: burstMessages,
+        Party: [{ time: new Date().toISOString(), content: 'Normal Msg', type: 'party' }],
       },
       'Server B': {
-        'Local': [{ time: new Date().toISOString(), content: 'Another Server Msg', type: 'say' }]
-      }
+        Local: [{ time: new Date().toISOString(), content: 'Another Server Msg', type: 'say' }],
+      },
     };
 
     mockCallbacks = {
@@ -83,8 +83,8 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     expect(window.confirm).toHaveBeenCalled();
 
     // 2. 数据被清理：25 条变 1 条
-    expect(mockAppState['Server A']['Local'].length).toBe(1);
-    expect(mockAppState['Server A']['Local'][0].content).toBe('Spam Message');
+    expect(mockAppState['Server A'].Local.length).toBe(1);
+    expect(mockAppState['Server A'].Local[0].content).toBe('Spam Message');
 
     // 3. 调用了保存函数
     expect(mockCallbacks.saveMessagesToStorage).toHaveBeenCalledWith(mockAppState);
@@ -97,12 +97,12 @@ describe('UI Clean Duplicates Regression (V6)', () => {
 
   it('当没有重复项时，点击按钮应当给出提示', async () => {
     // 构造一个没有重复的状态
-    const cleanState = { 'S1': { 'L1': [{ content: 'unique', time: new Date().toISOString() }] } };
+    const cleanState = { S1: { L1: [{ content: 'unique', time: new Date().toISOString() }] } };
     await createUI(cleanState, mockCallbacks);
-    
+
     fireEvent.click(screen.getByTitle('设置'));
     const cleanButton = screen.getByText('清理重复记录');
-    
+
     fireEvent.click(cleanButton);
     expect(window.alert).toHaveBeenCalledWith('未发现可清理的重复记录。');
   });

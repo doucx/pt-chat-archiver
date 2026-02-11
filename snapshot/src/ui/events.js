@@ -124,7 +124,9 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
   });
 
   dom.deleteBackupButton.addEventListener('click', async () => {
-    if (confirm('【确认】将永久删除 LocalStorage 中的旧版备份数据。此操作不可撤销，确定要继续吗？')) {
+    if (
+      confirm('【确认】将永久删除 LocalStorage 中的旧版备份数据。此操作不可撤销，确定要继续吗？')
+    ) {
       await callbacks.deleteV6Backup();
       fullRender();
     }
