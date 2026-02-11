@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "biome Capture: M package.json, M index.js, M renderer.js ... and 1 more files", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770760355.5987673, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M README.md", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770836201.3045032, "duration_ms": 0}}
