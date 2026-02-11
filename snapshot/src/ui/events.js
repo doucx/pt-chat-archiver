@@ -73,17 +73,24 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     }
   });
 
-  // 手动向上滚动时解除“吸附到底部”模式
+  // 处理滚动时的自动吸附与解锁逻辑
   dom.logDisplay.addEventListener('scroll', () => {
-    const { isLockedToBottom } = uiState.getState();
+    const { isLockedToBottom, currentPage, totalPages } = uiState.getState();
+    const threshold = 10; // 容差像素
+    const isAtBottom =
+      dom.logDisplay.scrollHeight - dom.logDisplay.scrollTop - dom.logDisplay.clientHeight <
+      threshold;
+
     if (isLockedToBottom) {
-      const threshold = 10; // 容差像素
-      const isAtBottom =
-        dom.logDisplay.scrollHeight - dom.logDisplay.scrollTop - dom.logDisplay.clientHeight <
-        threshold;
+      // 1. 已锁定状态下，向上滑动则解锁
       if (!isAtBottom) {
         uiState.setLockedToBottom(false);
-        // 刷新渲染以更新按钮状态（>> 会从禁用变为启用）
+        fullRender();
+      }
+    } else {
+      // 2. 未锁定状态下，如果在最后一页手动滑到底部，则自动加锁
+      if (isAtBottom && currentPage === totalPages) {
+        uiState.setLockedToBottom(true);
         fullRender();
       }
     }
