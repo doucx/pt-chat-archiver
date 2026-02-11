@@ -37,6 +37,31 @@ export function getISOTimestamp() {
   return new Date().toISOString();
 }
 
+const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const ENCODING_LEN = ENCODING.length;
+
+/**
+ * 生成一个类 ULID 的唯一 ID。
+ * 前 10 位为时间戳编码，后 16 位为随机字符。
+ * @param {number} seedTime - 种子时间戳（毫秒）。
+ * @returns {string} 26 位的唯一标识符。
+ */
+export function generateULID(seedTime = Date.now()) {
+  let time = seedTime;
+  let timeChars = '';
+  for (let i = 10; i > 0; i--) {
+    timeChars = ENCODING.charAt(time % ENCODING_LEN) + timeChars;
+    time = Math.floor(time / ENCODING_LEN);
+  }
+
+  let randomChars = '';
+  for (let i = 0; i < 16; i++) {
+    randomChars += ENCODING.charAt(Math.floor(Math.random() * ENCODING_LEN));
+  }
+
+  return timeChars + randomChars;
+}
+
 /** 在UI界面中，将ISO UTC时间字符串格式化为用户本地时区的可读格式。*/
 export function formatISOTimeForDisplay(isoString) {
   if (!isoString) return 'N/A';

@@ -1,16 +1,23 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { STORAGE_KEY_V5, STORAGE_KEY_V6 } from '../src/constants.js';
 import { MigrationManager } from '../src/migrations.js';
+import { storageManager } from '../src/storage/index.js';
 
 describe('migrations.js: Migration Logic', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await storageManager.init();
   });
 
   it('V5 -> V6: 应当将数据归档到指定的服务器节点下', async () => {
     const v5Data = { Local: [{ content: 'msg' }] };
     const currentV6 = {};
-    const result = await MigrationManager.migrateV5toV6(v5Data, 'Main Server', currentV6);
+    const result = await MigrationManager.migrateV5toV6(
+      storageManager,
+      v5Data,
+      'Main Server',
+      currentV6,
+    );
 
     expect(result['Main Server'].Local[0].content).toBe('msg');
 

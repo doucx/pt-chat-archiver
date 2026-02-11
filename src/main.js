@@ -225,8 +225,9 @@ import { debounce, getISOTimestamp } from './utils.js';
 
   /** 脚本主入口函数。*/
   async function main() {
-    // 1. 执行静默迁移 (如 v4 -> v5) - This is now a no-op but kept for structure
-    await MigrationManager.runSilentMigrations();
+    // 1. 初始化存储层 (并自动触发 V6->V7 迁移)
+    // 开启 useIndexedDB = true
+    await storageManager.init(true);
 
     // 2. 加载状态与初始化 UI
     inMemoryChatState = await storageManager.loadAllV6();
@@ -254,6 +255,7 @@ import { debounce, getISOTimestamp } from './utils.js';
 
         // 3. 检查并触发交互式迁移 (如 v5 -> v6)
         await MigrationManager.checkAndTriggerInteractiveMigrations(
+          storageManager,
           server,
           inMemoryChatState,
           (newState) => {

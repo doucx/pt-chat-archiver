@@ -5,6 +5,12 @@ export const OLD_STORAGE_KEY_V4 = 'chatLogArchive_v4';
 export const SELF_NAME_KEY = 'chatLogArchiver_selfName';
 export const CONFIG_KEY = 'chatLogArchive_config';
 
+// IndexedDB 配置
+export const DB_NAME = 'pt-chat-archiver-v7';
+export const DB_VERSION = 1;
+export const STORE_MESSAGES = 'messages';
+export const STORE_CONFIG = 'config';
+
 export const STORAGE_WARNING_THRESHOLD_MB = 3.5; // 存储警告阈值 (MB)
 
 // 定义被视为主服务器的域名列表，以启用精细化解析

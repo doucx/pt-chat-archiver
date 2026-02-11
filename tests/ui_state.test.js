@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { storageManager } from '../src/storage/index.js';
 import { createUIState } from '../src/ui/state.js';
 
 describe('ui/state.js: UI State Manager Logic', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await storageManager.init(); // 确保测试前已初始化
   });
 
   it('状态初始化：应正确合并存储中的配置与默认值', async () => {
