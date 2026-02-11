@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(testing): 重置 DOM 元素缓存以修复集成测试", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770840219.7376287, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test: 精简 UI 状态管理器单元测试", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770840345.286031, "duration_ms": 0}}
