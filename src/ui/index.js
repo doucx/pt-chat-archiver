@@ -68,16 +68,24 @@ export async function createUI(initialAppState, appCallbacks) {
   };
 
   const cleanChannelRecords = async () => {
-    const duplicateCount = appCallbacks.detectTotalDuplicates(appState);
-    if (duplicateCount === 0) return alert('未发现可清理的重复记录。');
+    // 兼容 V6 结构的重复检测
+    let totalToClean = 0;
+    for (const server in appState) {
+      totalToClean += appCallbacks.detectTotalDuplicates(appState[server]);
+    }
+
+    if (totalToClean === 0) return alert('未发现可清理的重复记录。');
     if (
       confirm(
-        `【确认】此操作将根据特定规则删除 ${duplicateCount} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
+        `【确认】此操作将根据特定规则删除 ${totalToClean} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
       )
     ) {
-      for (const channel in appState) {
-        const { cleanedRecords } = appCallbacks.cleanChannelRecords(appState[channel]);
-        appState[channel] = cleanedRecords;
+      for (const server in appState) {
+        const serverData = appState[server];
+        for (const channel in serverData) {
+          const { cleanedRecords } = appCallbacks.cleanChannelRecords(serverData[channel]);
+          serverData[channel] = cleanedRecords;
+        }
       }
       await appCallbacks.saveMessagesToStorage(appState);
       dom.cleanButton.textContent = '清理完毕!';
@@ -104,12 +112,17 @@ export async function createUI(initialAppState, appCallbacks) {
     }
   };
 
+  const deleteV6Backup = async () => {
+    await storageManager.deleteV6Backup();
+  };
+
   const uiCallbacks = {
     ...appCallbacks,
     cleanChannelRecords,
     clearAllData,
     copyAllData,
     downloadAllData,
+    deleteV6Backup,
   };
 
   await bindUIEvents({

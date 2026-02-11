@@ -11,7 +11,5 @@ export const DB_VERSION = 1;
 export const STORE_MESSAGES = 'messages';
 export const STORE_CONFIG = 'config';
 
-export const STORAGE_WARNING_THRESHOLD_MB = 3.5; // 存储警告阈值 (MB)
-
 // 定义被视为主服务器的域名列表，以启用精细化解析
 export const MAIN_SERVER_HOSTS = ['pony.town'];

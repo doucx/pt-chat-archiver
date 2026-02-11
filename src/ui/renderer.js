@@ -1,4 +1,5 @@
 import { generateStatisticsText } from '../analysis.js';
+import { storageManager } from '../storage/index.js';
 import { formatISOTimeForDisplay, getStorageUsageInMB } from '../utils.js';
 
 /**
@@ -125,8 +126,19 @@ export function createRenderer(dom, uiState) {
     if (viewMode === 'config') {
       // 异步更新存储信息，不阻塞渲染
       getStorageUsageInMB().then((usageMB) => {
-        dom.configStorageInfo.textContent = `当前本地存储占用: ${usageMB.toFixed(2)} MB / 5.00 MB`;
+        dom.configStorageInfo.textContent = `估算数据占用: ${usageMB.toFixed(2)} MB`;
       });
+
+      storageManager.getTotalMessageCount().then((count) => {
+        dom.configMsgCount.textContent = `存档消息总数: ${count.toLocaleString()} 条`;
+      });
+
+      // 检查是否有备份
+      if (storageManager.hasV6Backup()) {
+        dom.deleteBackupGroup.style.display = 'flex';
+      } else {
+        dom.deleteBackupGroup.style.display = 'none';
+      }
 
       const { lastSavedTime } = uiState.getState();
       if (lastSavedTime) {
@@ -135,7 +147,12 @@ export function createRenderer(dom, uiState) {
         dom.lastSavedInfo.textContent = '尚未保存';
       }
 
-      updateCleanButtonState(callbacks.detectTotalDuplicates(appState));
+      // 计算所有服务器的重复项总数
+      let totalDuplicates = 0;
+      for (const server in appState) {
+        totalDuplicates += callbacks.detectTotalDuplicates(appState[server]);
+      }
+      updateCleanButtonState(totalDuplicates);
       return;
     }
 
@@ -172,21 +189,8 @@ export function createRenderer(dom, uiState) {
   return {
     render,
     checkStorageUsage: async () => {
-      const usageMB = await getStorageUsageInMB();
-      let warningElement = document.getElementById('log-archive-storage-warning');
-      if (usageMB > 3.5) {
-        if (!warningElement) {
-          warningElement = document.createElement('div');
-          warningElement.id = 'log-archive-storage-warning';
-          dom.header.insertBefore(
-            warningElement,
-            dom.header.querySelector('#log-archive-ui-controls'),
-          );
-        }
-        warningElement.textContent = `⚠️ 存储占用过高 (${usageMB.toFixed(1)}MB)，请及时清理！`;
-      } else if (warningElement) {
-        warningElement.remove();
-      }
+      // IndexedDB 时代不再需要硬性的容量警告，此处改为静默。
+      // 将来如果需要，可以实现基于浏览器 Quota 的警告。
     },
   };
 }
