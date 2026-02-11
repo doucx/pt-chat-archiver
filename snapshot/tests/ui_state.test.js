@@ -10,7 +10,7 @@ describe('ui/state.js: UI State Manager Logic', () => {
     localStorage.setItem('chatLogArchive_config', JSON.stringify({ pageSize: 50 }));
     const uiState = createUIState();
     const state = uiState.getState();
-    
+
     expect(state.pageSize).toBe(50); // 来自存储
     expect(state.autoSaveInterval).toBe(30); // 默认值
     expect(state.viewMode).toBe('log'); // 默认初始视图
@@ -32,7 +32,7 @@ describe('ui/state.js: UI State Manager Logic', () => {
 
   it('持久化同步：修改配置应自动触发 localStorage 更新', () => {
     const uiState = createUIState();
-    
+
     uiState.setPageSize(200);
     uiState.setAutoSaveInterval(60);
 
@@ -43,7 +43,7 @@ describe('ui/state.js: UI State Manager Logic', () => {
 
   it('多服务器逻辑：查看服务器默认应跟随活动服务器', () => {
     const uiState = createUIState();
-    
+
     // 初始设置活动服务器
     uiState.setActiveServer('Server-A');
     expect(uiState.getState().viewingServer).toBe('Server-A');

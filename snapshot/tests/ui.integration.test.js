@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, getByRole, screen, waitFor } from '@testing-library/dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createUI } from '../src/ui/index.js';
 import '@testing-library/jest-dom/vitest'; // 引入扩展断言
 
