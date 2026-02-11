@@ -7,6 +7,10 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
   plugins: [
     monkey({
       entry: 'src/main.js',
