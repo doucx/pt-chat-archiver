@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat(testing): 集成 Vitest 覆盖率报告功能", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770837382.7733016, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "cov Capture: M .gitignore, M biome.json", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770837523.3105211, "duration_ms": 0}}
