@@ -1,5 +1,8 @@
 import { IndexedDBAdapter } from './indexed-db-adapter.js';
 import { LocalStorageAdapter } from './local-storage.adapter.js';
+// 避免循环依赖，我们将在 init 方法内部动态导入 MigrationManager，或者将其作为依赖注入
+// 但由于 MigrationManager 是单例对象，直接导入通常也可行，只要小心循环引用
+// 这里我们假设 main.js 会协调这一过程，或者在这里动态导入
 
 /**
  * Manages the storage backend for the application.
@@ -22,15 +25,27 @@ class StorageManager {
     // 如果已经初始化过且没有强制切换，则直接返回
     if (this.adapter && !useIndexedDB) return;
 
-    // 策略：如果明确要求使用 IDB，或者未来通过配置决定
     if (useIndexedDB) {
-      this.adapter = new IndexedDBAdapter();
+      const targetAdapter = new IndexedDBAdapter();
+      await targetAdapter.init();
+
+      // --- 迁移逻辑集成 ---
+      // 在正式切换到 IndexedDB 之前，检查是否需要迁移
+      // 我们创建一个临时的 LocalStorageAdapter 来读取旧数据
+      const sourceAdapter = new LocalStorageAdapter(); 
+      // LocalStorageAdapter 不需要 await init() 因为它是同步模拟的，但为了接口一致性...
+      await sourceAdapter.init();
+
+      // 动态导入以避免潜在的循环依赖问题 (storage/index.js <-> migrations.js)
+      const { MigrationManager } = await import('../migrations.js');
+      await MigrationManager.runSilentMigrations(sourceAdapter, targetAdapter);
+
+      this.adapter = targetAdapter;
     } else {
-      // 默认回退到 LocalStorage (当前阶段)
       this.adapter = new LocalStorageAdapter();
+      await this.adapter.init();
     }
     
-    await this.adapter.init();
     console.info(`[StorageManager] Initialized with ${this.adapter.constructor.name}`);
   }
 
