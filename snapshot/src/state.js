@@ -1,4 +1,3 @@
-import { storage } from './storage.js';
 import { getISOTimestamp } from './utils.js';
 
 /**
@@ -45,17 +44,6 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
     return oldMessages.concat([discontinuityMark], messagesToAdd);
   }
   return oldMessages.concat(messagesToAdd);
-}
-
-/** 从持久化层加载存档 (V6)。*/
-export function loadMessagesFromStorage() {
-  return storage.getV6Messages();
-}
-
-/** 将内存中的存档保存到持久化层 (V6)。*/
-export function saveMessagesToStorage(messagesObject) {
-  console.info('存档已保存到本地存储 (V6)');
-  storage.saveV6Messages(messagesObject);
 }
 
 /**
