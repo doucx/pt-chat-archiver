@@ -1,4 +1,5 @@
 import { MAIN_SERVER_HOSTS } from './constants.js';
+import { generateULID } from './utils.js';
 
 /** 判断一个字符的 Unicode 码点是否位于私有使用区。*/
 function isCharacterInPrivateUseArea(char) {
@@ -48,6 +49,9 @@ function customTextContent(node) {
 export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
   if (!chatLineElement || !precomputedTime) return null;
 
+  const timestamp = new Date(precomputedTime).getTime();
+  const msgId = generateULID(timestamp);
+
   const hostname = window.location.hostname;
   const isMainServerMode = MAIN_SERVER_HOSTS.some(
     (h) => hostname === h || hostname.endsWith(`.${h}`),
@@ -56,6 +60,7 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
   if (isMainServerMode) {
     // --- 主服务器精细解析模式 ---
     const data = {
+      id: msgId,
       time: precomputedTime,
       type: 'unknown',
       sender: 'System',
@@ -112,6 +117,7 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
   if (!rawContent.trim()) return null;
 
   return {
+    id: msgId,
     time: precomputedTime,
     is_fallback: true,
     type: '',
