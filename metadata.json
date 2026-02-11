@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] feat(testing): 初始化测试套件并实现核心模块测试覆盖", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770837553.82781, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M package-lock.json", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770837596.879033, "duration_ms": 0}}
