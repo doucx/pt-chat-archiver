@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { extractUsefulData, findActiveTabByClass } from '../src/parser.js';
 
 describe('Parser Module', () => {
@@ -13,7 +13,7 @@ describe('Parser Module', () => {
       <span class="chat-line-name">[SenderName]</span>
       <span class="chat-line-message">Hello World</span>
     `;
-    
+
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
     expect(data.type).toBe('say');
     expect(data.sender).toBe('SenderName');
@@ -30,7 +30,7 @@ describe('Parser Module', () => {
       To <span class="chat-line-name">[UserB]</span>
       <span class="chat-line-message">晚好</span>
     `;
-    
+
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
     expect(data.type).toBe('whisper');
     expect(data.sender).toBe('Me');
@@ -47,7 +47,7 @@ describe('Parser Module', () => {
       <span class="chat-line-name">[UserA]</span> whispers:
       <span class="chat-line-message">你好</span>
     `;
-    
+
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
     expect(data.type).toBe('whisper');
     expect(data.sender).toBe('UserA');
@@ -59,8 +59,9 @@ describe('Parser Module', () => {
     const el = document.createElement('div');
     el.className = 'chat-line';
     // 使用单行字符串，避免 HTML 缩进引入多余空格
-    el.innerHTML = '<span class="chat-line-name">[<span class="chat-line-name-content">UserA <img class="pixelart" alt="🌌"></span>]</span> <span class="chat-line-message">编程中</span>';
-    
+    el.innerHTML =
+      '<span class="chat-line-name">[<span class="chat-line-name-content">UserA <img class="pixelart" alt="🌌"></span>]</span> <span class="chat-line-message">编程中</span>';
+
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
     expect(data.sender).toBe('UserA 🌌');
     expect(data.content).toBe('[UserA 🌌] 编程中');
@@ -73,7 +74,7 @@ describe('Parser Module', () => {
       <span class="chat-line-timestamp">03:01</span>
       <span class="chat-line-message">Rejoined</span>
     `;
-    
+
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
     expect(data.type).toBe('system');
     expect(data.sender).toBe('System');

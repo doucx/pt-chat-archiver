@@ -1,12 +1,16 @@
-import { describe, it, expect } from 'vitest';
-import { calculateTopTalkers, calculateHourlyActivity, cleanChannelRecords } from '../src/analysis.js';
+import { describe, expect, it } from 'vitest';
+import {
+  calculateHourlyActivity,
+  calculateTopTalkers,
+  cleanChannelRecords,
+} from '../src/analysis.js';
 
 describe('Analysis Module', () => {
   const mockMessages = [
     { sender: 'Alice', content: 'Hi', time: '2023-01-01T10:00:00Z', type: 'say' },
     { sender: 'Alice', content: 'How are you?', time: '2023-01-01T10:05:00Z', type: 'say' },
     { sender: 'Bob', content: 'Hello', time: '2023-01-01T11:00:00Z', type: 'say' },
-    { sender: 'System', content: 'Welcome', time: '2023-01-01T11:00:00Z', type: 'system' }
+    { sender: 'System', content: 'Welcome', time: '2023-01-01T11:00:00Z', type: 'system' },
   ];
 
   it('calculateTopTalkers 应当正确计算用户发言权重并过滤系统消息', () => {
@@ -19,7 +23,7 @@ describe('Analysis Module', () => {
   it('calculateHourlyActivity 应当正确识别高峰小时', () => {
     const { data } = calculateHourlyActivity(mockMessages);
     const expectedHour = new Date(mockMessages[0].time).getHours();
-    expect(data.find(d => d.hour === expectedHour).count).toBe(2);
+    expect(data.find((d) => d.hour === expectedHour).count).toBe(2);
   });
 
   it('cleanChannelRecords 应当能识别并在爆发期清理重复项', () => {
@@ -31,7 +35,7 @@ describe('Analysis Module', () => {
         content: 'Spam',
         time: new Date(now + i).toISOString(),
         is_historical: false,
-        type: 'say'
+        type: 'say',
       });
     }
 

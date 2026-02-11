@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { CONFIG_KEY, SELF_NAME_KEY, STORAGE_KEY_V6 } from '../src/constants.js';
 import { storage } from '../src/storage.js';
-import { STORAGE_KEY_V6, CONFIG_KEY, SELF_NAME_KEY } from '../src/constants.js';
 
 describe('Storage Module', () => {
   beforeEach(() => {
@@ -8,7 +8,7 @@ describe('Storage Module', () => {
   });
 
   it('应当能正确保存和读取 V6 消息数据', () => {
-    const mockData = { "Main Server": { "Local": [{ content: 'hello' }] } };
+    const mockData = { 'Main Server': { Local: [{ content: 'hello' }] } };
     storage.saveV6Messages(mockData);
     expect(storage.getV6Messages()).toEqual(mockData);
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY_V6))).toEqual(mockData);
