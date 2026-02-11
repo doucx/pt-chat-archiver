@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M transformer.js, M migrations.js, M index.js ... and 5 more files", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770842466.3837857, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] feat: 实现 V7 架构：IndexedDB 存储与异步存储层", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770842466.8216906, "duration_ms": 0}}
