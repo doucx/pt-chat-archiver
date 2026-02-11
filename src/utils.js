@@ -1,12 +1,20 @@
-import { storage } from './storage.js';
+import { storageManager } from './storage/index.js';
 
 /**
  * 计算脚本在 localStorage 中的存储占用空间。
- * @returns {number} - 占用的空间大小，单位是 MB。
+ * @returns {Promise<number>} - 占用的空间大小，单位是 MB。
  */
-export function getStorageUsageInMB() {
-  const sizeInBytes = storage.getMessagesRawSize();
+export async function getStorageUsageInMB() {
+  const sizeInBytes = await storageManager.getRawSize();
   return sizeInBytes / (1024 * 1024);
+}
+
+/**
+ * 简单的异步等待函数
+ * @param {number} ms - 毫秒数
+ */
+export function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

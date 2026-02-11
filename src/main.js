@@ -8,17 +8,12 @@ import {
   findActiveTabByClass,
   locateChatElements,
 } from './parser.js';
-import {
-  addMessageToSyntheticChannelIfNeeded,
-  loadMessagesFromStorage,
-  mergeAndDeduplicateMessages,
-  saveMessagesToStorage,
-} from './state.js';
-import { storage } from './storage.js';
+import { addMessageToSyntheticChannelIfNeeded, mergeAndDeduplicateMessages } from './state.js';
+import { storageManager } from './storage/index.js';
 import { createUI } from './ui/index.js';
 import { debounce, getISOTimestamp } from './utils.js';
 
-(() => {
+(async () => {
   // --- 全局状态 ---
   let inMemoryChatState = {};
   let messageObserver = null;
@@ -39,12 +34,12 @@ import { debounce, getISOTimestamp } from './utils.js';
    */
 
   /** 扫描聊天框中已存在的消息，时间戳根据UI显示的 `HH:MM` 进行估算。*/
-  function extractHistoricalChatState() {
+  async function extractHistoricalChatState() {
     const elements = locateChatElements();
     if (!elements.tabs || !elements.chatLog) return { current_tab: null, messages: [] };
 
     const current_tab = findActiveTabByClass(elements.tabs.innerHTML);
-    const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
+    const selfName = (await storageManager.getSelfName()) || '';
     const messages = [];
     const chatLines = Array.from(elements.chatLog.children);
     const currentDate = new Date();
@@ -82,9 +77,9 @@ import { debounce, getISOTimestamp } from './utils.js';
   /**
    * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
    */
-  function scanAndMergeHistory() {
+  async function scanAndMergeHistory() {
     if (!detectedServerName) return;
-    const historicalState = extractHistoricalChatState();
+    const historicalState = await extractHistoricalChatState();
     let dataChanged = false;
 
     if (historicalState.current_tab && historicalState.messages.length > 0) {
@@ -116,12 +111,12 @@ import { debounce, getISOTimestamp } from './utils.js';
    */
 
   /** 处理 MutationObserver 捕获到的新消息节点。*/
-  function handleNewChatMessage(node) {
+  async function handleNewChatMessage(node) {
     if (isInitializingChat || isSwitchingTabs || !detectedServerName) return;
     if (node.nodeType !== Node.ELEMENT_NODE || !node.matches('.chat-line')) return;
     if (!currentActiveChannel) return;
 
-    const selfName = localStorage.getItem(SELF_NAME_KEY) || '';
+    const selfName = (await storageManager.getSelfName()) || '';
     const preciseTime = getISOTimestamp();
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
@@ -155,8 +150,8 @@ import { debounce, getISOTimestamp } from './utils.js';
       if (newActiveTab && newActiveTab !== currentActiveChannel) {
         currentActiveChannel = newActiveTab;
         isSwitchingTabs = true;
-        setTimeout(() => {
-          scanAndMergeHistory();
+        setTimeout(async () => {
+          await scanAndMergeHistory();
           isSwitchingTabs = false;
         }, 250);
       }
@@ -171,8 +166,8 @@ import { debounce, getISOTimestamp } from './utils.js';
       attributeFilter: ['class'],
     });
 
-    const finalizeInitialization = debounce(() => {
-      scanAndMergeHistory();
+    const finalizeInitialization = debounce(async () => {
+      await scanAndMergeHistory();
       isInitializingChat = false;
     }, 500);
 
@@ -211,11 +206,12 @@ import { debounce, getISOTimestamp } from './utils.js';
   }
 
   /** 执行一次完整的保存动作并更新 UI。*/
-  function performAutoSave() {
-    saveMessagesToStorage(inMemoryChatState);
+  async function performAutoSave() {
+    console.info('Saving archive to local storage (V6)...');
+    await storageManager.saveAllV6(inMemoryChatState);
     if (uiControls) {
       uiControls.setLastSavedTime(getISOTimestamp());
-      uiControls.checkStorageUsage();
+      await uiControls.checkStorageUsage();
     }
   }
 
@@ -223,20 +219,20 @@ import { debounce, getISOTimestamp } from './utils.js';
   function startAutoSaveTimer() {
     if (autoSaveTimer) clearInterval(autoSaveTimer);
     const intervalSeconds = uiControls ? uiControls.getAutoSaveInterval() : 30;
-    console.log(`[Archiver] 自动保存定时器启动，间隔: ${intervalSeconds}s`);
+    console.log(`[Archiver] Auto-save timer started, interval: ${intervalSeconds}s`);
     autoSaveTimer = setInterval(performAutoSave, intervalSeconds * 1000);
   }
 
   /** 脚本主入口函数。*/
-  function main() {
-    // 1. 执行静默迁移 (如 v4 -> v5)
-    MigrationManager.runSilentMigrations();
+  async function main() {
+    // 1. 执行静默迁移 (如 v4 -> v5) - This is now a no-op but kept for structure
+    await MigrationManager.runSilentMigrations();
 
     // 2. 加载状态与初始化 UI
-    inMemoryChatState = loadMessagesFromStorage();
-    uiControls = createUI(inMemoryChatState, {
+    inMemoryChatState = await storageManager.loadAllV6();
+    uiControls = await createUI(inMemoryChatState, {
       scanAndMergeHistory,
-      saveMessagesToStorage,
+      saveMessagesToStorage: (state) => storageManager.saveAllV6(state), // Pass a compatible function
       cleanChannelRecords,
       detectTotalDuplicates,
       deactivateLogger,
@@ -244,29 +240,33 @@ import { debounce, getISOTimestamp } from './utils.js';
       onAutoSaveIntervalChange: startAutoSaveTimer,
     });
 
-    uiControls.checkStorageUsage();
+    await uiControls.checkStorageUsage();
 
     // --- 启动服务器检测观察者 ---
-    const updateServer = () => {
+    const updateServer = async () => {
       const server = extractServerFromDOM();
       if (server && server !== detectedServerName) {
         detectedServerName = server;
-        console.log(`[Archiver] 检测到服务器切换: ${server}`);
+        console.log(`[Archiver] Detected server switch: ${server}`);
         if (uiControls) {
           uiControls.updateServerDisplay(detectedServerName);
         }
 
         // 3. 检查并触发交互式迁移 (如 v5 -> v6)
-        MigrationManager.checkAndTriggerInteractiveMigrations(server, (newState) => {
-          inMemoryChatState = newState;
-          uiControls.setState(inMemoryChatState);
-        });
+        await MigrationManager.checkAndTriggerInteractiveMigrations(
+          server,
+          inMemoryChatState,
+          (newState) => {
+            inMemoryChatState = newState;
+            uiControls.setState(inMemoryChatState);
+          },
+        );
       }
     };
 
     serverObserver = new MutationObserver(updateServer);
     serverObserver.observe(document.body, { childList: true, subtree: true });
-    updateServer(); // 立即执行一次
+    await updateServer(); // 立即执行一次
 
     const uiObserver = new MutationObserver(() => {
       const { chatLogContainer } = locateChatElements();
@@ -285,23 +285,12 @@ import { debounce, getISOTimestamp } from './utils.js';
 
     startAutoSaveTimer();
 
-    let lastDuplicateCount = -1;
-    setInterval(() => {
-      const duplicateCount = detectTotalDuplicates(inMemoryChatState);
-      if (duplicateCount !== lastDuplicateCount) {
-        // This function is now internal to the UI module but can be triggered.
-        // For now, the UI will handle this itself periodically.
-        // If more direct control is needed, ui.js could expose a function for it.
-        lastDuplicateCount = duplicateCount;
-      }
-    }, 5000);
-
-    window.addEventListener('pagehide', () => saveMessagesToStorage(inMemoryChatState));
+    window.addEventListener('pagehide', () => storageManager.saveAllV6(inMemoryChatState));
   }
 
   if (document.readyState === 'complete') {
-    main();
+    await main();
   } else {
-    window.addEventListener('load', main);
+    window.addEventListener('load', async () => await main());
   }
 })();

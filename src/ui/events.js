@@ -7,7 +7,7 @@
  * @param {object} params.getAppState - A function to get the current application state.
  * @param {object} params.callbacks - The callbacks object for app-level actions.
  */
-export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks }) {
+export async function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks }) {
   const fullRender = () => renderer.render(getAppState(), callbacks);
 
   // --- Main UI controls ---
@@ -89,20 +89,22 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
   });
 
   // --- Config view actions ---
-  dom.selfNameInput.addEventListener('change', () => uiState.setSelfName(dom.selfNameInput.value));
-  dom.pageSizeInput.addEventListener('change', () => {
-    uiState.setPageSize(dom.pageSizeInput.value);
+  dom.selfNameInput.addEventListener('change', async () => {
+    await uiState.setSelfName(dom.selfNameInput.value);
+  });
+  dom.pageSizeInput.addEventListener('change', async () => {
+    await uiState.setPageSize(dom.pageSizeInput.value);
     fullRender();
   });
 
-  dom.autoSaveIntervalInput.addEventListener('change', () => {
-    uiState.setAutoSaveInterval(dom.autoSaveIntervalInput.value);
+  dom.autoSaveIntervalInput.addEventListener('change', async () => {
+    await uiState.setAutoSaveInterval(dom.autoSaveIntervalInput.value);
     callbacks.onAutoSaveIntervalChange();
     fullRender();
   });
 
-  dom.saveNowButton.addEventListener('click', () => {
-    callbacks.manualSave();
+  dom.saveNowButton.addEventListener('click', async () => {
+    await callbacks.manualSave();
     const originalText = dom.saveNowButton.textContent;
     dom.saveNowButton.textContent = '✅ 已保存';
     setTimeout(() => {
@@ -110,13 +112,13 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
     }, 1500);
   });
 
-  dom.cleanButton.addEventListener('click', () => {
-    callbacks.cleanChannelRecords();
+  dom.cleanButton.addEventListener('click', async () => {
+    await callbacks.cleanChannelRecords();
     fullRender(); // Re-render to update button state
   });
 
-  dom.clearButton.addEventListener('click', () => {
-    callbacks.clearAllData();
+  dom.clearButton.addEventListener('click', async () => {
+    await callbacks.clearAllData();
     uiState.setViewMode('log');
     fullRender();
   });
@@ -146,7 +148,7 @@ export function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks })
   dom.downloadButton.addEventListener('click', () => callbacks.downloadAllData());
 
   // --- Initial value setup ---
-  dom.selfNameInput.value = uiState.getSelfName();
+  dom.selfNameInput.value = await uiState.getSelfName();
   dom.pageSizeInput.value = uiState.getState().pageSize;
   dom.autoSaveIntervalInput.value = uiState.getState().autoSaveInterval;
 }

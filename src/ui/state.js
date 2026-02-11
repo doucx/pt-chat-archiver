@@ -1,10 +1,10 @@
-import { storage } from '../storage.js';
+import { storageManager } from '../storage/index.js';
 
 /**
  * Creates and manages the UI's internal state.
- * @returns {object} A UI state manager instance.
+ * @returns {Promise<object>} A promise that resolves to a UI state manager instance.
  */
-export function createUIState() {
+export async function createUIState() {
   const state = {
     currentPage: 1,
     pageSize: 1000,
@@ -17,21 +17,17 @@ export function createUIState() {
     viewingServer: null, // 当前正在查看的存档服务器
   };
 
-  const loadConfig = () => {
-    const config = storage.getConfig();
-    state.pageSize = config.pageSize;
-    state.autoSaveInterval = config.autoSaveInterval;
-  };
+  // Async load config
+  const config = await storageManager.getConfig();
+  state.pageSize = config.pageSize;
+  state.autoSaveInterval = config.autoSaveInterval;
 
-  const saveConfig = () => {
-    storage.saveConfig({
+  const saveConfig = async () => {
+    await storageManager.saveConfig({
       pageSize: state.pageSize,
       autoSaveInterval: state.autoSaveInterval,
     });
   };
-
-  // Initial load
-  loadConfig();
 
   return {
     getState: () => ({ ...state }),
@@ -47,18 +43,18 @@ export function createUIState() {
         state.viewMode = mode;
       }
     },
-    setPageSize: (size) => {
+    setPageSize: async (size) => {
       const val = Number.parseInt(size, 10);
       if (!Number.isNaN(val) && val >= 10) {
         state.pageSize = val;
-        saveConfig();
+        await saveConfig();
       }
     },
-    setAutoSaveInterval: (seconds) => {
+    setAutoSaveInterval: async (seconds) => {
       const val = Number.parseInt(seconds, 10);
       if (!Number.isNaN(val) && val >= 5) {
         state.autoSaveInterval = val;
-        saveConfig();
+        await saveConfig();
       }
     },
     setLastSavedTime: (isoString) => {
@@ -81,7 +77,7 @@ export function createUIState() {
     setViewingServer: (serverName) => {
       state.viewingServer = serverName;
     },
-    getSelfName: () => storage.getSelfName(),
-    setSelfName: (name) => storage.setSelfName(name),
+    getSelfName: async () => await storageManager.getSelfName(),
+    setSelfName: async (name) => await storageManager.setSelfName(name),
   };
 }
