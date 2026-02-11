@@ -58,12 +58,8 @@ describe('Parser Module', () => {
   it('应当能解析包含 Emoji 图片的复杂名称', () => {
     const el = document.createElement('div');
     el.className = 'chat-line';
-    el.innerHTML = `
-      <span class="chat-line-name">[<span class="chat-line-name-content">
-        UserA <img class="pixelart" alt="🌌">
-      </span>]</span>
-      <span class="chat-line-message">编程中</span>
-    `;
+    // 使用单行字符串，避免 HTML 缩进引入多余空格
+    el.innerHTML = '<span class="chat-line-name">[<span class="chat-line-name-content">UserA <img class="pixelart" alt="🌌"></span>]</span> <span class="chat-line-message">编程中</span>';
     
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
     expect(data.sender).toBe('UserA 🌌');

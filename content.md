@@ -1,99 +1,38 @@
-非常感谢你提供的真实 DOM 采样！这对于确保解析逻辑的鲁棒性至关重要。
+这是一个典型的由于 JavaScript 模板字符串中的**换行符和缩进空格**被解析器当作普通文本节点处理而导致的测试失败。
 
-通过分析你提供的片段，我确认了以下关键点：
-1.  **收到私聊 (Incoming Whisper)**：特征是名称节点后跟随 ` whispers: ` 文本，且 `content` 中不包含 "To "。
-2.  **Emoji 名称解析**：名称嵌套在 `.chat-line-name-content` 中，且 Emoji 图片带有 `alt` 属性。
-3.  **系统/元消息**：包含 `.chat-line-meta-line` 或 `.chat-line-system` 类的行，通常不显示名称。
+在真实的 PonyTown DOM 中，`[`、内容和 `]` 之间是没有多余空格的。我在测试用例中为了美观使用了多行 HTML，导致 `customTextContent` 提取到了缩进产生的空白符。我将修正测试用例，使用单行 HTML 字符串来精确模拟真实环境。
 
-我将根据这些发现更新测试套件。
-
-## [WIP] test(parser): 增加收到私聊及复杂 Emoji 名称的解析测试
+## [WIP] fix(tests): 修正测试用例中的 HTML 缩进导致的空白符错误
 
 ### 用户需求
-扩展 `parser.js` 的测试用例，覆盖收到私聊的情况以及包含 Emoji 的复杂名称解析。
+修复 `tests/parser.test.js` 中由于 HTML 模拟代码缩进导致的消息内容解析断言失败。
 
 ### 评论
-使用真实的 DOM 结构作为测试输入能有效发现解析引擎的边界问题。例如，`whispers: ` 关键字的识别以及 `pixelart` 图片 `alt` 属性的提取，都是确保存档可读性的核心。
+在进行 DOM 解析测试时，HTML 字符串的格式必须高度严谨。多行模板字符串中的每一个换行和空格都会被 `customTextContent` 捕获，并最终被 `replace(/\s+/g, ' ')` 转化为单个空格。
 
 ### 目标
-1.  在 `tests/parser.test.js` 中增加“收到私聊”测试。
-2.  增加包含 Emoji 图片的“复杂名称”解析测试。
-3.  增加“系统消息”的解析测试。
-4.  确保所有测试中的用户名均已脱敏（如使用 `UserA`, `UserB`）。
+1.  将 `tests/parser.test.js` 中的测试 HTML 修改为单行形式，消除非预期的空格。
+2.  确保 `data.content` 的断言与真实解析逻辑完全匹配。
 
 ### 基本原理
-我们通过构造精简但结构准确的 HTML 字符串来模拟真实的聊天行。解析引擎会克隆这些节点并遍历其子节点（包括处理 `IMG` 标签），从而验证 `customTextContent` 和 `extractUsefulData` 的协作是否正确。
+通过消除 Mock HTML 中的换行和缩进，我们确保传递给解析器的数据与游戏环境产生的 DOM 字节级一致，从而使断言回归绿色。
 
 ### 标签
-#intent/tooling #flow/ready #priority/medium #comp/tests #scope/dx #ai/instruct #task/domain/testing #task/object/parser-coverage #task/action/expansion #task/state/continue
+#intent/fix #flow/ready #priority/medium #comp/tests #scope/dx #ai/instruct #task/domain/testing #task/object/test-whitespace #task/action/refinement #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 扩展解析器测试用例
+#### Acts 1: 修正测试用例中的 HTML 字符串格式
 
-我们将更新 `tests/parser.test.js`，加入基于真实采样结构的测试断言。
+我们将受影响的测试用例修改为单行 HTML，以保证解析出的字符串不含多余空格。
 
 ~~~~~act
 patch_file
 tests/parser.test.js
 ~~~~~
 ~~~~~javascript.old
-  it('应当能识别发出的私聊 (To ...)', () => {
-    const el = document.createElement('div');
-    // 模拟真实的真实 DOM：To 文本在 name 之前
-    el.className = 'chat-line chat-line-whisper';
-    el.innerHTML = `
-      <span class="chat-line-timestamp">03:03</span>
-      To <span class="chat-line-name">[Target]</span>
-      <span class="chat-line-message">晚好</span>
-    `;
-    
-    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    expect(data.type).toBe('whisper');
-    expect(data.sender).toBe('Me');
-    expect(data.receiver).toBe('Target');
-    expect(data.content).toBe('To [Target] 晚好');
-  });
-
-  it('findActiveTabByClass 应当识别活跃标签页', () => {
-~~~~~
-~~~~~javascript.new
-  it('应当能识别发出的私聊 (To ...)', () => {
-    const el = document.createElement('div');
-    // 模拟真实的真实 DOM：To 文本在 name 之前
-    el.className = 'chat-line chat-line-whisper';
-    el.innerHTML = `
-      <span class="chat-line-timestamp">03:03</span>
-      To <span class="chat-line-name">[UserB]</span>
-      <span class="chat-line-message">晚好</span>
-    `;
-    
-    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    expect(data.type).toBe('whisper');
-    expect(data.sender).toBe('Me');
-    expect(data.receiver).toBe('UserB');
-    expect(data.content).toBe('To [UserB] 晚好');
-  });
-
-  it('应当能识别收到的私聊 (... whispers:)', () => {
-    const el = document.createElement('div');
-    // 模拟真实的真实 DOM：whispers: 文本在 name 之后
-    el.className = 'chat-line chat-line-whisper';
-    el.innerHTML = `
-      <span class="chat-line-timestamp">03:04</span>
-      <span class="chat-line-name">[UserA]</span> whispers:
-      <span class="chat-line-message">你好</span>
-    `;
-    
-    const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    expect(data.type).toBe('whisper');
-    expect(data.sender).toBe('UserA');
-    expect(data.receiver).toBe('Me');
-    expect(data.content).toBe('[UserA] whispers: 你好');
-  });
-
   it('应当能解析包含 Emoji 图片的复杂名称', () => {
     const el = document.createElement('div');
     el.className = 'chat-line';
@@ -110,24 +49,24 @@ tests/parser.test.js
   });
 
   it('应当能解析系统重连等元消息', () => {
+~~~~~
+~~~~~javascript.new
+  it('应当能解析包含 Emoji 图片的复杂名称', () => {
     const el = document.createElement('div');
-    el.className = 'chat-line chat-line-meta-line';
-    el.innerHTML = `
-      <span class="chat-line-timestamp">03:01</span>
-      <span class="chat-line-message">Rejoined</span>
-    `;
+    el.className = 'chat-line';
+    // 使用单行字符串，避免 HTML 缩进引入多余空格
+    el.innerHTML = '<span class="chat-line-name">[<span class="chat-line-name-content">UserA <img class="pixelart" alt="🌌"></span>]</span> <span class="chat-line-message">编程中</span>';
     
     const data = extractUsefulData(el, 'Me', '2023-01-01T10:00:00Z');
-    expect(data.type).toBe('system');
-    expect(data.sender).toBe('System');
-    expect(data.content).toBe('Rejoined');
+    expect(data.sender).toBe('UserA 🌌');
+    expect(data.content).toBe('[UserA 🌌] 编程中');
   });
 
-  it('findActiveTabByClass 应当识别活跃标签页', () => {
+  it('应当能解析系统重连等元消息', () => {
 ~~~~~
 
 ### 下一步建议
 
-1.  **运行测试**: 执行 `npm test`。
-2.  **特殊符号测试**: 考虑测试当 Emoji 的 `alt` 包含私有区字符 (PUA) 时，解析器是否能正确回退到 `aria-label`（你在 `parser.js` 中实现了这个逻辑）。
-3.  **多服务器逻辑测试**: 随着测试的完善，我们可以增加对 `main.js` 中 `updateServer` 逻辑的模拟测试，验证当 `detectedServerName` 改变时 UI 是否正确响应。
+1.  **重新运行测试**: 执行 `npm test`。现在所有解析器的测试用例应该都能顺利通过了。
+2.  **COMMIT 准备**: 随着测试套件的完善，我们现在的代码基础已经非常稳固。你可以考虑将这些改动作为一个完整的 `feat(testing)` 提交到 Git。
+3.  **UI 渲染测试**: 如果你还有余力，可以考虑为 `src/ui/renderer.js` 添加测试，验证 `formatMessageForDisplay` 函数是否能正确处理包含 Emoji 的消息对象。
