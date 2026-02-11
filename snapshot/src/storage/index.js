@@ -1,3 +1,4 @@
+import { IndexedDBAdapter } from './indexed-db-adapter.js';
 import { LocalStorageAdapter } from './local-storage.adapter.js';
 
 /**
@@ -6,19 +7,28 @@ import { LocalStorageAdapter } from './local-storage.adapter.js';
  * This abstracts the storage implementation from the rest of the app.
  */
 class StorageManager {
-  /** @type {import('./local-storage.adapter.js').LocalStorageAdapter} */
   adapter;
 
   constructor() {
-    // For now, we only have one adapter. In the future, this class
-    // would contain logic to decide which adapter to instantiate.
-    this.adapter = new LocalStorageAdapter();
+    this.adapter = null;
   }
 
-  // --- Delegate all methods to the adapter ---
-
-  init() {
-    return this.adapter.init();
+  /**
+   * Initializes the storage subsystem.
+   * This determines which adapter to use and initializes it.
+   * @param {boolean} useIndexedDB - Force use of IndexedDB (for testing or future default).
+   */
+  async init(useIndexedDB = false) {
+    // 策略：如果明确要求使用 IDB，或者未来通过配置决定
+    if (useIndexedDB) {
+      this.adapter = new IndexedDBAdapter();
+    } else {
+      // 默认回退到 LocalStorage (当前阶段)
+      this.adapter = new LocalStorageAdapter();
+    }
+    
+    await this.adapter.init();
+    console.info(`[StorageManager] Initialized with ${this.adapter.constructor.name}`);
   }
 
   loadAllV6() {

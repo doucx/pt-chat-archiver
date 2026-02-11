@@ -8,6 +8,7 @@ describe('Storage Module (Async Manager)', () => {
   });
 
   it('应当能正确保存和读取 V6 消息数据', async () => {
+    await storageManager.init(); // 必须显式初始化
     const mockData = { 'Main Server': { Local: [{ content: 'hello' }] } };
     await storageManager.saveAllV6(mockData);
     const loadedData = await storageManager.loadAllV6();
@@ -16,6 +17,7 @@ describe('Storage Module (Async Manager)', () => {
   });
 
   it('应当能正确管理配置项并提供默认值', async () => {
+    await storageManager.init();
     const defaultConfig = await storageManager.getConfig();
     expect(defaultConfig.pageSize).toBe(1000);
 
@@ -26,6 +28,7 @@ describe('Storage Module (Async Manager)', () => {
   });
 
   it('应当能保存和检索用户昵称', async () => {
+    await storageManager.init();
     await storageManager.setSelfName('TestUser  ');
     const name = await storageManager.getSelfName();
     expect(name).toBe('TestUser'); // 验证 trim
@@ -33,6 +36,7 @@ describe('Storage Module (Async Manager)', () => {
   });
 
   it('清空操作应当移除相关 key', async () => {
+    await storageManager.init();
     await storageManager.saveAllV6({ a: 1 });
     await storageManager.clearAllData();
     const loadedData = await storageManager.loadAllV6();
