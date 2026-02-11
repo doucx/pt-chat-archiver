@@ -19,6 +19,9 @@ class StorageManager {
    * @param {boolean} useIndexedDB - Force use of IndexedDB (for testing or future default).
    */
   async init(useIndexedDB = false) {
+    // 如果已经初始化过且没有强制切换，则直接返回
+    if (this.adapter && !useIndexedDB) return;
+
     // 策略：如果明确要求使用 IDB，或者未来通过配置决定
     if (useIndexedDB) {
       this.adapter = new IndexedDBAdapter();

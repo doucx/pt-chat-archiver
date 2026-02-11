@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createUI } from '../src/ui/index.js';
+import { storageManager } from '../src/storage/index.js';
 import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
@@ -25,7 +26,8 @@ async function renderUI(initialState) {
 describe('UI Integration Smoke Tests', () => {
   let mockAppState;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await storageManager.init();
     mockAppState = {
       'Test Server': {
         Local: Array.from({ length: 250 }, (_, i) => ({
