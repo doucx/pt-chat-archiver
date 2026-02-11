@@ -8,6 +8,9 @@ let domElements = null;
  * @param {string} version - The application version to display in the header.
  */
 export function initDOM(version) {
+  // Reset cache on re-initialization, crucial for testing environments.
+  domElements = null;
+
   const container = document.createElement('div');
   container.id = 'log-archive-ui-container';
   container.innerHTML = getMainContainerHTML(version);
