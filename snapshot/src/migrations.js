@@ -83,6 +83,7 @@ export const MigrationManager = {
 
   /**
    * 执行启动时的静默迁移 (V6 -> V7)
+   * 仅当目标数据库为空时执行，以防止覆盖现有数据。
    * @param {import('./storage/local-storage.adapter.js').LocalStorageAdapter} sourceAdapter
    * @param {import('./storage/indexed-db-adapter.js').IndexedDBAdapter} targetAdapter
    */
@@ -90,9 +91,18 @@ export const MigrationManager = {
     // 检查是否需要从 V6 (LocalStorage) 迁移到 V7 (IndexedDB)
     const v6DataExists = localStorage.getItem(STORAGE_KEY_V6) !== null;
 
-    // 如果源数据存在，且目标适配器是 IndexedDB，则尝试迁移
+    // 如果源数据存在，且目标适配器是 IndexedDB
     if (v6DataExists && targetAdapter.constructor.name === 'IndexedDBAdapter') {
-      console.info('[Migration] 检测到旧版 V6 数据，准备迁移至 IndexedDB...');
+      // 安全检查：只有当 IDB 为空时才执行静默覆盖迁移
+      const currentCount = await targetAdapter.getTotalMessageCount();
+      if (currentCount > 0) {
+        console.warn(
+          `[Migration] 目标数据库中已有 ${currentCount} 条消息，跳过静默迁移以防止覆盖。旧数据保留在 LocalStorage 中等待手动合并。`,
+        );
+        return;
+      }
+
+      console.info('[Migration] 检测到旧版 V6 数据且目标库为空，准备静默迁移至 IndexedDB...');
       await this.migrateV6ToV7(sourceAdapter, targetAdapter);
     }
   },
@@ -179,44 +189,57 @@ export const MigrationManager = {
   },
 
   /**
-   * 检查并触发交互式迁移
+   * 检查并触发交互式迁移/恢复
+   * 在进入游戏服务器后调用，检查是否有任何未合并的残留数据。
    * @param {object} targetStorage - 目标存储实例 (StorageManager)
    * @param {string} serverName - 当前检测到的服务器名
-   * @param {object} currentV6State - 当前内存中的 V6 状态
+   * @param {object} currentV7State - 当前内存中的 V7 状态
    * @param {Function} onMigrated - 迁移成功后的回调函数
    */
   async checkAndTriggerInteractiveMigrations(
     targetStorage,
     serverName,
-    currentV6State,
+    currentV7State,
     onMigrated,
   ) {
     if (!serverName) return;
 
-    // 1. 处理 V5 -> V6
-    // 强制创建一个 LocalStorageAdapter 作为 Source，以确保即使 target 是 IDB 也能读到旧数据
-    const sourceStorage = new LocalStorageAdapter();
-    const v5Data = await sourceStorage.loadAllV5();
+    // 扫描所有遗留数据
+    const legacy = this.scanForLegacyData();
+    if (!legacy.v4 && !legacy.v5 && !legacy.v6) return;
 
-    if (v5Data && Object.keys(v5Data).length > 0) {
-      const confirmMsg = `【数据升级】检测到您的旧版本聊天存档。
+    const versions = [];
+    if (legacy.v6) versions.push('v6');
+    if (legacy.v5) versions.push('v5');
+    if (legacy.v4) versions.push('v4');
 
-是否将其迁移到当前服务器 [${serverName}]？
+    const confirmMsg = `【数据恢复】检测到本地存储中有旧版残留数据 (${versions.join(
+      '/',
+    )})。
 
-注意：如果存档不属于此服务器，请点击“取消”，切换到正确的服务器后再执行此操作。`;
+这可能是因为之前的迁移被跳过，或者数据来自旧版本备份。
+当前数据库已启用 (v7)，建议将这些旧数据合并进来。
 
-      if (confirm(confirmMsg)) {
-        const newV6State = await this.migrateV5toV6(
-          sourceStorage,
-          targetStorage,
-          v5Data,
-          serverName,
-          currentV6State,
-        );
-        onMigrated(newV6State);
+- v6 数据：将按原服务器结构自动合并。
+- v5/v4 数据：将合并到当前服务器 [${serverName}]。
+
+是否立即执行合并？
+(点击“取消”将保留旧数据，您稍后可以在设置中手动处理)`;
+
+    if (confirm(confirmMsg)) {
+      try {
+        console.info('[Migration] 用户确认执行交互式合并...');
+        const newState = await this.recoverAndMergeAll(currentV7State, serverName);
+        
+        // 立即持久化合并后的结果到 v7
+        await targetStorage.saveAllV6(newState);
+        
+        onMigrated(newState);
+        alert('合并成功！旧版残留数据已清理。');
+      } catch (e) {
+        console.error('[Migration] 合并失败:', e);
+        alert(`合并过程中发生错误: ${e.message}\n数据未变更。`);
       }
     }
-
-    // 2. 将来可以在这里添加 V6 -> V7 的检查逻辑
   },
 };
