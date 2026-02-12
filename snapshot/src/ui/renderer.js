@@ -1,6 +1,6 @@
 import { generateStatisticsText } from '../analysis.js';
-import { storageManager } from '../storage/index.js';
-import { formatISOTimeForDisplay, getStorageUsageInMB } from '../utils.js';
+import { storageManager, getStorageUsageInMB } from '../storage/index.js';
+import { formatISOTimeForDisplay } from '../utils.js';
 
 /**
  * Formats a single message object into a display string for the UI or text export.
