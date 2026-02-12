@@ -1,6 +1,6 @@
+import { MigrationManager } from '../migrations.js';
 import { IndexedDBAdapter } from './indexed-db-adapter.js';
 import { LocalStorageAdapter } from './local-storage.adapter.js';
-import { MigrationManager } from '../migrations.js';
 
 /**
  * Manages the storage backend for the application.

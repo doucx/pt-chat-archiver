@@ -1,5 +1,5 @@
 import { generateStatisticsText } from '../analysis.js';
-import { storageManager, getStorageUsageInMB } from '../storage/index.js';
+import { getStorageUsageInMB, storageManager } from '../storage/index.js';
 import { formatISOTimeForDisplay } from '../utils.js';
 
 /**

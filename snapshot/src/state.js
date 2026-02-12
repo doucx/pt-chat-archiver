@@ -53,14 +53,14 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
     // 比较 old 的后缀 和 new 的前缀
     const suffixSigs = oldSigs.slice(-i);
     const prefixSigs = newSigs.slice(0, i);
-    
+
     // 简单的数组比较
     let match = true;
-    for(let k=0; k<i; k++) {
-        if (suffixSigs[k] !== prefixSigs[k]) {
-            match = false;
-            break;
-        }
+    for (let k = 0; k < i; k++) {
+      if (suffixSigs[k] !== prefixSigs[k]) {
+        match = false;
+        break;
+      }
     }
 
     if (match) {
@@ -78,17 +78,17 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
     // 但 newMessages 可能包含我们 filter 掉的东西吗？
     // extractHistoricalChatState 生成的消息通常不含 is_archiver。
     // 所以直接用 newUserMessages 的逻辑是安全的。
-    
+
     // 找到重叠截止点在 newMessages 中的位置
     const lastOverlappingMsg = newUserMessages[overlapLength - 1];
     // 在原始 newMessages 中找到这个消息
     const indexInOriginal = newMessages.indexOf(lastOverlappingMsg);
-    
+
     if (indexInOriginal !== -1) {
-        messagesToAdd = newMessages.slice(indexInOriginal + 1);
+      messagesToAdd = newMessages.slice(indexInOriginal + 1);
     } else {
-        // Fallback (should ideally not happen)
-        messagesToAdd = newMessages.slice(overlapLength);
+      // Fallback (should ideally not happen)
+      messagesToAdd = newMessages.slice(overlapLength);
     }
   } else {
     messagesToAdd = newMessages;
