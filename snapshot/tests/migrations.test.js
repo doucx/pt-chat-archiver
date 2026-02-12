@@ -30,7 +30,7 @@ describe('migrations.js: Migration Logic', () => {
   });
 
   it('V6 -> V7: 即使 LocalStorage 备份因容量不足失败，也应确保数据成功写入 IndexedDB', async () => {
-    const largeData = { 'LargeServer': { 'Local': [{ content: 'some large content' }] } };
+    const largeData = { LargeServer: { Local: [{ content: 'some large content' }] } };
     localStorage.setItem(STORAGE_KEY_V6, JSON.stringify(largeData));
 
     // 1. 模拟 localStorage.setItem 在尝试写入备份键时抛出错误
