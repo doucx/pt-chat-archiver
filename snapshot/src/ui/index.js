@@ -71,8 +71,9 @@ export async function createUI(initialAppState, appCallbacks) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
+    input.style.display = 'none';
 
-    input.onchange = async (e) => {
+    input.onchange = (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
@@ -82,18 +83,31 @@ export async function createUI(initialAppState, appCallbacks) {
           const importedData = JSON.parse(event.target.result);
 
           // 基础结构校验
-          if (typeof importedData !== 'object' || importedData === null || Array.isArray(importedData)) {
+          if (
+            typeof importedData !== 'object' ||
+            importedData === null ||
+            Array.isArray(importedData)
+          ) {
             throw new Error('无效的存档格式：根节点必须是一个对象。');
           }
 
-          // 执行保存
-          await appCallbacks.saveMessagesToStorage(importedData);
+          const serverCount = Object.keys(importedData).length;
+          const warning = `准备导入文件: ${file.name}\n包含 ${serverCount} 个服务器的数据。\n\n【严重警告】\n此操作将完全清空并覆盖当前浏览器的所有本地存档！\n此操作不可撤销。\n\n确定要继续吗？`;
 
-          // 更新内存状态
-          appState = importedData;
+          if (confirm(warning)) {
+            // 1. 更新全局状态引用 (main.js)
+            if (appCallbacks.replaceState) {
+              appCallbacks.replaceState(importedData);
+            }
+            // 2. 更新 UI 本地状态
+            appState = importedData;
 
-          alert('存档导入成功！界面即将刷新。');
-          renderer.render(appState, uiCallbacks);
+            // 3. 持久化
+            await appCallbacks.saveMessagesToStorage(appState);
+
+            alert('存档导入成功！界面即将刷新。');
+            renderer.render(appState, uiCallbacks);
+          }
         } catch (err) {
           console.error('[Archiver] Import failed:', err);
           alert(`导入失败: ${err.message}`);
@@ -102,6 +116,7 @@ export async function createUI(initialAppState, appCallbacks) {
       reader.readAsText(file);
     };
 
+    // 必须直接响应用户操作触发 click，不能有 alert/confirm 阻断
     input.click();
   };
 

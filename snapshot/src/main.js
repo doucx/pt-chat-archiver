@@ -239,6 +239,9 @@ import { debounce, getISOTimestamp } from './utils.js';
       deactivateLogger,
       manualSave: performAutoSave,
       onAutoSaveIntervalChange: startAutoSaveTimer,
+      replaceState: (newState) => {
+        inMemoryChatState = newState;
+      },
     });
 
     await uiControls.checkStorageUsage();

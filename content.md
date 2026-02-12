@@ -1,99 +1,78 @@
-好的，我将为您在设置面板中添加“导入存档”功能。
+## [WIP] fix: 修复导入功能的文件选择器及状态同步问题
 
-由于导入操作会全量覆盖当前数据库中的所有聊天记录，我会按照您的要求加入明显的警告确认弹窗，并使用原生的文件选择器来处理 JSON 文件的读取。
-
-## [WIP] feat: 为设置面板添加数据导入功能
+### 错误分析
+在上一版实现中，`importAllData` 的触发逻辑存在两个严重问题：
+1.  **浏览器安全策略拦截**: 在 `dom.importButton` 的点击事件中，先执行了阻塞式的 `confirm()` 弹窗，导致后续的 `input.click()` 丢失了“用户激活”状态，从而被浏览器拦截，无法弹出文件选择器。
+2.  **状态分离 (State Detachment)**: `createUI` 内部虽然更新了局部的 `appState`，但没有提供回调去更新 `main.js` 中的全局 `inMemoryChatState` 引用。这会导致导入后，新接收到的 WebSocket 消息仍然被写入旧的状态对象中，造成数据丢失和 UI 不同步。
 
 ### 用户需求
-用户需要一个“导入”选项，能够将之前导出的 JSON 格式存档重新加载到插件中，并要求在执行此高风险操作（覆盖现有数据）时显示警告。
+用户点击“导入”应立即弹出文件选择框，选择文件后需进行格式校验和高风险操作确认，最后正确覆盖并同步所有状态。
 
 ### 评论
-这是一个重要的闭环功能。目前插件已经有了“导出”和“下载”功能，增加“导入”功能可以方便用户在不同浏览器或清理浏览器缓存后恢复数据。鉴于当前存储架构（V7/IndexedDB）的 `saveAllV6` 采用的是“清空并重写”策略，这天然符合“覆盖导入”的语义。
+为了解决文件选择器弹出的问题，我们将流程调整为“先选文件，后确认”。为了解决状态分离，我们需要在 `main.js` 向 UI 传递一个 `replaceState` 回调。
 
 ### 目标
-1.  在 `templates.js` 的设置视图中新增“导入存档”按钮。
-2.  在 `dom.js` 中添加该按钮的引用。
-3.  在 `ui/index.js` 中实现文件读取、JSON 解析及数据覆盖逻辑。
-4.  在 `events.js` 中绑定按钮事件并集成 `confirm` 警告逻辑。
+1.  修改 `main.js`，传入 `replaceState` 回调以支持状态的全量替换。
+2.  重构 `src/ui/index.js` 中的 `importAllData`，移除阻塞，实现正确的文件读取、校验、确认和状态更新流程。
+3.  简化 `src/ui/events.js`，移除事件处理器中的 `confirm`，直接调用导入函数。
 
 ### 基本原理
-我们将利用 HTML5 的 `FileReader` API 来读取用户选择的本地文件。在保存数据前，通过 `window.confirm` 弹出两次确认，以确保用户意识到当前存档将被完全覆盖。导入成功后，我们将更新内存中的 `appState` 并触发 UI 重新渲染。
+利用 HTML5 `input[type=file]` 的标准行为，在用户点击按钮时同步触发选择器。在 `FileReader` 读取并解析 JSON 成功后，再弹出确认框。如果用户确认，则同时更新 UI 内部状态和 `main.js` 的全局引用，并持久化到存储。
 
 ### 标签
-#intent/build #flow/ready #priority/medium #comp/ui #comp/storage #concept/ui #scope/ux #ai/instruct #task/domain/ui #task/object/import-feature #task/action/implementation #task/state/begin
+#intent/fix #flow/ready #priority/high #comp/ui #comp/storage #scope/ux #ai/instruct #task/domain/ui #task/object/import-feature #task/action/bug-fix #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 修改 UI 模板，添加导入按钮
+#### Acts 1: 在 main.js 中添加状态替换回调
 
-在“导出 JSON”按钮旁边添加一个“导入存档”按钮。
-
-~~~~~act
-patch_file
-src/ui/templates.js
-~~~~~
-~~~~~javascript.old
-                    <div class="config-actions" style="display: flex; gap: 10px;">
-                        <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复</button>
-                        <button id="log-archive-copy-all-button" class="log-archive-ui-button" style="flex-grow: 1;">导出 JSON</button>
-                        <button id="log-archive-download-button" class="log-archive-ui-button" style="flex-grow: 1;">下载备份</button>
-                    </div>
-~~~~~
-~~~~~javascript.new
-                    <div class="config-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复</button>
-                        <button id="log-archive-copy-all-button" class="log-archive-ui-button" style="flex-grow: 1;">导出 JSON</button>
-                        <button id="log-archive-import-button" class="log-archive-ui-button" style="flex-grow: 1;">📥 导入存档</button>
-                        <button id="log-archive-download-button" class="log-archive-ui-button" style="flex-grow: 1;">下载备份</button>
-                    </div>
-~~~~~
-
-#### Acts 2: 更新 DOM 引用
-
-在 `dom.js` 中增加对新按钮的获取。
+我们需要确保 `inMemoryChatState` 变量能被外部更新，否则导入后的新数据与实时接收的新消息将写入不同的对象。
 
 ~~~~~act
 patch_file
-src/ui/dom.js
+src/main.js
 ~~~~~
 ~~~~~javascript.old
-    copyAllButton: document.getElementById('log-archive-copy-all-button'),
-    clearButton: document.getElementById('log-archive-clear-button'),
-
-    // Pagination Controls
+    // 2. 加载状态与初始化 UI
+    inMemoryChatState = await storageManager.loadAllV6();
+    uiControls = await createUI(inMemoryChatState, {
+      scanAndMergeHistory,
+      saveMessagesToStorage: (state) => storageManager.saveAllV6(state), // Pass a compatible function
+      cleanChannelRecords,
+      detectTotalDuplicates,
+      deactivateLogger,
+      manualSave: performAutoSave,
+      onAutoSaveIntervalChange: startAutoSaveTimer,
+    });
 ~~~~~
 ~~~~~javascript.new
-    copyAllButton: document.getElementById('log-archive-copy-all-button'),
-    importButton: document.getElementById('log-archive-import-button'),
-    clearButton: document.getElementById('log-archive-clear-button'),
-
-    // Pagination Controls
+    // 2. 加载状态与初始化 UI
+    inMemoryChatState = await storageManager.loadAllV6();
+    uiControls = await createUI(inMemoryChatState, {
+      scanAndMergeHistory,
+      saveMessagesToStorage: (state) => storageManager.saveAllV6(state), // Pass a compatible function
+      cleanChannelRecords,
+      detectTotalDuplicates,
+      deactivateLogger,
+      manualSave: performAutoSave,
+      onAutoSaveIntervalChange: startAutoSaveTimer,
+      replaceState: (newState) => {
+        inMemoryChatState = newState;
+      },
+    });
 ~~~~~
 
-#### Acts 3: 在 UI 模块中实现导入逻辑
+#### Acts 2: 重构 UI 层的导入逻辑
 
-在 `src/ui/index.js` 中添加 `importAllData` 函数，负责文件处理和状态更新。
+修正 `importAllData`，采用“先点击 input，后确认”的模式，并正确调用 `replaceState`。
 
 ~~~~~act
 patch_file
 src/ui/index.js
 ~~~~~
 ~~~~~javascript.old
-  const copyAllData = () => {
-    const messages = JSON.stringify(appState, null, 2);
-    navigator.clipboard.writeText(messages);
-  };
-
-  const cleanChannelRecords = async () => {
-~~~~~
-~~~~~javascript.new
-  const copyAllData = () => {
-    const messages = JSON.stringify(appState, null, 2);
-    navigator.clipboard.writeText(messages);
-  };
-
   const importAllData = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -131,61 +110,71 @@ src/ui/index.js
 
     input.click();
   };
-
-  const cleanChannelRecords = async () => {
-~~~~~
-~~~~~act
-patch_file
-src/ui/index.js
-~~~~~
-~~~~~javascript.old
-    cleanChannelRecords,
-    clearAllData,
-    copyAllData,
-    downloadAllData,
-    deleteV6Backup,
-  };
 ~~~~~
 ~~~~~javascript.new
-    cleanChannelRecords,
-    clearAllData,
-    copyAllData,
-    importAllData,
-    downloadAllData,
-    deleteV6Backup,
+  const importAllData = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.style.display = 'none';
+
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const importedData = JSON.parse(event.target.result);
+
+          // 基础结构校验
+          if (
+            typeof importedData !== 'object' ||
+            importedData === null ||
+            Array.isArray(importedData)
+          ) {
+            throw new Error('无效的存档格式：根节点必须是一个对象。');
+          }
+
+          const serverCount = Object.keys(importedData).length;
+          const warning = `准备导入文件: ${file.name}\n包含 ${serverCount} 个服务器的数据。\n\n【严重警告】\n此操作将完全清空并覆盖当前浏览器的所有本地存档！\n此操作不可撤销。\n\n确定要继续吗？`;
+
+          if (confirm(warning)) {
+            // 1. 更新全局状态引用 (main.js)
+            if (appCallbacks.replaceState) {
+              appCallbacks.replaceState(importedData);
+            }
+            // 2. 更新 UI 本地状态
+            appState = importedData;
+
+            // 3. 持久化
+            await appCallbacks.saveMessagesToStorage(appState);
+
+            alert('存档导入成功！界面即将刷新。');
+            renderer.render(appState, uiCallbacks);
+          }
+        } catch (err) {
+          console.error('[Archiver] Import failed:', err);
+          alert(`导入失败: ${err.message}`);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    // 必须直接响应用户操作触发 click，不能有 alert/confirm 阻断
+    input.click();
   };
 ~~~~~
 
-#### Acts 4: 绑定事件并添加警告确认
+#### Acts 3: 移除事件绑定中的阻塞代码
 
-在 `events.js` 中绑定点击事件，并加入警告对话框。
+移除 `dom.importButton` 点击事件中的 `confirm`，确保点击事件能直接传导给 `input.click()`。
 
 ~~~~~act
 patch_file
 src/ui/events.js
 ~~~~~
 ~~~~~javascript.old
-  dom.copyAllButton.addEventListener('click', () => {
-    callbacks.copyAllData();
-    const originalText = dom.copyAllButton.textContent;
-    dom.copyAllButton.textContent = '已复制 JSON!';
-    setTimeout(() => {
-      dom.copyAllButton.textContent = originalText;
-    }, 1500);
-  });
-
-  dom.downloadButton.addEventListener('click', () => callbacks.downloadAllData());
-~~~~~
-~~~~~javascript.new
-  dom.copyAllButton.addEventListener('click', () => {
-    callbacks.copyAllData();
-    const originalText = dom.copyAllButton.textContent;
-    dom.copyAllButton.textContent = '已复制 JSON!';
-    setTimeout(() => {
-      dom.copyAllButton.textContent = originalText;
-    }, 1500);
-  });
-
   dom.importButton.addEventListener('click', () => {
     const warning = '【警告】导入操作将全量覆盖当前数据库中的所有聊天记录。建议在操作前先执行“下载备份”。\n\n确定要继续吗？';
     if (confirm(warning)) {
@@ -194,10 +183,12 @@ src/ui/events.js
       }
     }
   });
-
-  dom.downloadButton.addEventListener('click', () => callbacks.downloadAllData());
+~~~~~
+~~~~~javascript.new
+  dom.importButton.addEventListener('click', () => {
+    callbacks.importAllData();
+  });
 ~~~~~
 
 ### 下一步建议
-- **数据校验增强**: 目前仅检查了根节点是否为对象。建议后续可以增加对 `server -> channel -> message[]` 结构的深度校验，防止用户意外导入格式不兼容的 JSON 导致 UI 渲染错误。
-- **合并导入选项**: 未来可以考虑提供一个“增量导入”选项，通过消息 ID 对比来合并存档，而不是简单的全量覆盖。
+测试导入功能在不同网络环境和数据量下的表现。如果导入的数据量非常大（例如几十 MB 的 JSON），`JSON.parse` 可能会导致主线程短暂卡顿，未来可以考虑将其放入 Web Worker 中处理。
