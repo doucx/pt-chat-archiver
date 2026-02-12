@@ -12,7 +12,10 @@ describe('migrations.js: Migration Logic', () => {
   it('V5 -> V6: 应当将数据归档到指定的服务器节点下', async () => {
     const v5Data = { Local: [{ content: 'msg' }] };
     const currentV6 = {};
+    // 需要根据新的签名传递 source 和 target
+    // 在这个测试中，source 和 target 都是 storageManager (模拟单体 LS 迁移场景)
     const result = await MigrationManager.migrateV5toV6(
+      storageManager,
       storageManager,
       v5Data,
       'Main Server',

@@ -1,5 +1,6 @@
 import { STORAGE_KEY_V6 } from './constants.js';
 import { mergeAndDeduplicateMessages } from './state.js';
+import { LocalStorageAdapter } from './storage/local-storage.adapter.js';
 
 /**
  * 版本迁移管理器
@@ -77,10 +78,11 @@ export const MigrationManager = {
   },
 
   /**
-   * v5 -> v6: 多服务器支持
-   * @param {object} storage - 存储实例 (StorageManager 或 Adapter)
+   * v5 -> v6: 多服务器支持 (支持源/目标分离的管道迁移)
+   * @param {object} source - 源存储适配器 (通常是 LocalStorageAdapter)
+   * @param {object} target - 目标存储适配器 (通常是 IndexedDBAdapter 或 StorageManager)
    */
-  async migrateV5toV6(storage, v5Data, targetServer, currentV6Data) {
+  async migrateV5toV6(source, target, v5Data, targetServer, currentV6Data) {
     console.log(`[Migration] 正在执行 V5 到 V6 迁移，目标服务器: ${targetServer}`);
 
     if (!currentV6Data[targetServer]) {
@@ -94,24 +96,34 @@ export const MigrationManager = {
       }
     }
 
-    await storage.saveAllV6(currentV6Data);
-    await storage.removeV5Data();
+    // 直接写入 Target (IDB)，无需经过 Source (LS) 的 save
+    await target.saveAllV6(currentV6Data);
+    // 从 Source (LS) 移除旧数据
+    await source.removeV5Data();
     console.info('[Migration] V5 -> V6 迁移完成，旧数据已移除。');
     return currentV6Data;
   },
 
   /**
    * 检查并触发交互式迁移
-   * @param {object} storage - 存储实例
+   * @param {object} targetStorage - 目标存储实例 (StorageManager)
    * @param {string} serverName - 当前检测到的服务器名
    * @param {object} currentV6State - 当前内存中的 V6 状态
    * @param {Function} onMigrated - 迁移成功后的回调函数
    */
-  async checkAndTriggerInteractiveMigrations(storage, serverName, currentV6State, onMigrated) {
+  async checkAndTriggerInteractiveMigrations(
+    targetStorage,
+    serverName,
+    currentV6State,
+    onMigrated,
+  ) {
     if (!serverName) return;
 
     // 1. 处理 V5 -> V6
-    const v5Data = await storage.loadAllV5();
+    // 强制创建一个 LocalStorageAdapter 作为 Source，以确保即使 target 是 IDB 也能读到旧数据
+    const sourceStorage = new LocalStorageAdapter();
+    const v5Data = await sourceStorage.loadAllV5();
+
     if (v5Data && Object.keys(v5Data).length > 0) {
       const confirmMsg = `【数据升级】检测到您的旧版本聊天存档。
 
@@ -120,7 +132,13 @@ export const MigrationManager = {
 注意：如果存档不属于此服务器，请点击“取消”，切换到正确的服务器后再执行此操作。`;
 
       if (confirm(confirmMsg)) {
-        const newV6State = await this.migrateV5toV6(v5Data, serverName, currentV6State);
+        const newV6State = await this.migrateV5toV6(
+          sourceStorage,
+          targetStorage,
+          v5Data,
+          serverName,
+          currentV6State,
+        );
         onMigrated(newV6State);
       }
     }
