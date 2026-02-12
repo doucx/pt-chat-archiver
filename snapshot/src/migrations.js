@@ -1,4 +1,4 @@
-import { STORAGE_KEY_V6 } from './constants.js';
+import { OLD_STORAGE_KEY_V4, STORAGE_KEY_V5, STORAGE_KEY_V6 } from './constants.js';
 import { mergeAndDeduplicateMessages } from './state.js';
 import { LocalStorageAdapter } from './storage/local-storage.adapter.js';
 
@@ -7,6 +7,80 @@ import { LocalStorageAdapter } from './storage/local-storage.adapter.js';
  * 处理从旧版本到新版本的数据演进逻辑
  */
 export const MigrationManager = {
+  /**
+   * 扫描 localStorage 中是否存在旧版残留数据
+   */
+  scanForLegacyData() {
+    return {
+      v4: localStorage.getItem(OLD_STORAGE_KEY_V4) !== null,
+      v5: localStorage.getItem(STORAGE_KEY_V5) !== null,
+      v6: localStorage.getItem(STORAGE_KEY_V6) !== null,
+    };
+  },
+
+  /**
+   * 执行手动恢复合并逻辑
+   * @param {object} currentV7State - 当前内存中的 V7 状态
+   * @param {string} targetServer - v4/v5 数据归属的目标服务器
+   * @returns {Promise<object>} - 合并后的新状态
+   */
+  async recoverAndMergeAll(currentV7State, targetServer) {
+    const source = new LocalStorageAdapter();
+    let mergedState = { ...currentV7State };
+
+    // 1. 处理 V6 (具有服务器结构)
+    if (localStorage.getItem(STORAGE_KEY_V6)) {
+      const v6Data = await source.loadAllV6();
+      for (const server in v6Data) {
+        if (!mergedState[server]) {
+          mergedState[server] = v6Data[server];
+        } else {
+          // 将旧数据合并到当前数据的前面
+          for (const channel in v6Data[server]) {
+            mergedState[server][channel] = mergeAndDeduplicateMessages(
+              v6Data[server][channel], // Legacy goes first
+              mergedState[server][channel] || [],
+            );
+          }
+        }
+      }
+      localStorage.removeItem(STORAGE_KEY_V6);
+    }
+
+    // 2. 处理 V5 (无服务器结构)
+    if (localStorage.getItem(STORAGE_KEY_V5)) {
+      const v5Data = await source.loadAllV5();
+      if (v5Data && targetServer) {
+        if (!mergedState[targetServer]) mergedState[targetServer] = {};
+        for (const channel in v5Data) {
+          mergedState[targetServer][channel] = mergeAndDeduplicateMessages(
+            v5Data[channel],
+            mergedState[targetServer][channel] || [],
+          );
+        }
+      }
+      localStorage.removeItem(STORAGE_KEY_V5);
+    }
+
+    // 3. 处理 V4
+    if (localStorage.getItem(OLD_STORAGE_KEY_V4)) {
+      const v4Data = await source.loadAllV4();
+      if (v4Data && targetServer) {
+        if (!mergedState[targetServer]) mergedState[targetServer] = {};
+        // v4 结构与 v5 类似
+        for (const channel in v4Data) {
+          mergedState[targetServer][channel] = mergeAndDeduplicateMessages(
+            v4Data[channel],
+            mergedState[targetServer][channel] || [],
+          );
+        }
+      }
+      localStorage.removeItem(OLD_STORAGE_KEY_V4);
+    }
+
+    return mergedState;
+  },
+
   /**
    * 执行启动时的静默迁移 (V6 -> V7)
    * @param {import('./storage/local-storage.adapter.js').LocalStorageAdapter} sourceAdapter

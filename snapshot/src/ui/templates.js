@@ -88,6 +88,17 @@ export const getMainContainerHTML = (version) => `
                     </div>
                 </div>
             </div>
+            <div id="log-archive-legacy-recovery-group" class="config-group" style="margin-top: 10px; display: none; padding: 10px; background: rgba(200, 150, 50, 0.1); border: 1px dashed var(--color-warning);">
+                <label style="color: var(--color-warning);">发现残留数据!</label>
+                <div id="log-archive-legacy-info" class="info-text-dim" style="margin-bottom: 8px;">
+                    检测到旧版本 (v4/v5/v6) 的聊天记录尚未合并到当前数据库。
+                </div>
+                <button id="log-archive-recover-button" class="log-archive-ui-button" style="background-color: var(--color-warning); color: #000;">尝试合并旧数据</button>
+                <div class="info-text-dim" style="margin-top: 6px; font-size: 0.8em;">
+                    此操作将把 localStorage 中的旧记录合并到当前存档的开头，并自动处理重复项。
+                </div>
+            </div>
+
             <div id="log-archive-delete-backup-group" class="config-group" style="margin-top: auto; display: none;">
                 <label>兼容性清理</label>
                 <button id="log-archive-delete-backup-button" class="log-archive-ui-button">删除旧版 LocalStorage 备份</button>

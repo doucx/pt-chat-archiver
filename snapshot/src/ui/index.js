@@ -1,3 +1,4 @@
+import { MigrationManager } from '../migrations.js';
 import { storageManager } from '../storage/index.js';
 import { getDOMElements, initDOM } from './dom.js';
 import { bindUIEvents } from './events.js';
@@ -174,6 +175,26 @@ export async function createUI(initialAppState, appCallbacks) {
     await storageManager.deleteV6Backup();
   };
 
+  const recoverLegacyData = async (targetServer) => {
+    try {
+      const newState = await MigrationManager.recoverAndMergeAll(appState, targetServer);
+
+      // 1. 更新全局引用
+      if (appCallbacks.replaceState) {
+        appCallbacks.replaceState(newState);
+      }
+      appState = newState;
+
+      // 2. 立即持久化到 v7 (IndexedDB)
+      await appCallbacks.saveMessagesToStorage(appState);
+
+      alert('数据恢复合并完成！已自动清理旧版残留。');
+    } catch (err) {
+      console.error('[Recovery] Failed:', err);
+      alert('恢复失败，详情请查看控制台。');
+    }
+  };
+
   const uiCallbacks = {
     ...appCallbacks,
     cleanChannelRecords,
@@ -182,6 +203,7 @@ export async function createUI(initialAppState, appCallbacks) {
     importAllData,
     downloadAllData,
     deleteV6Backup,
+    recoverLegacyData,
   };
 
   await bindUIEvents({

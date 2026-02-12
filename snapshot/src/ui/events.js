@@ -167,6 +167,21 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     }
   });
 
+  dom.recoverButton.addEventListener('click', async () => {
+    const { viewingServer } = uiState.getState();
+    const confirmMsg = `【数据恢复】此操作将尝试从 localStorage 提取旧数据并合并到当前数据库。
+
+- v6 数据将按服务器自动归类。
+- v4/v5 数据将合并到您当前查看的服务器: [${viewingServer}]。
+
+建议在此操作前先“下载备份”以防万一。是否继续？`;
+
+    if (confirm(confirmMsg)) {
+      await callbacks.recoverLegacyData(viewingServer);
+      fullRender();
+    }
+  });
+
   // --- Data export ---
   dom.copyButton.addEventListener('click', () => {
     if (dom.logDisplay.value) {
