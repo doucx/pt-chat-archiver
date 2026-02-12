@@ -195,6 +195,11 @@ export async function createUI(initialAppState, appCallbacks) {
     }
   };
 
+  const clearLegacyData = async () => {
+    MigrationManager.clearAllLegacyData();
+    alert('旧版残留数据已清理。');
+  };
+
   const uiCallbacks = {
     ...appCallbacks,
     cleanChannelRecords,
@@ -204,6 +209,7 @@ export async function createUI(initialAppState, appCallbacks) {
     downloadAllData,
     deleteV6Backup,
     recoverLegacyData,
+    clearLegacyData,
   };
 
   await bindUIEvents({

@@ -19,6 +19,15 @@ export const MigrationManager = {
   },
 
   /**
+   * 清理所有旧版残留数据 Key
+   */
+  clearAllLegacyData() {
+    localStorage.removeItem(OLD_STORAGE_KEY_V4);
+    localStorage.removeItem(STORAGE_KEY_V5);
+    localStorage.removeItem(STORAGE_KEY_V6);
+  },
+
+  /**
    * 执行手动恢复合并逻辑
    * @param {object} currentV7State - 当前内存中的 V7 状态
    * @param {string} targetServer - v4/v5 数据归属的目标服务器

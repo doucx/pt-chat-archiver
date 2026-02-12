@@ -66,6 +66,7 @@ export function getDOMElements() {
     legacyRecoveryGroup: document.getElementById('log-archive-legacy-recovery-group'),
     legacyInfoText: document.getElementById('log-archive-legacy-info'),
     recoverButton: document.getElementById('log-archive-recover-button'),
+    ignoreLegacyButton: document.getElementById('log-archive-ignore-legacy-button'),
     deleteBackupGroup: document.getElementById('log-archive-delete-backup-group'),
     deleteBackupButton: document.getElementById('log-archive-delete-backup-button'),
     cleanButton: document.getElementById('log-archive-clean-button'),

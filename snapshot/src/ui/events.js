@@ -182,6 +182,17 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     }
   });
 
+  dom.ignoreLegacyButton.addEventListener('click', async () => {
+    if (
+      confirm(
+        '【严重警告】此操作将永久删除 localStorage 中的旧版聊天记录残留。此操作不可撤销，确定要清理吗？',
+      )
+    ) {
+      await callbacks.clearLegacyData();
+      fullRender();
+    }
+  });
+
   // --- Data export ---
   dom.copyButton.addEventListener('click', () => {
     if (dom.logDisplay.value) {

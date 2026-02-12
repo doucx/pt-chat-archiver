@@ -1,41 +1,33 @@
-## [WIP] fix: 优化启动时迁移逻辑以防止数据覆盖
+这是一个非常合理的补充。对于那些已经确认不再需要旧版数据（或者已经手动导出过）的用户，提供一个“一键清理”的选项不仅能释放浏览器存储空间（`localStorage` 的 5MB 限制非常宝贵），还能消除设置页面中那个显眼的警告。
 
-### 错误分析
-当前 `runSilentMigrations` 逻辑过于激进。当 `localStorage` 中存在残留的 v6 数据（可能源于之前的迁移失败或多标签页操作）时，它会在启动时无条件地将其读取并**覆盖**写入到 IndexedDB。
+我将在“旧版数据恢复中心”中添加一个“放弃并清理旧数据”的按钮，并确保它有足够的二次确认保护。
 
-如果用户已经在 IndexedDB (v7) 中积累了新数据，这种覆盖行为会导致 v7 数据丢失。
-
-此外，用户需要在启动时获知存在残留数据，并有机会选择“合并”而不是“被覆盖”。
+## [WIP] feat: 添加清理旧版 localStorage 残留数据的功能
 
 ### 用户需求
-1.  **安全性**：当 v7 数据库（IndexedDB）中已有数据时，禁止启动时的静默迁移覆盖操作。
-2.  **交互性**：在游戏启动并检测到服务器后，如果发现残留的旧版数据，应主动询问用户是否合并。
+在检测到旧版残留数据时，除了合并外，用户应该有权选择直接删除这些数据，以保持存储环境的整洁并释放 `localStorage` 空间。
 
 ### 评论
-这是一个关键的数据安全补丁。它将“破坏性覆盖”转变为“安全的增量合并”，并利用了我们刚刚构建的通用恢复逻辑。
+控制权是用户体验的核心。通过提供删除选项，我们解决了“不想合并但警告一直存在”的困扰。这在逻辑上与“恢复”功能互补。
 
 ### 目标
-1.  修改 `runSilentMigrations`：增加前置检查，仅当目标数据库为空时才执行静默迁移。
-2.  重构 `checkAndTriggerInteractiveMigrations`：使其利用 `recoverAndMergeAll` 通用逻辑，不仅处理 v5，也能处理 v6 残留，并在检测到时引导用户合并。
+1.  在 `MigrationManager` 中实现一键清理所有旧版 Key 的逻辑。
+2.  在 UI 的恢复区域添加“放弃并清理”按钮。
+3.  实现带有危险提示的二次确认逻辑。
 
 ### 基本原理
-通过 `targetAdapter.getTotalMessageCount()` 判断目标库状态。
--   **为空**：维持原有的静默迁移便利性（针对首次升级用户）。
--   **非空**：跳过静默迁移，将控制权交给后续的 `checkAndTriggerInteractiveMigrations`。
--   **交互检查**：在 `main.js` 检测到服务器后触发。如果此时 LS 中仍有数据（说明静默迁移被跳过或未执行），则弹出确认框，调用 `recoverAndMergeAll` 将旧数据追加合并到现有 v7 数据中。
+我们在 `MigrationManager` 中添加 `clearAllLegacyData` 函数。在 UI 层，我们将该按钮标记为危险操作（红色），并确保在用户确认后不仅清理 Key，还能立即触发 UI 刷新以隐藏恢复区域。
 
 ### 标签
-#intent/fix #flow/ready #priority/critical #comp/runtime #concept/state #scope/core #ai/instruct #task/domain/storage #task/object/migration-logic #task/action/refactor #task/state/continue
+#intent/build #flow/ready #priority/medium #comp/ui #concept/navigation #scope/ux #ai/brainstorm #task/domain/storage #task/object/legacy-cleanup #task/action/implementation #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 增强迁移管理器的安全性与交互逻辑
+#### Acts 1: 扩展迁移逻辑支持清理
 
-我们将修改 `migrations.js`。
-1.  在 `runSilentMigrations` 中增加非空检查。
-2.  重写 `checkAndTriggerInteractiveMigrations`，使其不再局限于 v5，而是通用的“残留数据扫描与合并”。
+在 `migrations.js` 中添加清理函数。
 
 ~~~~~act
 patch_file
@@ -43,164 +35,203 @@ src/migrations.js
 ~~~~~
 ~~~~~javascript.old
   /**
-   * 执行启动时的静默迁移 (V6 -> V7)
-   * @param {import('./storage/local-storage.adapter.js').LocalStorageAdapter} sourceAdapter
-   * @param {import('./storage/indexed-db-adapter.js').IndexedDBAdapter} targetAdapter
+   * 扫描 localStorage 中是否存在旧版残留数据
    */
-  async runSilentMigrations(sourceAdapter, targetAdapter) {
-    // 检查是否需要从 V6 (LocalStorage) 迁移到 V7 (IndexedDB)
-    const v6DataExists = localStorage.getItem(STORAGE_KEY_V6) !== null;
-
-    // 如果源数据存在，且目标适配器是 IndexedDB，则尝试迁移
-    if (v6DataExists && targetAdapter.constructor.name === 'IndexedDBAdapter') {
-      console.info('[Migration] 检测到旧版 V6 数据，准备迁移至 IndexedDB...');
-      await this.migrateV6ToV7(sourceAdapter, targetAdapter);
-    }
+  scanForLegacyData() {
+    return {
+      v4: localStorage.getItem(OLD_STORAGE_KEY_V4) !== null,
+      v5: localStorage.getItem(STORAGE_KEY_V5) !== null,
+      v6: localStorage.getItem(STORAGE_KEY_V6) !== null,
+    };
   },
 
   /**
-   * V6 (LocalStorage) -> V7 (IndexedDB)
+   * 执行手动恢复合并逻辑
 ~~~~~
 ~~~~~javascript.new
   /**
-   * 执行启动时的静默迁移 (V6 -> V7)
-   * 仅当目标数据库为空时执行，以防止覆盖现有数据。
-   * @param {import('./storage/local-storage.adapter.js').LocalStorageAdapter} sourceAdapter
-   * @param {import('./storage/indexed-db-adapter.js').IndexedDBAdapter} targetAdapter
+   * 扫描 localStorage 中是否存在旧版残留数据
    */
-  async runSilentMigrations(sourceAdapter, targetAdapter) {
-    // 检查是否需要从 V6 (LocalStorage) 迁移到 V7 (IndexedDB)
-    const v6DataExists = localStorage.getItem(STORAGE_KEY_V6) !== null;
-
-    // 如果源数据存在，且目标适配器是 IndexedDB
-    if (v6DataExists && targetAdapter.constructor.name === 'IndexedDBAdapter') {
-      // 安全检查：只有当 IDB 为空时才执行静默覆盖迁移
-      const currentCount = await targetAdapter.getTotalMessageCount();
-      if (currentCount > 0) {
-        console.warn(
-          `[Migration] 目标数据库中已有 ${currentCount} 条消息，跳过静默迁移以防止覆盖。旧数据保留在 LocalStorage 中等待手动合并。`,
-        );
-        return;
-      }
-
-      console.info('[Migration] 检测到旧版 V6 数据且目标库为空，准备静默迁移至 IndexedDB...');
-      await this.migrateV6ToV7(sourceAdapter, targetAdapter);
-    }
+  scanForLegacyData() {
+    return {
+      v4: localStorage.getItem(OLD_STORAGE_KEY_V4) !== null,
+      v5: localStorage.getItem(STORAGE_KEY_V5) !== null,
+      v6: localStorage.getItem(STORAGE_KEY_V6) !== null,
+    };
   },
 
   /**
-   * V6 (LocalStorage) -> V7 (IndexedDB)
+   * 清理所有旧版残留数据 Key
+   */
+  clearAllLegacyData() {
+    localStorage.removeItem(OLD_STORAGE_KEY_V4);
+    localStorage.removeItem(STORAGE_KEY_V5);
+    localStorage.removeItem(STORAGE_KEY_V6);
+  },
+
+  /**
+   * 执行手动恢复合并逻辑
+~~~~~
+
+#### Acts 2: 更新 UI 模板增加清理按钮
+
+~~~~~act
+patch_file
+src/ui/templates.js
+~~~~~
+~~~~~javascript.old
+                <div id="log-archive-legacy-info" class="info-text-dim" style="margin-bottom: 8px;">
+                    检测到旧版本 (v4/v5/v6) 的聊天记录尚未合并到当前数据库。
+                </div>
+                <button id="log-archive-recover-button" class="log-archive-ui-button" style="background-color: var(--color-warning); color: #000;">尝试合并旧数据</button>
+                <div class="info-text-dim" style="margin-top: 6px; font-size: 0.8em;">
+                    此操作将把 localStorage 中的旧记录合并到当前存档的开头，并自动处理重复项。
+                </div>
+~~~~~
+~~~~~javascript.new
+                <div id="log-archive-legacy-info" class="info-text-dim" style="margin-bottom: 8px;">
+                    检测到旧版本 (v4/v5/v6) 的聊天记录尚未合并到当前数据库。
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="log-archive-recover-button" class="log-archive-ui-button" style="background-color: var(--color-warning); color: #000; flex-grow: 1;">尝试合并旧数据</button>
+                    <button id="log-archive-ignore-legacy-button" class="log-archive-ui-button" style="background-color: var(--color-danger); color: #fff; flex-grow: 1;">放弃并清理</button>
+                </div>
+                <div class="info-text-dim" style="margin-top: 6px; font-size: 0.8em;">
+                    此操作将把 localStorage 中的旧记录合并到当前存档的开头，并自动处理重复项。
+                </div>
+~~~~~
+
+#### Acts 3: 映射 DOM 元素并绑定事件
+
+~~~~~act
+patch_file
+src/ui/dom.js
+~~~~~
+~~~~~javascript.old
+    legacyRecoveryGroup: document.getElementById('log-archive-legacy-recovery-group'),
+    legacyInfoText: document.getElementById('log-archive-legacy-info'),
+    recoverButton: document.getElementById('log-archive-recover-button'),
+    deleteBackupGroup: document.getElementById('log-archive-delete-backup-group'),
+~~~~~
+~~~~~javascript.new
+    legacyRecoveryGroup: document.getElementById('log-archive-legacy-recovery-group'),
+    legacyInfoText: document.getElementById('log-archive-legacy-info'),
+    recoverButton: document.getElementById('log-archive-recover-button'),
+    ignoreLegacyButton: document.getElementById('log-archive-ignore-legacy-button'),
+    deleteBackupGroup: document.getElementById('log-archive-delete-backup-group'),
 ~~~~~
 
 ~~~~~act
 patch_file
-src/migrations.js
+src/ui/events.js
 ~~~~~
 ~~~~~javascript.old
-  /**
-   * 检查并触发交互式迁移
-   * @param {object} targetStorage - 目标存储实例 (StorageManager)
-   * @param {string} serverName - 当前检测到的服务器名
-   * @param {object} currentV6State - 当前内存中的 V6 状态
-   * @param {Function} onMigrated - 迁移成功后的回调函数
-   */
-  async checkAndTriggerInteractiveMigrations(
-    targetStorage,
-    serverName,
-    currentV6State,
-    onMigrated,
-  ) {
-    if (!serverName) return;
-
-    // 1. 处理 V5 -> V6
-    // 强制创建一个 LocalStorageAdapter 作为 Source，以确保即使 target 是 IDB 也能读到旧数据
-    const sourceStorage = new LocalStorageAdapter();
-    const v5Data = await sourceStorage.loadAllV5();
-
-    if (v5Data && Object.keys(v5Data).length > 0) {
-      const confirmMsg = `【数据升级】检测到您的旧版本聊天存档。
-
-是否将其迁移到当前服务器 [${serverName}]？
-
-注意：如果存档不属于此服务器，请点击“取消”，切换到正确的服务器后再执行此操作。`;
-
-      if (confirm(confirmMsg)) {
-        const newV6State = await this.migrateV5toV6(
-          sourceStorage,
-          targetStorage,
-          v5Data,
-          serverName,
-          currentV6State,
-        );
-        onMigrated(newV6State);
-      }
-    }
-
-    // 2. 将来可以在这里添加 V6 -> V7 的检查逻辑
-  },
-};
-~~~~~
-~~~~~javascript.new
-  /**
-   * 检查并触发交互式迁移/恢复
-   * 在进入游戏服务器后调用，检查是否有任何未合并的残留数据。
-   * @param {object} targetStorage - 目标存储实例 (StorageManager)
-   * @param {string} serverName - 当前检测到的服务器名
-   * @param {object} currentV7State - 当前内存中的 V7 状态
-   * @param {Function} onMigrated - 迁移成功后的回调函数
-   */
-  async checkAndTriggerInteractiveMigrations(
-    targetStorage,
-    serverName,
-    currentV7State,
-    onMigrated,
-  ) {
-    if (!serverName) return;
-
-    // 扫描所有遗留数据
-    const legacy = this.scanForLegacyData();
-    if (!legacy.v4 && !legacy.v5 && !legacy.v6) return;
-
-    const versions = [];
-    if (legacy.v6) versions.push('v6');
-    if (legacy.v5) versions.push('v5');
-    if (legacy.v4) versions.push('v4');
-
-    const confirmMsg = `【数据恢复】检测到本地存储中有旧版残留数据 (${versions.join(
-      '/',
-    )})。
-
-这可能是因为之前的迁移被跳过，或者数据来自旧版本备份。
-当前数据库已启用 (v7)，建议将这些旧数据合并进来。
-
-- v6 数据：将按原服务器结构自动合并。
-- v5/v4 数据：将合并到当前服务器 [${serverName}]。
-
-是否立即执行合并？
-(点击“取消”将保留旧数据，您稍后可以在设置中手动处理)`;
-
     if (confirm(confirmMsg)) {
-      try {
-        console.info('[Migration] 用户确认执行交互式合并...');
-        const newState = await this.recoverAndMergeAll(currentV7State, serverName);
-        
-        // 立即持久化合并后的结果到 v7
-        await targetStorage.saveAllV6(newState);
-        
-        onMigrated(newState);
-        alert('合并成功！旧版残留数据已清理。');
-      } catch (e) {
-        console.error('[Migration] 合并失败:', e);
-        alert(`合并过程中发生错误: ${e.message}\n数据未变更。`);
-      }
+      await callbacks.recoverLegacyData(viewingServer);
+      fullRender();
     }
-  },
-};
+  });
+
+  // --- Data export ---
+~~~~~
+~~~~~javascript.new
+    if (confirm(confirmMsg)) {
+      await callbacks.recoverLegacyData(viewingServer);
+      fullRender();
+    }
+  });
+
+  dom.ignoreLegacyButton.addEventListener('click', async () => {
+    if (
+      confirm(
+        '【严重警告】此操作将永久删除 localStorage 中的旧版聊天记录残留。此操作不可撤销，确定要清理吗？',
+      )
+    ) {
+      await callbacks.clearLegacyData();
+      fullRender();
+    }
+  });
+
+  // --- Data export ---
+~~~~~
+
+#### Acts 4: 在 UI 入口实现清理回调
+
+~~~~~act
+patch_file
+src/ui/index.js
+~~~~~
+~~~~~javascript.old
+  const recoverLegacyData = async (targetServer) => {
+    try {
+      const newState = await MigrationManager.recoverAndMergeAll(appState, targetServer);
+
+      // 1. 更新全局引用
+      if (appCallbacks.replaceState) {
+        appCallbacks.replaceState(newState);
+      }
+      appState = newState;
+
+      // 2. 立即持久化到 v7 (IndexedDB)
+      await appCallbacks.saveMessagesToStorage(appState);
+
+      alert('数据恢复合并完成！已自动清理旧版残留。');
+    } catch (err) {
+      console.error('[Recovery] Failed:', err);
+      alert('恢复失败，详情请查看控制台。');
+    }
+  };
+
+  const uiCallbacks = {
+    ...appCallbacks,
+    cleanChannelRecords,
+    clearAllData,
+    copyAllData,
+    importAllData,
+    downloadAllData,
+    deleteV6Backup,
+    recoverLegacyData,
+  };
+~~~~~
+~~~~~javascript.new
+  const recoverLegacyData = async (targetServer) => {
+    try {
+      const newState = await MigrationManager.recoverAndMergeAll(appState, targetServer);
+
+      // 1. 更新全局引用
+      if (appCallbacks.replaceState) {
+        appCallbacks.replaceState(newState);
+      }
+      appState = newState;
+
+      // 2. 立即持久化到 v7 (IndexedDB)
+      await appCallbacks.saveMessagesToStorage(appState);
+
+      alert('数据恢复合并完成！已自动清理旧版残留。');
+    } catch (err) {
+      console.error('[Recovery] Failed:', err);
+      alert('恢复失败，详情请查看控制台。');
+    }
+  };
+
+  const clearLegacyData = async () => {
+    MigrationManager.clearAllLegacyData();
+    alert('旧版残留数据已清理。');
+  };
+
+  const uiCallbacks = {
+    ...appCallbacks,
+    cleanChannelRecords,
+    clearAllData,
+    copyAllData,
+    importAllData,
+    downloadAllData,
+    deleteV6Backup,
+    recoverLegacyData,
+    clearLegacyData,
+  };
 ~~~~~
 
 ### 下一步建议
-我们已经构建了非常健壮的迁移和恢复机制。
-下一步建议进行一次全面的**代码清理 (Cleanup)**。
-- 移除 `migrations.js` 中不再被引用的旧函数（如 `migrateV5toV6`，现在逻辑已被 `recoverAndMergeAll` 囊括，或者保留但标记为 deprecated）。
-- 检查 `LocalStorageAdapter` 中是否还有冗余的旧代码。
-- 统一 `Act` 和 `Instruction` 的命名规范。
+-   **存储配额监控**：随着数据迁移到 IndexedDB，建议在未来的版本中添加一个可视化的百分比进度条或磁盘配额检测，让用户知道 IndexedDB 的占用情况。
+-   **自动静默清理**：如果在启动时静默迁移成功且验证无误，可以考虑在下一次启动时静默删除 `_backup` 键。

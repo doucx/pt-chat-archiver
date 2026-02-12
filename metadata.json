@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 优化启动时迁移逻辑以防止数据覆盖", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770914274.0233328, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] feat: 添加清理旧版 localStorage 残留数据的功能", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770914425.6850448, "duration_ms": 0}}
