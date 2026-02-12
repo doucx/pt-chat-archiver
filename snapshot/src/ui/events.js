@@ -189,6 +189,15 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     }, 1500);
   });
 
+  dom.importButton.addEventListener('click', () => {
+    const warning = '【警告】导入操作将全量覆盖当前数据库中的所有聊天记录。建议在操作前先执行“下载备份”。\n\n确定要继续吗？';
+    if (confirm(warning)) {
+      if (confirm('最后确认：点击确定后，现有的所有本地存档将被选中的文件内容彻底替换。')) {
+        callbacks.importAllData();
+      }
+    }
+  });
+
   dom.downloadButton.addEventListener('click', () => callbacks.downloadAllData());
 
   // --- Initial value setup ---

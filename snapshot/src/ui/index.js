@@ -67,6 +67,44 @@ export async function createUI(initialAppState, appCallbacks) {
     navigator.clipboard.writeText(messages);
   };
 
+  const importAllData = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const importedData = JSON.parse(event.target.result);
+
+          // 基础结构校验
+          if (typeof importedData !== 'object' || importedData === null || Array.isArray(importedData)) {
+            throw new Error('无效的存档格式：根节点必须是一个对象。');
+          }
+
+          // 执行保存
+          await appCallbacks.saveMessagesToStorage(importedData);
+
+          // 更新内存状态
+          appState = importedData;
+
+          alert('存档导入成功！界面即将刷新。');
+          renderer.render(appState, uiCallbacks);
+        } catch (err) {
+          console.error('[Archiver] Import failed:', err);
+          alert(`导入失败: ${err.message}`);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    input.click();
+  };
+
   const cleanChannelRecords = async () => {
     // 兼容 V6 结构的重复检测
     let totalToClean = 0;
@@ -121,6 +159,7 @@ export async function createUI(initialAppState, appCallbacks) {
     cleanChannelRecords,
     clearAllData,
     copyAllData,
+    importAllData,
     downloadAllData,
     deleteV6Backup,
   };
