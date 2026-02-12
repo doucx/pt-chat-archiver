@@ -167,6 +167,32 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     }
   });
 
+  dom.recoverButton.addEventListener('click', async () => {
+    const { viewingServer } = uiState.getState();
+    const confirmMsg = `【数据恢复】此操作将尝试从 localStorage 提取旧数据并合并到当前数据库。
+
+- v6 数据将按服务器自动归类。
+- v4/v5 数据将合并到您当前查看的服务器: [${viewingServer}]。
+
+建议在此操作前先“下载备份”以防万一。是否继续？`;
+
+    if (confirm(confirmMsg)) {
+      await callbacks.recoverLegacyData(viewingServer);
+      fullRender();
+    }
+  });
+
+  dom.ignoreLegacyButton.addEventListener('click', async () => {
+    if (
+      confirm(
+        '【严重警告】此操作将永久删除 localStorage 中的旧版聊天记录残留。此操作不可撤销，确定要清理吗？',
+      )
+    ) {
+      await callbacks.clearLegacyData();
+      fullRender();
+    }
+  });
+
   // --- Data export ---
   dom.copyButton.addEventListener('click', () => {
     if (dom.logDisplay.value) {

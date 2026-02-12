@@ -1,4 +1,5 @@
 import { generateStatisticsText } from '../analysis.js';
+import { MigrationManager } from '../migrations.js';
 import { getStorageUsageInMB, storageManager } from '../storage/index.js';
 import { formatISOTimeForDisplay } from '../utils.js';
 
@@ -140,6 +141,19 @@ export function createRenderer(dom, uiState) {
       storageManager.getTotalMessageCount().then((count) => {
         dom.configMsgCount.textContent = `存档消息总数: ${count.toLocaleString()} 条`;
       });
+
+      // 检查是否有旧版残留数据
+      const legacy = MigrationManager.scanForLegacyData();
+      if (legacy.v4 || legacy.v5 || legacy.v6) {
+        dom.legacyRecoveryGroup.style.display = 'block';
+        const versions = [];
+        if (legacy.v4) versions.push('v4');
+        if (legacy.v5) versions.push('v5');
+        if (legacy.v6) versions.push('v6');
+        dom.legacyInfoText.textContent = `检测到旧版本 (${versions.join('/')}) 的残留数据。`;
+      } else {
+        dom.legacyRecoveryGroup.style.display = 'none';
+      }
 
       // 检查是否有备份
       if (storageManager.hasV6Backup()) {
