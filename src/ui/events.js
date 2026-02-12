@@ -189,6 +189,10 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     }, 1500);
   });
 
+  dom.importButton.addEventListener('click', () => {
+    callbacks.importAllData();
+  });
+
   dom.downloadButton.addEventListener('click', () => callbacks.downloadAllData());
 
   // --- Initial value setup ---

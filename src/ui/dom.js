@@ -67,6 +67,7 @@ export function getDOMElements() {
     deleteBackupButton: document.getElementById('log-archive-delete-backup-button'),
     cleanButton: document.getElementById('log-archive-clean-button'),
     copyAllButton: document.getElementById('log-archive-copy-all-button'),
+    importButton: document.getElementById('log-archive-import-button'),
     clearButton: document.getElementById('log-archive-clear-button'),
 
     // Pagination Controls
