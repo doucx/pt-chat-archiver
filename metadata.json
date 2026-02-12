@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] test: 增加迁移过程对 LocalStorage 容量限制的容错测试", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770901249.5454855, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(migrations): 增强迁移逻辑对 LS 空间不足的容错性", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770901444.055721, "duration_ms": 0}}

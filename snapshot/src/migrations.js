@@ -42,12 +42,22 @@ export const MigrationManager = {
       await target.saveConfig(config);
       await target.setSelfName(selfName);
 
-      // 3. 验证与清理 (暂不删除，改为重命名备份，以防万一)
-      const raw = localStorage.getItem(STORAGE_KEY_V6);
-      localStorage.setItem(`${STORAGE_KEY_V6}_backup`, raw);
-      localStorage.removeItem(STORAGE_KEY_V6);
+      // 3. 验证与清理
+      // 尝试备份旧数据，如果空间不足则跳过备份，优先保证迁移完成
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_V6);
+        localStorage.setItem(`${STORAGE_KEY_V6}_backup`, raw);
+        console.info('[Migration] V6 -> V7 迁移成功！旧数据已备份为 _backup');
+      } catch (backupError) {
+        console.warn(
+          '[Migration] 备份旧数据失败 (可能是空间不足)，将跳过备份步骤直接清理旧数据以释放空间。',
+          backupError,
+        );
+      }
 
-      console.info('[Migration] V6 -> V7 迁移成功！旧数据已备份为 _backup');
+      // 无论备份是否成功，只要新数据已安全写入 IDB，就移除旧 key
+      // 这既防止了下次启动重复迁移，也能立即释放 LocalStorage 空间
+      localStorage.removeItem(STORAGE_KEY_V6);
     } catch (e) {
       console.error('[Migration] V6 -> V7 迁移失败，已中止操作:', e);
       throw e; // 抛出异常阻断启动，防止数据不一致
