@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(migrations): 增强迁移逻辑对 LS 空间不足的容错性", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770901444.055721, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test: 实现 V5 直通 V7 的内存迁移管道测试", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770902286.1282332, "duration_ms": 0}}

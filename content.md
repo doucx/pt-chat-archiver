@@ -1,77 +1,115 @@
-[简要回答]
+你的分析非常深刻，直接指出了当前架构的一个潜在死结：
 
-## [WIP] fix(migrations): 增强迁移逻辑对 LS 空间不足的容错性
+1.  **V5->V6 的隐患**：现有的 `migrateV5toV6` 确实是先 `saveAllV6` 后 `removeV5Data`。如果 `target` 是 LocalStorage，这会导致存储占用暂时翻倍，在接近上限时必挂无疑。
+2.  **V5->V7 的盲区**：目前的 `main.js` 初始化了 IndexedDB。但是 `IndexedDBAdapter.loadAllV5` 返回的是 `null`（因为它只管 IDB）。这意味着：**如果不修改逻辑，现在的系统在 IDB 模式下根本检测不到 V5 的旧数据！**
+
+我们需要实现一个 **“内存直通车” (In-Memory Pipeline)**：
+- **读取端**: 强制使用 `LocalStorageAdapter` 读取 V5。
+- **转换端**: 在内存中合并/转换。
+- **写入端**: 使用当前的 `storage` (即 IDB) 直接写入 V7 格式。
+- **清理端**: 调用读取端的 `removeV5Data` 清理 LS。
+
+这样，中间状态（V6 Object）只存在于内存中，直接落盘为 V7（IDB），完全绕过了 LocalStorage 的写入限制。
+
+## [WIP] test: 实现 V5 直通 V7 的内存迁移管道测试
 
 ### 用户需求
-在数据迁移（V6 LocalStorage -> V7 IndexedDB）过程中，如果因为 LocalStorage 空间已满导致“创建备份副本”这一步失败，系统不应抛出异常中止迁移。相反，系统应捕获该错误，跳过备份步骤，并继续清理旧数据，以确保数据成功进入 IndexedDB 并避免重复迁移。
+1.  修复在 IDB 模式下无法检测到 V5 数据的问题。
+2.  实现 V5 -> V7 的直接迁移，无需在 LocalStorage 中创建临时的 V6 副本，从而避开 5MB 限制。
+3.  确保即使 LocalStorage 处于只读状态（满），也能完成迁移并删除旧数据。
 
 ### 评论
-这是一个关键的健壮性改进。在浏览器存储受限的环境下，优先保全“活数据”（迁移到更大容量的 IDB）远比保全“死备份”（留在 LS 中）重要。如果因为做不了备份而导致连正库都建不起来，那是本末倒置。
+这个重构一石二鸟：既解决了 IDB 模式下的遗留数据发现问题，又解决了存储空间瓶颈问题。我们不再需要专门的“内存适配器”，因为 JavaScript 的对象（Object）本身就是内存适配器。我们要做的只是正确地“导流”。
 
 ### 目标
-1.  修改 `src/migrations.js` 中的 `migrateV6ToV7` 方法。
-2.  将 `localStorage.setItem(..., _backup)` 操作包裹在独立的 `try-catch` 块中。
-3.  确保即使备份失败，`localStorage.removeItem` 依然执行，防止下次启动重复触发迁移。
+1.  创建一个新的测试文件 `tests/migrations_pipeline.test.js`。
+2.  测试用例 1：断言在 LS 写入失败（模拟满）的情况下，V5 数据能成功迁移到 Mock 的 IDB Adapter 中，并从 LS 中清除。
+3.  测试用例 2：验证 `migrateV5toV6` 能够正确分离 Source（读取/删除）和 Target（写入）。
 
 ### 基本原理
-我们采用“尽力而为（Best-Effort）”的策略处理备份。
-1.  **核心路径**（读取 LS -> 写入 IDB）必须成功。如果这步失败，整个迁移应当中止（保持现有逻辑）。
-2.  **辅助路径**（备份 LS 数据）是可选的。如果因 `QuotaExceededError` 失败，我们记录警告但视为迁移成功。
-3.  **清理路径**（移除 LS 源数据）必须在核心路径成功后执行，无论辅助路径是否成功。这能释放紧缺的 LS 空间，并标记迁移完成。
+我们将重构 `migrateV5toV6` 函数签名，使其接受 `sourceAdapter` 和 `targetAdapter`。
+- `sourceAdapter` (LS): 负责 `loadAllV5` 和 `removeV5Data`。
+- `targetAdapter` (IDB): 负责 `saveAllV6` (内部自动转为 V7)。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/runtime #concept/state #scope/core #ai/instruct #task/domain/storage #task/object/migration-resilience #task/action/implementation #task/state/continue
+#intent/refine #flow/ready #priority/high #comp/runtime #concept/state #scope/core #ai/instruct #task/domain/storage #task/object/migration-pipeline #task/action/test-logic #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 增强 `migrateV6ToV7` 的容错性
-
-我们将重构 `migrateV6ToV7` 方法，将备份逻辑隔离。
+#### Acts 1: 创建 V5->V7 管道测试
 
 ~~~~~act
-patch_file
-src/migrations.js
+write_file
+tests/migrations_pipeline.test.js
 ~~~~~
-~~~~~javascript.old
-      // 3. 验证与清理 (暂不删除，改为重命名备份，以防万一)
-      const raw = localStorage.getItem(STORAGE_KEY_V6);
-      localStorage.setItem(`${STORAGE_KEY_V6}_backup`, raw);
-      localStorage.removeItem(STORAGE_KEY_V6);
+~~~~~javascript
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { STORAGE_KEY_V5 } from '../src/constants.js';
+import { MigrationManager } from '../src/migrations.js';
+import { LocalStorageAdapter } from '../src/storage/local-storage.adapter.js';
 
-      console.info('[Migration] V6 -> V7 迁移成功！旧数据已备份为 _backup');
-    } catch (e) {
-      console.error('[Migration] V6 -> V7 迁移失败，已中止操作:', e);
-      throw e; // 抛出异常阻断启动，防止数据不一致
-    }
-  },
-~~~~~
-~~~~~javascript.new
-      // 3. 验证与清理
-      // 尝试备份旧数据，如果空间不足则跳过备份，优先保证迁移完成
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY_V6);
-        localStorage.setItem(`${STORAGE_KEY_V6}_backup`, raw);
-        console.info('[Migration] V6 -> V7 迁移成功！旧数据已备份为 _backup');
-      } catch (backupError) {
-        console.warn(
-          '[Migration] 备份旧数据失败 (可能是空间不足)，将跳过备份步骤直接清理旧数据以释放空间。',
-          backupError,
-        );
-      }
+describe('Migration Pipeline (V5 -> V7)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
 
-      // 无论备份是否成功，只要新数据已安全写入 IDB，就移除旧 key
-      // 这既防止了下次启动重复迁移，也能立即释放 LocalStorage 空间
-      localStorage.removeItem(STORAGE_KEY_V6);
-    } catch (e) {
-      console.error('[Migration] V6 -> V7 迁移失败，已中止操作:', e);
-      throw e; // 抛出异常阻断启动，防止数据不一致
-    }
-  },
+  it('应当支持源(LS)与目标(IDB)分离，从而在 LS 无法写入时完成迁移', async () => {
+    // 1. 准备 V5 数据
+    const v5Data = { 'OldChannel': [{ content: 'legacy msg', time: '2023-01-01T00:00:00.000Z' }] };
+    localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(v5Data));
+
+    // 2. 模拟 LS 满（写入抛错），但允许删除
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    // spyOn removeItem to ensure it's called
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
+
+    // 3. 构造适配器
+    // Source: 真实的 LocalStorageAdapter (受限于上面的 mock)
+    const sourceAdapter = new LocalStorageAdapter();
+    
+    // Target: Mock 的 IDB Adapter，模拟写入成功
+    const targetAdapter = {
+      saveAllV6: vi.fn().mockResolvedValue(),
+      loadAllV6: vi.fn().mockResolvedValue({}), // 初始为空
+    };
+
+    // 4. 执行迁移
+    // 我们期望 migrateV5toV6 能够接受分离的 source 和 target
+    // 目标服务器: 'TargetServer'
+    // 当前内存状态: {}
+    const newV6State = await MigrationManager.migrateV5toV6(
+      sourceAdapter, // Source: 负责读 V5 和 删 V5
+      targetAdapter, // Target: 负责写 V6/V7
+      v5Data,
+      'TargetServer',
+      {}
+    );
+
+    // 5. 断言
+    
+    // A. 内存状态更新正确
+    expect(newV6State['TargetServer']['OldChannel'][0].content).toBe('legacy msg');
+
+    // B. Target (IDB) 的保存方法被调用 (数据流向了 IDB)
+    expect(targetAdapter.saveAllV6).toHaveBeenCalledWith(newV6State);
+
+    // C. Source (LS) 的删除方法被调用 (旧数据被清理)
+    // 即使 setItem 坏了，removeItem 应该工作
+    expect(removeItemSpy).toHaveBeenCalledWith(STORAGE_KEY_V5);
+  });
+});
 ~~~~~
 
 ### 下一步建议
 
-1.  **验证测试**: 再次运行 `npm test tests/migrations.test.js`。现在所有测试（包括我们之前添加的 `QuotaExceededError` 场景）都应该通过。
-2.  **检查其他路径**: 审查 V5->V6 的迁移逻辑（`migrateV5toV6`）。目前它是直接 `removeV5Data` 而没有尝试备份，这在逻辑上是安全的（不增加空间消耗），因此无需修改。
+1.  **运行测试**: `npm test tests/migrations_pipeline.test.js`。预期会失败，因为目前的 `migrateV5toV6` 函数签名和内部逻辑不支持 source/target 分离（它只接受一个 `storage` 参数并在其上同时调用 save 和 remove）。
+2.  **重构实现**:
+    - 修改 `migrateV5toV6` 的签名，接受 `(source, target, ...)`。
+    - 更新 `src/migrations.js` 中的逻辑，使用 `source.removeV5Data()` 和 `target.saveAllV6()`。
+    - 更新 `checkAndTriggerInteractiveMigrations`，在其中显式实例化 `new LocalStorageAdapter()` 作为 source，并将当前的 `storage` (IDB) 作为 target。
+3.  **验证**: 再次运行测试。
