@@ -105,7 +105,12 @@ export async function createUI(initialAppState, appCallbacks) {
             // 3. 持久化
             await appCallbacks.saveMessagesToStorage(appState);
 
-            alert('存档导入成功！界面即将刷新。');
+            const originalText = dom.importButton.textContent;
+            dom.importButton.textContent = '✅ 导入成功';
+            setTimeout(() => {
+              dom.importButton.textContent = originalText;
+            }, 2000);
+
             renderer.render(appState, uiCallbacks);
           }
         } catch (err) {
