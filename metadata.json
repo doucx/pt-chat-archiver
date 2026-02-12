@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] style: 优化导入成功的交互反馈", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770912187.1097028, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] feat(ui): 实现存档导入功能及状态同步机制", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770912311.2048163, "duration_ms": 0}}

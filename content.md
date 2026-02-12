@@ -1,57 +1,54 @@
-好的，这个反馈非常专业。使用非阻塞的按钮状态反馈替代模态对话框（alert）不仅能降低用户的操作焦虑，也符合现代 Web UI 的设计直觉（如您代码中已有的“复制成功”和“保存成功”的处理逻辑）。
+好的，我们已经完成了“导入存档”功能的开发与交互优化。现在将这些更改作为一个完整的逻辑单元提交到 Git 仓库。
 
-## [WIP] style: 优化导入成功的交互反馈
+## [COMMIT] feat(ui): 实现存档导入功能及状态同步机制
 
 ### 用户需求
-将导入成功后的 `alert` 弹窗移除，改为在导入按钮上显示临时的“导入成功”状态，以减少用户的操作压力并避免“刷新页面”带来的误导。
+提交并固化新开发的“导入存档”功能，确保用户能够通过 JSON 文件恢复历史数据。
 
 ### 评论
-模态对话框（alert）会强制中断用户心流，且“界面即将刷新”确实容易被误解为整个浏览器标签页的重载，从而让用户担心当前未保存的状态丢失。通过按钮文字反馈（Text Feedback）是一种更轻量、优雅的交互方式。
+这次提交涵盖了从 UI 模板更新、DOM 绑定、异步文件读取逻辑到全局状态同步机制的完整实现。通过引入 `replaceState` 回调，解决了导入后可能出现的内存对象不同步问题，并提供了符合项目风格的非阻塞交互反馈。
 
 ### 目标
-1.  移除 `src/ui/index.js` 中导入成功后的 `alert` 调用。
-2.  实现导入按钮的临时文字切换逻辑（显示“✅ 导入成功” 2秒后恢复）。
+1.  将受影响的源文件添加到 Git 暂存区。
+2.  创建一个包含详细说明的提交。
 
 ### 基本原理
-利用之前在 `createUI` 中已经获取到的 `dom` 引用，直接修改 `dom.importButton.textContent`。这与项目中“手动保存”和“复制内容”按钮的反馈机制保持了高度一致性。
+按照项目规范，将所有相关的修改（`main.js` 中的架构调整、`ui/` 下的逻辑与表现层修改）合并提交。
 
 ### 标签
-#intent/tune #flow/ready #priority/low #comp/ui #scope/ux #ai/refine #task/domain/ui #task/object/import-feature #task/action/tune #task/state/continue
+#intent/build #flow/done #priority/medium #comp/ui #comp/storage #scope/ux #ai/delegate #task/domain/ui #task/object/import-feature #task/action/integration #task/state/end
 
 ---
 
 ### Script
 
-#### Acts 1: 优化导入成功后的反馈逻辑
+#### Acts 1: 提交变更
 
-修改 `src/ui/index.js` 中的 `importAllData` 函数，替换 `alert` 为按钮文字反馈。
+我们将所有涉及导入功能修改的文件添加到暂存区并执行提交。
 
 ~~~~~act
-patch_file
+git_add
+src/main.js
+src/ui/templates.js
+src/ui/dom.js
 src/ui/index.js
+src/ui/events.js
 ~~~~~
-~~~~~javascript.old
-            // 3. 持久化
-            await appCallbacks.saveMessagesToStorage(appState);
 
-            alert('存档导入成功！界面即将刷新。');
-            renderer.render(appState, uiCallbacks);
-          }
+~~~~~act
+git_commit
 ~~~~~
-~~~~~javascript.new
-            // 3. 持久化
-            await appCallbacks.saveMessagesToStorage(appState);
+~~~~~text
+feat(ui): implement archive import feature with state synchronization
 
-            const originalText = dom.importButton.textContent;
-            dom.importButton.textContent = '✅ 导入成功';
-            setTimeout(() => {
-              dom.importButton.textContent = originalText;
-            }, 2000);
-
-            renderer.render(appState, uiCallbacks);
-          }
+- Added "Import Archive" button to the settings panel.
+- Implemented file reading logic using FileReader API.
+- Integrated high-risk operation warnings (double-confirm) before overwriting data.
+- Introduced `replaceState` callback in `createUI` to ensure the global `inMemoryChatState` is updated upon import.
+- Replaced modal alerts with non-blocking button text feedback for a better UX.
+- Ensured the file picker is triggered correctly by adhering to browser user-activation policies.
 ~~~~~
 
 ### 下一步建议
-- **统一反馈时长**: 目前项目中不同按钮的 `setTimeout` 回复时间（1500ms 或 2000ms）不尽相同，未来可以考虑在 `constants.js` 中定义一个 `UI_FEEDBACK_DURATION` 常量进行统一管理。
-- **导入后的视图定位**: 导入后 UI 会重新渲染，如果导入的数据非常多，建议默认将视图定位到第一个服务器的第一个频道，或者保持在当前用户正在查看的服务器上。目前 `renderer.render` 已经能较好地处理基础展示。
+- **回归测试**: 建议手动执行一次“导出 -> 清空 -> 导入”的完整流程，验证在 IndexedDB 环境下大数据量导入的性能表现。
+- **文档更新**: 如果有用户手册或 README，建议更新说明，告知用户如何利用导出/导入功能进行跨设备存档迁移。
