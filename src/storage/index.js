@@ -1,8 +1,6 @@
+import { MigrationManager } from '../migrations.js';
 import { IndexedDBAdapter } from './indexed-db-adapter.js';
 import { LocalStorageAdapter } from './local-storage.adapter.js';
-// 避免循环依赖，我们将在 init 方法内部动态导入 MigrationManager，或者将其作为依赖注入
-// 但由于 MigrationManager 是单例对象，直接导入通常也可行，只要小心循环引用
-// 这里我们假设 main.js 会协调这一过程，或者在这里动态导入
 
 /**
  * Manages the storage backend for the application.
@@ -36,8 +34,6 @@ class StorageManager {
       // LocalStorageAdapter 不需要 await init() 因为它是同步模拟的，但为了接口一致性...
       await sourceAdapter.init();
 
-      // 动态导入以避免潜在的循环依赖问题 (storage/index.js <-> migrations.js)
-      const { MigrationManager } = await import('../migrations.js');
       await MigrationManager.runSilentMigrations(sourceAdapter, targetAdapter);
 
       this.adapter = targetAdapter;
@@ -118,3 +114,12 @@ class StorageManager {
 
 // Export a singleton instance
 export const storageManager = new StorageManager();
+
+/**
+ * 计算存储占用空间（辅助函数）。
+ * @returns {Promise<number>} - 占用的空间大小，单位是 MB。
+ */
+export async function getStorageUsageInMB() {
+  const sizeInBytes = await storageManager.getRawSize();
+  return sizeInBytes / (1024 * 1024);
+}

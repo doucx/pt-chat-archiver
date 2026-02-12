@@ -100,15 +100,29 @@ function identifyBurstDuplicates(records) {
   const BURST_COUNT_THRESHOLD = 20;
   const BURST_TIME_THRESHOLD_MS = 1000;
   const is_in_burst = new Array(records.length).fill(false);
-  if (records.length >= BURST_COUNT_THRESHOLD) {
-    for (let i = 0; i <= records.length - BURST_COUNT_THRESHOLD; i++) {
+
+  // 过滤掉 archiver 消息，仅基于用户消息计算 Burst
+  // 我们通过映射索引来回填 is_in_burst 数组
+  const userMsgIndices = [];
+  for (let i = 0; i < records.length; i++) {
+    if (!records[i].is_archiver) userMsgIndices.push(i);
+  }
+
+  if (userMsgIndices.length >= BURST_COUNT_THRESHOLD) {
+    for (let k = 0; k <= userMsgIndices.length - BURST_COUNT_THRESHOLD; k++) {
       try {
-        const startTime = new Date(records[i].time).getTime();
-        const endTime = new Date(records[i + BURST_COUNT_THRESHOLD - 1].time).getTime();
+        const startIdx = userMsgIndices[k];
+        const endIdx = userMsgIndices[k + BURST_COUNT_THRESHOLD - 1];
+
+        const startTime = new Date(records[startIdx].time).getTime();
+        const endTime = new Date(records[endIdx].time).getTime();
+
         if (Number.isNaN(startTime) || Number.isNaN(endTime)) continue;
+
         if (endTime - startTime < BURST_TIME_THRESHOLD_MS) {
-          for (let j = i; j < i + BURST_COUNT_THRESHOLD; j++) {
-            is_in_burst[j] = true;
+          // 标记这一段范围内的所有用户消息
+          for (let m = k; m < k + BURST_COUNT_THRESHOLD; m++) {
+            is_in_burst[userMsgIndices[m]] = true;
           }
         }
       } catch (e) {}
@@ -128,14 +142,24 @@ export function cleanChannelRecords(records) {
   let removedCount = 0;
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
+
+    // 彻底忽略 archiver 消息，它们不参与重复检测，也不应该阻断 content 的连续性判断
+    if (record.is_archiver) {
+      cleanedRecords.push(record);
+      continue;
+    }
+
     const content = record.content;
     const is_duplicate = content != null && seen_contents.has(content);
+    // 只有非历史导入的、且处于爆发期的重复消息才会被删除
     const should_delete = !record.is_historical && is_duplicate && is_in_burst[i];
+
     if (!should_delete) {
       cleanedRecords.push(record);
     } else {
       removedCount++;
     }
+
     if (content != null) seen_contents.add(content);
   }
   return { cleanedRecords, removedCount };
@@ -154,6 +178,8 @@ export function detectTotalDuplicates(messagesByChannel) {
     const seen_contents = new Set();
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
+      if (record.is_archiver) continue; // 忽略标记
+
       const content = record.content;
       if (
         !record.is_historical &&
