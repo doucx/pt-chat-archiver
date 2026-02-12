@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "biome Capture: M renderer.js, M style.css", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770846379.9554744, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(core): 增强消息合并算法与重复清理逻辑", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770890521.9535944, "duration_ms": 0}}
