@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M analysis.js, M state.js, M index.js ... and 1 more files", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770890966.6671083, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: A CHANGELOG.md, M README.md, M package.json", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770895847.402635, "duration_ms": 0}}

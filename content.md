@@ -4,9 +4,8 @@
 
 ### 📝 变更文件摘要:
 ```
-src/analysis.js      | 22 +++++++++++-----------
- src/state.js         | 24 ++++++++++++------------
- src/storage/index.js |  2 +-
- src/ui/renderer.js   |  2 +-
- 4 files changed, 25 insertions(+), 25 deletions(-)
+CHANGELOG.md | 72 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ README.md    | 54 ++++++++++++++++++++++-----------------------
+ package.json |  2 +-
+ 3 files changed, 99 insertions(+), 29 deletions(-)
 ```
