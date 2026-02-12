@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] refactor: 消除循环依赖并解决构建警告", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770890867.6909778, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] fix: 增强去重算法并消除循环依赖", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1770890951.120318, "duration_ms": 0}}
