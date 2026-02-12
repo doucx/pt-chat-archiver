@@ -35,7 +35,7 @@ export const MigrationManager = {
    */
   async recoverAndMergeAll(currentV7State, targetServer) {
     const source = new LocalStorageAdapter();
-    let mergedState = { ...currentV7State };
+    const mergedState = { ...currentV7State };
 
     // 1. 处理 V6 (具有服务器结构)
     if (localStorage.getItem(STORAGE_KEY_V6)) {
@@ -222,9 +222,7 @@ export const MigrationManager = {
     if (legacy.v5) versions.push('v5');
     if (legacy.v4) versions.push('v4');
 
-    const confirmMsg = `【数据恢复】检测到本地存储中有旧版残留数据 (${versions.join(
-      '/',
-    )})。
+    const confirmMsg = `【数据恢复】检测到本地存储中有旧版残留数据 (${versions.join('/')})。
 
 这可能是因为之前的迁移被跳过，或者数据来自旧版本备份。
 当前数据库已启用 (v7)，建议将这些旧数据合并进来。
@@ -239,10 +237,10 @@ export const MigrationManager = {
       try {
         console.info('[Migration] 用户确认执行交互式合并...');
         const newState = await this.recoverAndMergeAll(currentV7State, serverName);
-        
+
         // 立即持久化合并后的结果到 v7
         await targetStorage.saveAllV6(newState);
-        
+
         onMigrated(newState);
         alert('合并成功！旧版残留数据已清理。');
       } catch (e) {
