@@ -11,6 +11,7 @@ import {
 import { addMessageToSyntheticChannelIfNeeded, mergeAndDeduplicateMessages } from './state.js';
 import { storageManager } from './storage/index.js';
 import { createUI } from './ui/index.js';
+import { generateULID } from './utils.js';
 import { debounce, getISOTimestamp } from './utils.js';
 
 (async () => {
@@ -40,10 +41,13 @@ import { debounce, getISOTimestamp } from './utils.js';
 
     const current_tab = findActiveTabByClass(elements.tabs.innerHTML);
     const selfName = (await storageManager.getSelfName()) || '';
-    const messages = [];
     const chatLines = Array.from(elements.chatLog.children);
     const currentDate = new Date();
     let lastTimeParts = null;
+
+    // 1. 倒序遍历：确定每条消息的绝对时间（处理跨天逻辑）
+    // 我们将结果存入临时数组，因为我们需要正序来生成单调递增的 ID
+    const tempItems = [];
 
     for (let i = chatLines.length - 1; i >= 0; i--) {
       const element = chatLines[i];
@@ -64,13 +68,35 @@ import { debounce, getISOTimestamp } from './utils.js';
       const localDateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')} ${timeText}`;
       const isoTimeApproximation = new Date(localDateString.replace(/-/g, '/')).toISOString();
 
-      const messageData = extractUsefulData(element, selfName, isoTimeApproximation);
+      tempItems.unshift({ element, isoTime: isoTimeApproximation });
+    }
+
+    // 2. 正序遍历：生成消息并确保批次内 ID 单调递增
+    const messages = [];
+    let lastCalculatedTimestamp = 0;
+
+    for (const item of tempItems) {
+      let timestamp = new Date(item.isoTime).getTime();
+
+      // [核心修复] 批次内单调性保证
+      // 如果计算出的时间戳小于等于上一条，说明在一分钟内，强制微调 ID 时间戳
+      if (timestamp <= lastCalculatedTimestamp) {
+        timestamp = lastCalculatedTimestamp + 1;
+      }
+      lastCalculatedTimestamp = timestamp;
+
+      // 使用微调后的时间戳生成数据（这将影响生成的 ID）
+      const adjustedIsoTime = new Date(timestamp).toISOString();
+      const messageData = extractUsefulData(item.element, selfName, adjustedIsoTime);
+
       if (messageData?.content) {
         messageData.is_historical = true;
+        // 注意：messageData.time 现在包含了毫秒级微调。
+        // 这对于排序是必要的，且不会影响 UI 显示（格式化函数会忽略毫秒）。
         messages.push(messageData);
       }
     }
-    messages.reverse();
+
     return { current_tab, messages };
   }
 
