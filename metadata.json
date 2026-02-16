@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] test: 增加历史记录排序与 ULID 单调性回归测试", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1771265804.5977097, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test: 修正测试用例以正确模拟重叠合并", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1771265960.476398, "duration_ms": 0}}
