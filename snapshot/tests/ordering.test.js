@@ -1,44 +1,3 @@
-好的，我理解了。这实际上是一个分布式系统中常见的“逻辑时钟与物理时钟冲突”的问题。在我们的场景中，物理时钟（DOM 中的文本）因为精度丢失（00秒）而“倒退”了，但逻辑顺序（DOM 中的节点顺序）是确定的。
-
-我将创建一个名为 `tests/ordering.test.js` 的集成测试文件。该测试将模拟以下失效场景：
-1.  **已有状态**：包含一条 10:00:32 的高精度实时消息。
-2.  **回扫数据**：包含一条 10:00:00 的低精度历史消息（逻辑上在实时消息之后）。
-3.  **合并后断言**：验证所有消息的 ID 是否符合其在数组中的索引顺序（即 ID 必须单调递增）。
-
-在当前代码逻辑下，这个测试必定会失败（Red），因为目前的 `mergeAndDeduplicateMessages` 仅处理内容合并，而不纠正 ID。
-
-## [WIP] test: 增加历史记录排序与 ULID 单调性回归测试
-
-### 用户需求
-捕获并复现当历史记录解析精度丢失（由 DOM 解析产生的 00 秒）时，导致消息在数据库中排序颠倒的问题。需要确保 ULID 严格遵循逻辑加入顺序，而不仅仅是文本上的时间戳。
-
-### 评论
-这是一个关键的架构改进。依靠时间戳生成 ID 虽然方便，但在精度受限的数据源（DOM）面前会失效。通过 TDD 我们可以确保后续的修复逻辑不仅解决了“显示”问题，更解决了“持久化后的检索排序”问题。
-
-### 目标
-1.  模拟具有高精度 ID 的 Live 消息。
-2.  模拟具有低精度（分钟对齐）ID 的 History 消息，且该消息逻辑上出现在 Live 消息之后。
-3.  验证合并后的结果集中，索引靠后的消息其 ID 字典序必须大于索引靠前的消息。
-
-### 基本原理
-ULID 的设计初衷是可排序的。如果我们能证明在“时间倒流”的边界条件下，系统能通过推断逻辑顺序（Sequence Repair）来重写 ID，就能保证 IndexedDB 等依赖 ID 排序的存储引擎能正确还原聊天流。
-
-### 标签
-#intent/tooling #flow/ready #priority/high #comp/tests #concept/state #ai/delegate #task/domain/testing #task/object/ulid-monotonicity #task/action/integration #task/state/begin
-
----
-
-### Script
-
-#### Acts 1: 创建复现排序故障的测试用例
-
-该测试会手动模拟 `extractHistoricalChatState` 产生的低精度数据与已有高精度数据的合并。
-
-~~~~~act
-write_file
-tests/ordering.test.js
-~~~~~
-~~~~~javascript
 import { describe, expect, it } from 'vitest';
 import { generateULID } from '../src/utils.js';
 import { mergeAndDeduplicateMessages } from '../src/state.js';
@@ -114,9 +73,3 @@ describe('Message Ordering and ULID Monotonicity', () => {
     expect(messages[1].id).toBeGreaterThan(messages[0].id);
   });
 });
-~~~~~
-
-### 下一步建议
-1.  **运行测试**：执行 `npm test tests/ordering.test.js` 确认测试失败（Red）。
-2.  **重构 Parser**：修改 `extractHistoricalChatState`，确保在一次扫描中生成的 ID 序列是严格递增的。
-3.  **重构 Merge 逻辑**：在 `scanAndMergeHistory` 中引入“序列 ID 修复”步骤，在合并后检查并重写那些违反单调性的 ID。
