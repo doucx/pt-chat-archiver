@@ -2,7 +2,6 @@ import './ui/style.css';
 import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
 import { SELF_NAME_KEY } from './constants.js';
 import { MigrationManager } from './migrations.js';
-import { generateULID } from './utils.js';
 import {
   extractServerFromDOM,
   extractUsefulData,
@@ -12,6 +11,7 @@ import {
 import { addMessageToSyntheticChannelIfNeeded, mergeAndDeduplicateMessages } from './state.js';
 import { storageManager } from './storage/index.js';
 import { createUI } from './ui/index.js';
+import { generateULID } from './utils.js';
 import { debounce, getISOTimestamp } from './utils.js';
 
 (async () => {

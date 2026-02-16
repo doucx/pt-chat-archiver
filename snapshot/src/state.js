@@ -147,12 +147,12 @@ function ensureIdMonotonicity(messages) {
       // 注意：这会改变内存中的 time 对象，可能会影响 UI 显示为 x.001 秒
       // 但这是正确的，反映了它逻辑上发生在上一条之后。
       msg.time = new Date(newSeedTime).toISOString();
-      
+
       // fixedCount++;
     }
     lastId = msg.id;
   }
-  
+
   // if (fixedCount > 0) console.log(`[Archiver] Fixed ${fixedCount} out-of-order IDs during merge.`);
   return messages;
 }
