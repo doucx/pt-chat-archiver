@@ -1,4 +1,4 @@
-import { getISOTimestamp } from './utils.js';
+import { generateULID, getISOTimestamp } from './utils.js';
 
 /**
  * 生成用于比较的消息签名。
@@ -113,10 +113,48 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
       content: '[警告 - 此处可能存在记录丢失]',
       is_archiver: true,
     };
-    return oldMessages.concat([discontinuityMark], messagesToAdd);
+    return ensureIdMonotonicity(oldMessages.concat([discontinuityMark], messagesToAdd));
   }
 
-  return oldMessages.concat(messagesToAdd);
+  return ensureIdMonotonicity(oldMessages.concat(messagesToAdd));
+}
+
+/**
+ * 确保消息列表中的 ID 是单调递增的。
+ * 如果发现后一条消息的 ID 小于前一条，则重写后一条的 ID。
+ */
+function ensureIdMonotonicity(messages) {
+  if (!messages || messages.length === 0) return messages;
+
+  let lastId = null;
+  // let fixedCount = 0;
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    // 简单的字符串字典序比较
+    if (lastId && msg.id < lastId) {
+      const prevMsg = messages[i - 1];
+      const prevTime = new Date(prevMsg.time).getTime();
+      const currTime = new Date(msg.time).getTime();
+
+      // 新的时间戳必须至少比上一条大 1ms，同时也尽量贴近当前记录的时间
+      const newSeedTime = Math.max(prevTime, currTime) + 1;
+
+      // 重写 ID
+      msg.id = generateULID(newSeedTime);
+      // 同步更新 time 以保持数据内部一致性 (尽管 UI 可能显示旧时间，但排序依据已变)
+      // 注意：这会改变内存中的 time 对象，可能会影响 UI 显示为 x.001 秒
+      // 但这是正确的，反映了它逻辑上发生在上一条之后。
+      msg.time = new Date(newSeedTime).toISOString();
+      
+      // fixedCount++;
+    }
+    lastId = msg.id;
+  }
+  
+  // if (fixedCount > 0) console.log(`[Archiver] Fixed ${fixedCount} out-of-order IDs during merge.`);
+  return messages;
 }
 
 /**

@@ -116,41 +116,6 @@ import { debounce, getISOTimestamp } from './utils.js';
       const oldMessages = serverData[channelName] || [];
       const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
 
-      // [核心修复] 序列 ID 修复 (Sequence Repair)
-      // 解决 "Live(32s)" 与 "History(00s)" 合并后的排序倒错问题。
-      // 如果发现后一条消息的 ID 小于前一条，强制重写后一条的 ID。
-      let lastId = null;
-
-      for (let i = 0; i < newMergedMessages.length; i++) {
-        const msg = newMergedMessages[i];
-
-        if (lastId && msg.id < lastId) {
-          // 发现乱序：当前消息逻辑在后，但 ID 却更小
-          // 以 LastMsg 的时间戳为基准，+1ms 作为新 ID 的种子
-          // 注意：我们无法直接反解 ULID 的时间，但我们可以信任上一条消息的 time 属性作为参考
-          // (如果上一条消息也是修复过的，它的 time 可能还没变，但 ID 变了。
-          // 这里为了简单稳健，我们取 "上一条消息的时间戳" 和 "当前消息时间戳" 的最大值 + 1)
-
-          const prevMsg = newMergedMessages[i - 1];
-          const prevTime = new Date(prevMsg.time).getTime();
-          const currTime = new Date(msg.time).getTime();
-
-          // 确保新时间戳严格大于上一条的时间
-          const newSeedTime = Math.max(prevTime, currTime) + 1;
-
-          // 生成新 ID
-          const newId = generateULID(newSeedTime);
-
-          // 更新消息
-          // 关键：我们只更新 ID 和 time (保持数据一致性)，不改变内容
-          msg.id = newId;
-          msg.time = new Date(newSeedTime).toISOString(); // 同步更新 time 以防后续逻辑困惑
-
-          // console.log(`[Archiver] Fixed ordering for msg: ${msg.content.slice(0, 10)}...`);
-        }
-        lastId = msg.id;
-      }
-
       if (newMergedMessages.length > oldMessages.length) {
         serverData[channelName] = newMergedMessages;
         dataChanged = true;

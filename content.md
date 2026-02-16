@@ -1,167 +1,147 @@
-## [WIP] fix: 实现 ID 序列修复与批次内单调性保证
+## [WIP] refactor: 将序列修复逻辑下沉至 state.js 以修复测试
 
 ### 用户需求
-修复由于历史记录时间戳精度丢失（00秒）导致的消息排序错误问题。
+修复 `tests/ordering.test.js` 失败的问题。
 
 ### 评论
-这是一个涉及数据完整性的核心修复。通过引入“序列修复”逻辑，我们确保了即使在时间源不可靠（精度倒退）的情况下，系统生成的 ULID 依然能反映真实的逻辑顺序（Logical Order），从而保证数据库查询结果的正确性。
+之前的修复无效是因为逻辑被放在了 `main.js` 的 `scanAndMergeHistory` 中，而测试直接调用的是 `state.js` 的 `mergeAndDeduplicateMessages`。为了使逻辑可测试且高内聚，决定将 ID 序列修复逻辑下沉到核心状态管理模块 `state.js` 中。这样任何合并操作都会自动保证 ID 单调性。
 
 ### 目标
-1.  修改 `extractHistoricalChatState`：在解析 DOM 生成消息时，强制保证同一批次内的消息 ID 时间戳单调递增。
-2.  修改 `scanAndMergeHistory`：在合并消息后，执行一次序列检查。如果发现后一条消息的 ID 小于前一条，则基于前一条的时间推断并重生成后一条消息的 ID。
+1.  在 `src/state.js` 中引入 `generateULID`。
+2.  在 `mergeAndDeduplicateMessages` 返回合并结果前，执行序列修复算法：确保 `id` 随索引单调递增。
+3.  清理 `src/main.js` 中之前添加的冗余修复逻辑。
 
 ### 基本原理
-利用 ULID 的词法排序特性。当物理时钟（文本时间）失效时，切换到逻辑时钟模式：`NewID = GenerateULID(Max(PhysicalTime, PreviousID_Time + 1ms))`。
+状态合并函数 (`merge`) 应当保证输出状态的完整性和一致性（包括排序一致性），而不仅仅是简单的数组拼接。
 
 ### 标签
-#intent/fix #flow/ready #priority/high #comp/runtime #concept/state #ai/instruct #task/domain/core #task/object/message-ordering #task/action/implementation #task/state/end
+#intent/refine #flow/ready #priority/high #comp/engine #concept/state #ai/instruct #task/domain/core #task/object/message-merging #task/action/refactor #task/state/end
 
 ---
 
 ### Script
 
-#### Acts 1: 重构 `extractHistoricalChatState` 实现批次内单调性
+#### Acts 1: 在 `src/state.js` 中实现序列修复逻辑
 
-我们首先修改 `extractHistoricalChatState` 函数。我们需要改变循环逻辑，先收集所有数据，然后正序生成 ID，以确保单调性。
+~~~~~act
+patch_file
+src/state.js
+~~~~~
+~~~~~javascript.old
+import { getISOTimestamp } from './utils.js';
+
+/**
+ * 生成用于比较的消息签名。
+~~~~~
+~~~~~javascript.new
+import { generateULID, getISOTimestamp } from './utils.js';
+
+/**
+ * 生成用于比较的消息签名。
+~~~~~
+
+~~~~~act
+patch_file
+src/state.js
+~~~~~
+~~~~~javascript.old
+  if (discontinuityDetected) {
+    // 进一步检查：如果只是 overlap 没找到，但时间上是连续的（或者是旧数据的未来），
+    // 且我们没有更好的办法判断，才插入标记。
+    // 防止“完全不匹配但其实是同一波数据的微调”导致的重复。
+    // 但鉴于我们做了子集检测，如果走到这里，说明 new 有 old 没有的内容，且头部不匹配 old 的尾部。
+    // 这确实像是一个断层。
+    console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
+    const discontinuityMark = {
+      time: getISOTimestamp(),
+      type: 'system',
+      sender: 'Archiver',
+      receiver: 'System',
+      content: '[警告 - 此处可能存在记录丢失]',
+      is_archiver: true,
+    };
+    return oldMessages.concat([discontinuityMark], messagesToAdd);
+  }
+
+  return oldMessages.concat(messagesToAdd);
+}
+
+/**
+ * 根据条件将消息添加到合成频道。
+~~~~~
+~~~~~javascript.new
+  if (discontinuityDetected) {
+    // 进一步检查：如果只是 overlap 没找到，但时间上是连续的（或者是旧数据的未来），
+    // 且我们没有更好的办法判断，才插入标记。
+    // 防止“完全不匹配但其实是同一波数据的微调”导致的重复。
+    // 但鉴于我们做了子集检测，如果走到这里，说明 new 有 old 没有的内容，且头部不匹配 old 的尾部。
+    // 这确实像是一个断层。
+    console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
+    const discontinuityMark = {
+      time: getISOTimestamp(),
+      type: 'system',
+      sender: 'Archiver',
+      receiver: 'System',
+      content: '[警告 - 此处可能存在记录丢失]',
+      is_archiver: true,
+    };
+    return ensureIdMonotonicity(oldMessages.concat([discontinuityMark], messagesToAdd));
+  }
+
+  return ensureIdMonotonicity(oldMessages.concat(messagesToAdd));
+}
+
+/**
+ * 确保消息列表中的 ID 是单调递增的。
+ * 如果发现后一条消息的 ID 小于前一条，则重写后一条的 ID。
+ */
+function ensureIdMonotonicity(messages) {
+  if (!messages || messages.length === 0) return messages;
+
+  let lastId = null;
+  // let fixedCount = 0;
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    // 简单的字符串字典序比较
+    if (lastId && msg.id < lastId) {
+      const prevMsg = messages[i - 1];
+      const prevTime = new Date(prevMsg.time).getTime();
+      const currTime = new Date(msg.time).getTime();
+
+      // 新的时间戳必须至少比上一条大 1ms，同时也尽量贴近当前记录的时间
+      const newSeedTime = Math.max(prevTime, currTime) + 1;
+
+      // 重写 ID
+      msg.id = generateULID(newSeedTime);
+      // 同步更新 time 以保持数据内部一致性 (尽管 UI 可能显示旧时间，但排序依据已变)
+      // 注意：这会改变内存中的 time 对象，可能会影响 UI 显示为 x.001 秒
+      // 但这是正确的，反映了它逻辑上发生在上一条之后。
+      msg.time = new Date(newSeedTime).toISOString();
+      
+      // fixedCount++;
+    }
+    lastId = msg.id;
+  }
+  
+  // if (fixedCount > 0) console.log(`[Archiver] Fixed ${fixedCount} out-of-order IDs during merge.`);
+  return messages;
+}
+
+/**
+ * 根据条件将消息添加到合成频道。
+~~~~~
+
+#### Acts 2: 清理 `src/main.js` 中冗余的修复逻辑
+
+移除之前在 `scanAndMergeHistory` 中添加的代码，恢复原状（除了 `generateULID` 的 import，我们可以保留它，或者如果不使用了就移除。这里为了保险先保留 `import`，只移除逻辑）。
 
 ~~~~~act
 patch_file
 src/main.js
 ~~~~~
 ~~~~~javascript.old
-  /** 扫描聊天框中已存在的消息，时间戳根据UI显示的 `HH:MM` 进行估算。*/
-  async function extractHistoricalChatState() {
-    const elements = locateChatElements();
-    if (!elements.tabs || !elements.chatLog) return { current_tab: null, messages: [] };
-
-    const current_tab = findActiveTabByClass(elements.tabs.innerHTML);
-    const selfName = (await storageManager.getSelfName()) || '';
-    const messages = [];
-    const chatLines = Array.from(elements.chatLog.children);
-    const currentDate = new Date();
-    let lastTimeParts = null;
-
-    for (let i = chatLines.length - 1; i >= 0; i--) {
-      const element = chatLines[i];
-      const timeNode = element.querySelector('.chat-line-timestamp');
-      if (!timeNode || !timeNode.textContent.includes(':')) continue;
-
-      const timeText = timeNode.textContent.trim();
-      const [hours, minutes] = timeText.split(':').map(Number);
-      if (
-        lastTimeParts &&
-        (hours > lastTimeParts.hours ||
-          (hours === lastTimeParts.hours && minutes > lastTimeParts.minutes))
-      ) {
-        currentDate.setDate(currentDate.getDate() - 1);
-      }
-      lastTimeParts = { hours, minutes };
-
-      const localDateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')} ${timeText}`;
-      const isoTimeApproximation = new Date(localDateString.replace(/-/g, '/')).toISOString();
-
-      const messageData = extractUsefulData(element, selfName, isoTimeApproximation);
-      if (messageData?.content) {
-        messageData.is_historical = true;
-        messages.push(messageData);
-      }
-    }
-    messages.reverse();
-    return { current_tab, messages };
-  }
-~~~~~
-~~~~~javascript.new
-  /** 扫描聊天框中已存在的消息，时间戳根据UI显示的 `HH:MM` 进行估算。*/
-  async function extractHistoricalChatState() {
-    const elements = locateChatElements();
-    if (!elements.tabs || !elements.chatLog) return { current_tab: null, messages: [] };
-
-    const current_tab = findActiveTabByClass(elements.tabs.innerHTML);
-    const selfName = (await storageManager.getSelfName()) || '';
-    const chatLines = Array.from(elements.chatLog.children);
-    const currentDate = new Date();
-    let lastTimeParts = null;
-
-    // 1. 倒序遍历：确定每条消息的绝对时间（处理跨天逻辑）
-    // 我们将结果存入临时数组，因为我们需要正序来生成单调递增的 ID
-    const tempItems = [];
-
-    for (let i = chatLines.length - 1; i >= 0; i--) {
-      const element = chatLines[i];
-      const timeNode = element.querySelector('.chat-line-timestamp');
-      if (!timeNode || !timeNode.textContent.includes(':')) continue;
-
-      const timeText = timeNode.textContent.trim();
-      const [hours, minutes] = timeText.split(':').map(Number);
-      if (
-        lastTimeParts &&
-        (hours > lastTimeParts.hours ||
-          (hours === lastTimeParts.hours && minutes > lastTimeParts.minutes))
-      ) {
-        currentDate.setDate(currentDate.getDate() - 1);
-      }
-      lastTimeParts = { hours, minutes };
-
-      const localDateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')} ${timeText}`;
-      const isoTimeApproximation = new Date(localDateString.replace(/-/g, '/')).toISOString();
-
-      tempItems.unshift({ element, isoTime: isoTimeApproximation });
-    }
-
-    // 2. 正序遍历：生成消息并确保批次内 ID 单调递增
-    const messages = [];
-    let lastCalculatedTimestamp = 0;
-
-    for (const item of tempItems) {
-      let timestamp = new Date(item.isoTime).getTime();
-
-      // [核心修复] 批次内单调性保证
-      // 如果计算出的时间戳小于等于上一条，说明在一分钟内，强制微调 ID 时间戳
-      if (timestamp <= lastCalculatedTimestamp) {
-        timestamp = lastCalculatedTimestamp + 1;
-      }
-      lastCalculatedTimestamp = timestamp;
-
-      // 使用微调后的时间戳生成数据（这将影响生成的 ID）
-      const adjustedIsoTime = new Date(timestamp).toISOString();
-      const messageData = extractUsefulData(item.element, selfName, adjustedIsoTime);
-
-      if (messageData?.content) {
-        messageData.is_historical = true;
-        // 注意：messageData.time 现在包含了毫秒级微调。
-        // 这对于排序是必要的，且不会影响 UI 显示（格式化函数会忽略毫秒）。
-        messages.push(messageData);
-      }
-    }
-
-    return { current_tab, messages };
-  }
-~~~~~
-
-#### Acts 2: 增强 `scanAndMergeHistory` 实现序列修复
-
-接下来修改 `scanAndMergeHistory`，在合并后加入序列修复逻辑。
-
-~~~~~act
-patch_file
-src/main.js
-~~~~~
-~~~~~javascript.old
-      const oldMessages = serverData[channelName] || [];
-      const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
-
-      if (newMergedMessages.length > oldMessages.length) {
-        serverData[channelName] = newMergedMessages;
-        dataChanged = true;
-        const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
-        for (const msg of newlyAddedHistoricalMessages) {
-          addMessageToSyntheticChannelIfNeeded(serverData, msg, channelName);
-        }
-      }
-    }
-    if (dataChanged && uiControls && !uiControls.isUIPaused()) {
-~~~~~
-~~~~~javascript.new
       const oldMessages = serverData[channelName] || [];
       const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
 
@@ -208,29 +188,20 @@ src/main.js
           addMessageToSyntheticChannelIfNeeded(serverData, msg, channelName);
         }
       }
-    }
-    if (dataChanged && uiControls && !uiControls.isUIPaused()) {
-~~~~~
-
-#### Acts 3: 引入依赖
-
-我们需要确保 `generateULID` 在 `main.js` 中可用。
-
-~~~~~act
-patch_file
-src/main.js
-~~~~~
-~~~~~javascript.old
-import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
-import { SELF_NAME_KEY } from './constants.js';
-import { MigrationManager } from './migrations.js';
 ~~~~~
 ~~~~~javascript.new
-import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
-import { SELF_NAME_KEY } from './constants.js';
-import { MigrationManager } from './migrations.js';
-import { generateULID } from './utils.js';
+      const oldMessages = serverData[channelName] || [];
+      const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
+
+      if (newMergedMessages.length > oldMessages.length) {
+        serverData[channelName] = newMergedMessages;
+        dataChanged = true;
+        const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
+        for (const msg of newlyAddedHistoricalMessages) {
+          addMessageToSyntheticChannelIfNeeded(serverData, msg, channelName);
+        }
+      }
 ~~~~~
 
 ### 下一步建议
-运行测试，确认修复有效。所有测试（包括新加的排序测试）应当全部通过。
+再次运行测试。现在逻辑已正确集成到 `mergeAndDeduplicateMessages` 中，测试应该能通过。
