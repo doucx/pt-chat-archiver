@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M CHANGELOG.md, M package.json", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1771267164.9645736, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] fix: 确保 ULID 单调性并修复历史记录回扫导致的排序倒错", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1771267165.2395542, "duration_ms": 0}}
