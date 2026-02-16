@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] test: 修正测试用例以正确模拟重叠合并", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1771265960.476398, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix: 实现 ID 序列修复与批次内单调性保证", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1771265982.9960463, "duration_ms": 0}}

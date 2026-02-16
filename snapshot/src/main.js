@@ -2,6 +2,7 @@ import './ui/style.css';
 import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
 import { SELF_NAME_KEY } from './constants.js';
 import { MigrationManager } from './migrations.js';
+import { generateULID } from './utils.js';
 import {
   extractServerFromDOM,
   extractUsefulData,
@@ -40,10 +41,13 @@ import { debounce, getISOTimestamp } from './utils.js';
 
     const current_tab = findActiveTabByClass(elements.tabs.innerHTML);
     const selfName = (await storageManager.getSelfName()) || '';
-    const messages = [];
     const chatLines = Array.from(elements.chatLog.children);
     const currentDate = new Date();
     let lastTimeParts = null;
+
+    // 1. 倒序遍历：确定每条消息的绝对时间（处理跨天逻辑）
+    // 我们将结果存入临时数组，因为我们需要正序来生成单调递增的 ID
+    const tempItems = [];
 
     for (let i = chatLines.length - 1; i >= 0; i--) {
       const element = chatLines[i];
@@ -64,13 +68,35 @@ import { debounce, getISOTimestamp } from './utils.js';
       const localDateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')} ${timeText}`;
       const isoTimeApproximation = new Date(localDateString.replace(/-/g, '/')).toISOString();
 
-      const messageData = extractUsefulData(element, selfName, isoTimeApproximation);
+      tempItems.unshift({ element, isoTime: isoTimeApproximation });
+    }
+
+    // 2. 正序遍历：生成消息并确保批次内 ID 单调递增
+    const messages = [];
+    let lastCalculatedTimestamp = 0;
+
+    for (const item of tempItems) {
+      let timestamp = new Date(item.isoTime).getTime();
+
+      // [核心修复] 批次内单调性保证
+      // 如果计算出的时间戳小于等于上一条，说明在一分钟内，强制微调 ID 时间戳
+      if (timestamp <= lastCalculatedTimestamp) {
+        timestamp = lastCalculatedTimestamp + 1;
+      }
+      lastCalculatedTimestamp = timestamp;
+
+      // 使用微调后的时间戳生成数据（这将影响生成的 ID）
+      const adjustedIsoTime = new Date(timestamp).toISOString();
+      const messageData = extractUsefulData(item.element, selfName, adjustedIsoTime);
+
       if (messageData?.content) {
         messageData.is_historical = true;
+        // 注意：messageData.time 现在包含了毫秒级微调。
+        // 这对于排序是必要的，且不会影响 UI 显示（格式化函数会忽略毫秒）。
         messages.push(messageData);
       }
     }
-    messages.reverse();
+
     return { current_tab, messages };
   }
 
@@ -89,6 +115,41 @@ import { debounce, getISOTimestamp } from './utils.js';
 
       const oldMessages = serverData[channelName] || [];
       const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
+
+      // [核心修复] 序列 ID 修复 (Sequence Repair)
+      // 解决 "Live(32s)" 与 "History(00s)" 合并后的排序倒错问题。
+      // 如果发现后一条消息的 ID 小于前一条，强制重写后一条的 ID。
+      let lastId = null;
+
+      for (let i = 0; i < newMergedMessages.length; i++) {
+        const msg = newMergedMessages[i];
+
+        if (lastId && msg.id < lastId) {
+          // 发现乱序：当前消息逻辑在后，但 ID 却更小
+          // 以 LastMsg 的时间戳为基准，+1ms 作为新 ID 的种子
+          // 注意：我们无法直接反解 ULID 的时间，但我们可以信任上一条消息的 time 属性作为参考
+          // (如果上一条消息也是修复过的，它的 time 可能还没变，但 ID 变了。
+          // 这里为了简单稳健，我们取 "上一条消息的时间戳" 和 "当前消息时间戳" 的最大值 + 1)
+
+          const prevMsg = newMergedMessages[i - 1];
+          const prevTime = new Date(prevMsg.time).getTime();
+          const currTime = new Date(msg.time).getTime();
+
+          // 确保新时间戳严格大于上一条的时间
+          const newSeedTime = Math.max(prevTime, currTime) + 1;
+
+          // 生成新 ID
+          const newId = generateULID(newSeedTime);
+
+          // 更新消息
+          // 关键：我们只更新 ID 和 time (保持数据一致性)，不改变内容
+          msg.id = newId;
+          msg.time = new Date(newSeedTime).toISOString(); // 同步更新 time 以防后续逻辑困惑
+
+          // console.log(`[Archiver] Fixed ordering for msg: ${msg.content.slice(0, 10)}...`);
+        }
+        lastId = msg.id;
+      }
 
       if (newMergedMessages.length > oldMessages.length) {
         serverData[channelName] = newMergedMessages;
