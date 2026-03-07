@@ -70,7 +70,10 @@ export function getDOMElements() {
     deleteBackupGroup: document.getElementById('log-archive-delete-backup-group'),
     deleteBackupButton: document.getElementById('log-archive-delete-backup-button'),
     cleanButton: document.getElementById('log-archive-clean-button'),
-    copyAllButton: document.getElementById('log-archive-copy-all-button'),
+    copyJsonButton: document.getElementById('log-archive-copy-json-button'),
+    copyTxtButton: document.getElementById('log-archive-copy-txt-button'),
+    downloadJsonButton: document.getElementById('log-archive-download-json-button'),
+    downloadTxtButton: document.getElementById('log-archive-download-txt-button'),
     importButton: document.getElementById('log-archive-import-button'),
     clearButton: document.getElementById('log-archive-clear-button'),
 

@@ -208,20 +208,35 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     }
   });
 
-  dom.copyAllButton.addEventListener('click', () => {
-    callbacks.copyAllData();
-    const originalText = dom.copyAllButton.textContent;
-    dom.copyAllButton.textContent = '已复制 JSON!';
+  dom.copyJsonButton.addEventListener('click', () => {
+    callbacks.copyJSON();
+    const originalText = dom.copyJsonButton.textContent;
+    dom.copyJsonButton.textContent = '✅ 已复制 JSON';
     setTimeout(() => {
-      dom.copyAllButton.textContent = originalText;
+      dom.copyJsonButton.textContent = originalText;
     }, UI_FEEDBACK_DURATION);
+  });
+
+  dom.copyTxtButton.addEventListener('click', () => {
+    callbacks.copyTXT();
+    const originalText = dom.copyTxtButton.textContent;
+    dom.copyTxtButton.textContent = '✅ 已复制 TXT';
+    setTimeout(() => {
+      dom.copyTxtButton.textContent = originalText;
+    }, UI_FEEDBACK_DURATION);
+  });
+
+  dom.downloadJsonButton.addEventListener('click', () => {
+    callbacks.downloadJSON();
+  });
+
+  dom.downloadTxtButton.addEventListener('click', () => {
+    callbacks.downloadTXT();
   });
 
   dom.importButton.addEventListener('click', () => {
     callbacks.importAllData();
   });
-
-  dom.downloadButton.addEventListener('click', () => callbacks.downloadAllData());
 
   // --- Initial value setup ---
   dom.selfNameInput.value = await uiState.getSelfName();
