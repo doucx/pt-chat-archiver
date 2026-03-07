@@ -113,8 +113,10 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   });
 
   it('当没有重复项时，点击按钮应当给出提示', async () => {
-    // 构造一个没有重复的状态
-    const cleanState = { S1: { L1: [{ content: 'unique', time: new Date().toISOString() }] } };
+    // 构造一个没有重复的状态，增加缺失的 type 字段
+    const cleanState = {
+      S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
+    };
     const adapter = createMockAdapter(cleanState);
     await createUI(adapter, mockCallbacks);
 

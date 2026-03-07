@@ -1,53 +1,56 @@
-测试失败的主要原因是 UI 重构为**异步渲染管道**后，测试代码没有等待异步操作（`refreshView`）完成就进行了断言。在 `createUI` 返回时，初始渲染可能还在进行中；同理，点击按钮后的视图切换也是异步的。
+这是一个由于测试数据不完整导致的回归错误。在 Phase 1 重构后，`createUI` 会立即触发首屏渲染。而测试用例 `当没有重复项时，点击按钮应当给出提示` 中构造的 Mock 数据缺少 `type` 字段，导致 `formatMessageForDisplay` 在尝试调用 `msg.type.includes()` 时抛出异常。
 
-我将生成一个计划，通过在 `createUI` 中增加对初始渲染的等待，并更新测试用例以使用异步查询来修复这些问题。
+我将生成一个计划来增强渲染器的健壮性，并修正测试用例中的 Mock 数据。
 
-## [WIP] fix(ui): 确保初始渲染同步完成并修复测试异步竞争
+## [WIP] fix(ui): 增强消息格式化程序的健壮性并修复测试数据
 
 ### 错误分析
-1.  **初始渲染未等待**: `createUI` 内部调用了 `refreshView()` 但没有 `await`。由于 `refreshView` 是异步的（涉及 `dataAdapter` 调用），`createUI` 会在 DOM 还没填充数据前就返回，导致测试中获取到的 `channelSelector.value` 为空。
-2.  **测试竞争条件**: `tests/ui.integration.test.js` 中的 `fireEvent.click` 触发了异步的视图切换。测试代码立即执行了 `expect(logView).not.toBeVisible()`，而此时异步渲染函数还没来得及修改 DOM 的 `display` 样式。
-3.  **文本匹配问题**: 在 `tests/ui.clean_duplicates.test.js` 中，直接使用 `getByText` 同步获取可能尚未更新的按钮文本，导致找不到元素。
+1.  **健壮性缺失**: `src/ui/renderer.js` 中的 `formatMessageForDisplay` 函数假定所有消息对象都具有 `type` 属性。
+2.  **Mock 数据不完整**: `tests/ui.clean_duplicates.test.js` 中的一个测试用例构造了一个只有 `content` 和 `time` 的简化消息对象，这在之前的同步架构中可能未被立即渲染，但在现在的异步初始化流程中触发了渲染异常。
 
 ### 用户需求
-修复异步重构引入的测试回归，确保 UI 在初始化和交互后的状态断言是可靠的。
+修复 `TypeError: Cannot read properties of undefined (reading 'includes')` 错误，确保 UI 能够安全处理不完整或非标的消息数据。
 
 ### 评论
-这是异步化重构后的典型“成长的烦恼”。通过在入口函数中等待首屏渲染，以及在测试中使用 `await waitFor` 或 `findBy` 系列方法，可以优雅地解决此类非确定性问题。
+虽然理想情况下所有数据都应符合 Schema，但在处理历史导入或人工构造的测试数据时，渲染器应当具备基本的防御性编程能力。
 
 ### 目标
-1.  修改 `src/ui/index.js`，在返回 API 之前 `await refreshView()`，确保 UI 实例创建后即处于就绪状态。
-2.  更新 `tests/ui.clean_duplicates.test.js`，将同步获取改为异步等待。
-3.  更新 `tests/ui.integration.test.js`，为所有涉及 DOM 变更的断言增加 `await waitFor`。
+1.  修改 `src/ui/renderer.js`，在访问 `msg.type` 前进行存在性检查。
+2.  修正 `tests/ui.clean_duplicates.test.js` 中的测试数据，使其符合标准消息结构。
+
+### 基本原理
+通过在 `formatMessageForDisplay` 中使用逻辑或 `|| ''` 确保 `msg.type` 始终为一个字符串，从而避免调用 `.includes()` 时崩溃。同时修正测试数据以反映真实的数据结构。
 
 ### 标签
-#intent/fix #flow/ready #priority/high #comp/ui #comp/tests #scope/core #task/domain/testing #task/object/async-timing-fix #task/action/repair #task/state/end #task/status/completed
+#intent/fix #flow/ready #priority/medium #comp/ui #comp/tests #scope/core #ai/instruct #task/domain/ui #task/object/renderer #task/action/bug-fix #task/state/end #task/status/completed
 
 ---
 
 ### Script
 
-#### Acts 1: 确保 `createUI` 等待初始渲染
+#### Acts 1: 增强渲染器的防御性
 
 ~~~~~act
 patch_file
-src/ui/index.js
+src/ui/renderer.js
 ~~~~~
 ~~~~~old
-  // 4. Initial Render
-  refreshView();
-
-  // 5. Return the public API
+export function formatMessageForDisplay(msg) {
+  let prefix = '';
+  if (msg.type.includes('party')) prefix = '👥 ';
+  else if (msg.type.includes('whisper')) prefix = '💬 ';
+  else if (msg.type.includes('announcement')) prefix = '📣 ';
 ~~~~~
 ~~~~~new
-  // 4. Initial Render
-  // 必须等待首屏渲染完成，确保 UI 实例返回时 DOM 已就绪
-  await refreshView();
-
-  // 5. Return the public API
+export function formatMessageForDisplay(msg) {
+  let prefix = '';
+  const type = msg.type || '';
+  if (type.includes('party')) prefix = '👥 ';
+  else if (type.includes('whisper')) prefix = '💬 ';
+  else if (type.includes('announcement')) prefix = '📣 ';
 ~~~~~
 
-#### Acts 2: 修复 `tests/ui.clean_duplicates.test.js` 的异步竞争
+#### Acts 2: 修正测试用例中的 Mock 数据
 
 ~~~~~act
 patch_file
@@ -58,106 +61,12 @@ tests/ui.clean_duplicates.test.js
     // 构造一个没有重复的状态
     const cleanState = { S1: { L1: [{ content: 'unique', time: new Date().toISOString() }] } };
     const adapter = createMockAdapter(cleanState);
-    await createUI(adapter, mockCallbacks);
-
-    fireEvent.click(screen.getByTitle('设置'));
-    const cleanButton = screen.getByText('清理重复记录');
-
-    fireEvent.click(cleanButton);
 ~~~~~
 ~~~~~new
   it('当没有重复项时，点击按钮应当给出提示', async () => {
-    // 构造一个没有重复的状态
-    const cleanState = { S1: { L1: [{ content: 'unique', time: new Date().toISOString() }] } };
+    // 构造一个没有重复的状态，增加缺失的 type 字段
+    const cleanState = {
+      S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
+    };
     const adapter = createMockAdapter(cleanState);
-    await createUI(adapter, mockCallbacks);
-
-    fireEvent.click(screen.getByTitle('设置'));
-    
-    // 使用 findByText 异步等待设置视图渲染完成
-    const cleanButton = await screen.findByText('清理重复记录');
-
-    fireEvent.click(cleanButton);
-~~~~~
-
-#### Acts 3: 修复 `tests/ui.integration.test.js` 的断言时机
-
-~~~~~act
-patch_file
-tests/ui.integration.test.js
-~~~~~
-~~~~~old
-  it('初始加载时应正确渲染数据和默认频道', async () => {
-    await renderUI(mockAppState);
-
-    // 验证默认选中的频道是 Local 并且显示了数据
-    const channelSelector = screen.getByRole('combobox');
-    expect(channelSelector.value).toBe('Local');
-
-    const logDisplay = screen.getByRole('textbox');
-    expect(logDisplay.value).toContain('Message 1');
-  });
-
-  it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
-    await renderUI(mockAppState);
-
-    const settingsButton = screen.getByTitle('设置');
-    const logView = document.getElementById('log-archive-log-view');
-    const configView = document.getElementById('log-archive-config-view');
-
-    // 初始状态
-    expect(logView).toBeVisible();
-    expect(configView).not.toBeVisible();
-
-    // 点击设置 (模拟切换到 config 模式)
-    fireEvent.click(settingsButton);
-    expect(logView).not.toBeVisible();
-    expect(configView).toBeVisible();
-
-    // 再次点击切回
-    fireEvent.click(settingsButton);
-    expect(logView).toBeVisible();
-  });
-~~~~~
-~~~~~new
-  it('初始加载时应正确渲染数据和默认频道', async () => {
-    await renderUI(mockAppState);
-
-    // 虽然 renderUI 内部已经 await refreshView，但在复杂的测试环境中
-    // 配合 waitFor 是一种更稳健的实践
-    await waitFor(() => {
-      const channelSelector = screen.getByRole('combobox');
-      expect(channelSelector.value).toBe('Local');
-    });
-
-    const logDisplay = screen.getByRole('textbox');
-    expect(logDisplay.value).toContain('Message 1');
-  });
-
-  it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
-    await renderUI(mockAppState);
-
-    const settingsButton = screen.getByTitle('设置');
-    const logView = document.getElementById('log-archive-log-view');
-    const configView = document.getElementById('log-archive-config-view');
-
-    // 初始状态
-    expect(logView).toBeVisible();
-    expect(configView).not.toBeVisible();
-
-    // 点击设置 (触发异步刷新)
-    fireEvent.click(settingsButton);
-    
-    // 必须使用 waitFor 等待异步 DOM 变更
-    await waitFor(() => {
-        expect(logView).not.toBeVisible();
-        expect(configView).toBeVisible();
-    });
-
-    // 再次点击切回
-    fireEvent.click(settingsButton);
-    await waitFor(() => {
-        expect(logView).toBeVisible();
-    });
-  });
 ~~~~~

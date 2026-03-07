@@ -10,9 +10,10 @@ import { formatISOTimeForDisplay } from '../utils.js';
  */
 export function formatMessageForDisplay(msg) {
   let prefix = '';
-  if (msg.type.includes('party')) prefix = '👥 ';
-  else if (msg.type.includes('whisper')) prefix = '💬 ';
-  else if (msg.type.includes('announcement')) prefix = '📣 ';
+  const type = msg.type || '';
+  if (type.includes('party')) prefix = '👥 ';
+  else if (type.includes('whisper')) prefix = '💬 ';
+  else if (type.includes('announcement')) prefix = '📣 ';
   const displayTime = formatISOTimeForDisplay(msg.time);
   return `${displayTime} ${prefix}${msg.content}`;
 }
