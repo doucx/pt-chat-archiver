@@ -80,11 +80,17 @@ export const getMainContainerHTML = (version) => `
                         <button id="log-archive-save-now-button" class="log-archive-ui-button" style="flex-grow: 1;">💾 立即保存</button>
                         <span id="log-archive-last-saved-info" class="info-text-dim" style="font-size: 0.8em; white-space: nowrap;">未保存</span>
                     </div>
-                    <div class="config-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    
+                    <div class="config-actions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button id="log-archive-copy-json-button" class="log-archive-ui-button">复制 JSON</button>
+                        <button id="log-archive-copy-txt-button" class="log-archive-ui-button">复制 TXT</button>
+                        <button id="log-archive-download-json-button" class="log-archive-ui-button">下载 JSON</button>
+                        <button id="log-archive-download-txt-button" class="log-archive-ui-button">下载 TXT</button>
+                    </div>
+
+                    <div class="config-actions" style="display: flex; gap: 8px;">
                         <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复</button>
-                        <button id="log-archive-copy-all-button" class="log-archive-ui-button" style="flex-grow: 1;">导出 JSON</button>
                         <button id="log-archive-import-button" class="log-archive-ui-button" style="flex-grow: 1;">📥 导入存档</button>
-                        <button id="log-archive-download-button" class="log-archive-ui-button" style="flex-grow: 1;">下载备份</button>
                     </div>
                 </div>
             </div>

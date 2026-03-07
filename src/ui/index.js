@@ -26,20 +26,22 @@ export async function createUI(initialAppState, appCallbacks) {
   // 3. Prepare callbacks and bind events
   const getAppState = () => appState;
 
-  const downloadAllData = () => {
-    if (Object.keys(appState).length === 0) return;
-    const now = new Date();
-    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 16);
-    const baseFilename = `pt-saver-${timestamp}`;
-    let allTextContent = '';
+  // --- Export Helper Functions ---
 
-    // V6 结构: appState[serverName][channelName]
-    for (const serverName in appState) {
+  const getExportTimestamp = () => {
+    const now = new Date();
+    return now.toISOString().replace(/[:.]/g, '-').slice(0, 16);
+  };
+
+  const generateFullTextExport = (state) => {
+    let allTextContent = '';
+    // V6 结构: state[serverName][channelName]
+    for (const serverName in state) {
       allTextContent += '\n\n############################################################\n';
       allTextContent += `## 服务器: ${serverName}\n`;
       allTextContent += '############################################################\n';
 
-      const serverData = appState[serverName];
+      const serverData = state[serverName];
       for (const channelName in serverData) {
         allTextContent += `\n\n==================== 频道: ${channelName} ====================\n\n`;
         const messages = serverData[channelName];
@@ -48,25 +50,46 @@ export async function createUI(initialAppState, appCallbacks) {
         }
       }
     }
-
-    const triggerDownload = (content, filename, mimeType) => {
-      const blob = new Blob([content], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    };
-    triggerDownload(JSON.stringify(appState, null, 2), `${baseFilename}.json`, 'application/json');
-    triggerDownload(allTextContent.trim(), `${baseFilename}.txt`, 'text/plain');
+    return allTextContent.trim();
   };
 
-  const copyAllData = () => {
-    const messages = JSON.stringify(appState, null, 2);
-    navigator.clipboard.writeText(messages);
+  const triggerDownload = (content, filename, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // --- Export Callbacks ---
+
+  const downloadJSON = () => {
+    if (Object.keys(appState).length === 0) return;
+    triggerDownload(
+      JSON.stringify(appState, null, 2),
+      `pt-saver-${getExportTimestamp()}.json`,
+      'application/json',
+    );
+  };
+
+  const downloadTXT = () => {
+    if (Object.keys(appState).length === 0) return;
+    const text = generateFullTextExport(appState);
+    triggerDownload(text, `pt-saver-${getExportTimestamp()}.txt`, 'text/plain');
+  };
+
+  const copyJSON = () => {
+    const data = JSON.stringify(appState, null, 2);
+    navigator.clipboard.writeText(data);
+  };
+
+  const copyTXT = () => {
+    const text = generateFullTextExport(appState);
+    navigator.clipboard.writeText(text);
   };
 
   const importAllData = () => {
@@ -123,12 +146,10 @@ export async function createUI(initialAppState, appCallbacks) {
       reader.readAsText(file);
     };
 
-    // 必须直接响应用户操作触发 click，不能有 alert/confirm 阻断
     input.click();
   };
 
   const cleanChannelRecords = async () => {
-    // 兼容 V6 结构的重复检测
     let totalToClean = 0;
     for (const server in appState) {
       totalToClean += appCallbacks.detectTotalDuplicates(appState[server]);
@@ -150,7 +171,7 @@ export async function createUI(initialAppState, appCallbacks) {
       await appCallbacks.saveMessagesToStorage(appState);
       dom.cleanButton.textContent = '清理完毕!';
       setTimeout(() => {
-        renderer.render(appState, uiCallbacks); // Re-render to update button
+        renderer.render(appState, uiCallbacks);
       }, UI_FEEDBACK_DURATION);
     }
   };
@@ -166,7 +187,7 @@ export async function createUI(initialAppState, appCallbacks) {
       for (const key of Object.keys(appState)) {
         delete appState[key];
       }
-      await appCallbacks.scanAndMergeHistory(); // This will repopulate appState
+      await appCallbacks.scanAndMergeHistory();
       await appCallbacks.saveMessagesToStorage(appState);
       renderer.render(appState, uiCallbacks);
     }
@@ -179,16 +200,11 @@ export async function createUI(initialAppState, appCallbacks) {
   const recoverLegacyData = async (targetServer) => {
     try {
       const newState = await MigrationManager.recoverAndMergeAll(appState, targetServer);
-
-      // 1. 更新全局引用
       if (appCallbacks.replaceState) {
         appCallbacks.replaceState(newState);
       }
       appState = newState;
-
-      // 2. 立即持久化到 v7 (IndexedDB)
       await appCallbacks.saveMessagesToStorage(appState);
-
       alert('数据恢复合并完成！已自动清理旧版残留。');
     } catch (err) {
       console.error('[Recovery] Failed:', err);
@@ -205,12 +221,14 @@ export async function createUI(initialAppState, appCallbacks) {
     ...appCallbacks,
     cleanChannelRecords,
     clearAllData,
-    copyAllData,
     importAllData,
-    downloadAllData,
     deleteV6Backup,
     recoverLegacyData,
     clearLegacyData,
+    downloadJSON,
+    downloadTXT,
+    copyJSON,
+    copyTXT,
   };
 
   await bindUIEvents({
