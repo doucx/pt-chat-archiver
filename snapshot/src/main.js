@@ -274,7 +274,7 @@ import { debounce, getISOTimestamp } from './utils.js';
       },
       getAllData: async () => inMemoryChatState, // 用于导出功能
       // 兼容旧接口，用于分析模块
-      getRawState: () => inMemoryChatState, 
+      getRawState: () => inMemoryChatState,
     };
 
     uiControls = await createUI(dataAdapter, {

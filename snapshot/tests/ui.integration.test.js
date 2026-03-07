@@ -84,17 +84,17 @@ describe('UI Integration Smoke Tests', () => {
 
     // 点击设置 (触发异步刷新)
     fireEvent.click(settingsButton);
-    
+
     // 必须使用 waitFor 等待异步 DOM 变更
     await waitFor(() => {
-        expect(logView).not.toBeVisible();
-        expect(configView).toBeVisible();
+      expect(logView).not.toBeVisible();
+      expect(configView).toBeVisible();
     });
 
     // 再次点击切回
     fireEvent.click(settingsButton);
     await waitFor(() => {
-        expect(logView).toBeVisible();
+      expect(logView).toBeVisible();
     });
   });
 

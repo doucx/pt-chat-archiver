@@ -201,7 +201,7 @@ export function createRenderer(dom, uiState) {
     } else {
       // 'log' view
       dom.paginationControls.style.display = 'flex';
-      
+
       // 分页计算逻辑已移出 Renderer，直接使用 UI State 中的 totalPages
 
       updateTextareaAndPreserveSelection(() => {

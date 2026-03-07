@@ -43,7 +43,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       uiState.setViewingServer(serverList[0]);
     }
     const currentServer = uiState.getState().viewingServer; // 可能已被上面更新
-    
+
     // 获取当前服务器的频道列表和统计信息
     const channelList = await dataAdapter.getChannels(currentServer);
     const channelCounts = {};
@@ -66,7 +66,7 @@ export async function createUI(dataAdapter, appCallbacks) {
     // 简化方案：Controller 读取 DOM 状态 (Dirty read)
     let selectedChannel = dom.channelSelector.value;
     if (!selectedChannel && channelList.length > 0) selectedChannel = channelList[0];
-    
+
     // 如果列表变了导致 selectedChannel 无效，修正它
     if (selectedChannel && !channelList.includes(selectedChannel)) selectedChannel = channelList[0];
 
@@ -75,13 +75,18 @@ export async function createUI(dataAdapter, appCallbacks) {
     let totalCount = 0;
 
     if (currentServer && selectedChannel) {
-        // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
-        const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
-        const fetchPage = viewMode === 'stats' ? 1 : currentPage;
-        
-        const result = await dataAdapter.getMessages(currentServer, selectedChannel, fetchPage, fetchSize);
-        messages = result.messages;
-        totalCount = result.total;
+      // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
+      const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
+      const fetchPage = viewMode === 'stats' ? 1 : currentPage;
+
+      const result = await dataAdapter.getMessages(
+        currentServer,
+        selectedChannel,
+        fetchPage,
+        fetchSize,
+      );
+      messages = result.messages;
+      totalCount = result.total;
     }
 
     // 更新分页状态
@@ -89,19 +94,19 @@ export async function createUI(dataAdapter, appCallbacks) {
     uiState.setTotalPages(newTotalPages);
 
     // 自动吸附逻辑修正: 如果锁定了底部，强制跳到最后一页
-    // (这需要在 fetch 之前做吗？不需要，fetch 后发现页码不对再 fetch? 
+    // (这需要在 fetch 之前做吗？不需要，fetch 后发现页码不对再 fetch?
     //  不，为了性能，应该在 fetch 前决定。但 totalCount 未知...)
     // 现在的逻辑是：先 fetch 这一页，Renderer 发现不对劲会改页码。
     // 我们保持原样，Renderer 可能会修正页码并触发重绘吗？
-    // 原 Renderer 逻辑: if (locked) setPage(total); 
+    // 原 Renderer 逻辑: if (locked) setPage(total);
     // 这会导致一次额外的渲染。为了 Phase 1 简单，先保留。
-    
+
     const context = {
-        serverList,
-        channelList,
-        channelCounts,
-        messages,
-        totalCount
+      serverList,
+      channelList,
+      channelCounts,
+      messages,
+      totalCount,
     };
 
     renderer.render(context, uiCallbacks);

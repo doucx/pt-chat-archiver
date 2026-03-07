@@ -11,7 +11,7 @@ import { UI_FEEDBACK_DURATION } from '../constants.js';
  */
 export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
   // refreshView 已经被绑定了 DataAdapter，调用它会触发 fetch -> render 流程
-  const triggerRefresh = () => refreshView(); 
+  const triggerRefresh = () => refreshView();
 
   // --- Main UI controls ---
   dom.toggleButton.addEventListener('click', () => {
