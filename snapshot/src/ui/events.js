@@ -9,13 +9,14 @@ import { UI_FEEDBACK_DURATION } from '../constants.js';
  * @param {object} params.getAppState - A function to get the current application state.
  * @param {object} params.callbacks - The callbacks object for app-level actions.
  */
-export async function bindUIEvents({ dom, uiState, renderer, getAppState, callbacks }) {
-  const fullRender = () => renderer.render(getAppState(), callbacks);
+export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
+  // refreshView 已经被绑定了 DataAdapter，调用它会触发 fetch -> render 流程
+  const triggerRefresh = () => refreshView(); 
 
   // --- Main UI controls ---
   dom.toggleButton.addEventListener('click', () => {
     const isVisible = dom.uiContainer.style.display === 'flex';
-    if (!isVisible) fullRender();
+    if (!isVisible) triggerRefresh();
     dom.uiContainer.style.display = isVisible ? 'none' : 'flex';
   });
 
@@ -27,18 +28,18 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     const isPaused = uiState.togglePause();
     dom.pauseButton.classList.toggle('paused', isPaused);
     dom.pauseButton.textContent = isPaused ? '▶️ ' : '⏸️ ';
-    if (!isPaused) fullRender();
+    if (!isPaused) triggerRefresh();
   });
 
   dom.channelSelector.addEventListener('change', () => {
     uiState.setPage(1);
-    fullRender();
+    triggerRefresh();
   });
 
   dom.serverViewSelector.addEventListener('change', () => {
     uiState.setViewingServer(dom.serverViewSelector.value);
     uiState.setPage(1);
-    fullRender();
+    triggerRefresh();
   });
 
   const handleResetServer = () => {
@@ -46,7 +47,7 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     if (activeServer) {
       uiState.setViewingServer(activeServer);
       uiState.setPage(1);
-      fullRender();
+      triggerRefresh();
     }
   };
 
@@ -57,13 +58,13 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
   dom.settingsButton.addEventListener('click', () => {
     const currentMode = uiState.getState().viewMode;
     uiState.setViewMode(currentMode === 'config' ? 'log' : 'config');
-    fullRender();
+    triggerRefresh();
   });
 
   dom.statsButton.addEventListener('click', () => {
     const currentMode = uiState.getState().viewMode;
     uiState.setViewMode(currentMode === 'stats' ? 'log' : 'stats');
-    fullRender();
+    triggerRefresh();
   });
 
   // --- Log display interaction ---
@@ -87,13 +88,13 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
       // 1. 已锁定状态下，向上滑动则解锁
       if (!isAtBottom) {
         uiState.setLockedToBottom(false);
-        fullRender();
+        triggerRefresh();
       }
     } else {
       // 2. 未锁定状态下，如果在最后一页手动滑到底部，则自动加锁
       if (isAtBottom && currentPage === totalPages) {
         uiState.setLockedToBottom(true);
-        fullRender();
+        triggerRefresh();
       }
     }
   });
@@ -102,22 +103,22 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
   dom.pageFirstBtn.addEventListener('click', () => {
     uiState.setLockedToBottom(false);
     uiState.setPage(1);
-    fullRender();
+    triggerRefresh();
   });
   dom.pagePrevBtn.addEventListener('click', () => {
     uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage - 1);
-    fullRender();
+    triggerRefresh();
   });
   dom.pageNextBtn.addEventListener('click', () => {
     uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage + 1);
-    fullRender();
+    triggerRefresh();
   });
   dom.pageLastBtn.addEventListener('click', () => {
     uiState.setPage(uiState.getState().totalPages);
     uiState.setLockedToBottom(true);
-    fullRender();
+    triggerRefresh();
   });
 
   // --- Config view actions ---
@@ -126,18 +127,18 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
   });
   dom.pageSizeInput.addEventListener('change', async () => {
     await uiState.setPageSize(dom.pageSizeInput.value);
-    fullRender();
+    triggerRefresh();
   });
 
   dom.autoSaveIntervalInput.addEventListener('change', async () => {
     await uiState.setAutoSaveInterval(dom.autoSaveIntervalInput.value);
     callbacks.onAutoSaveIntervalChange();
-    fullRender();
+    triggerRefresh();
   });
 
   dom.autoFollowInput.addEventListener('change', async () => {
     await uiState.setAutoFollowServer(dom.autoFollowInput.checked);
-    fullRender();
+    triggerRefresh();
   });
 
   dom.saveNowButton.addEventListener('click', async () => {
@@ -151,13 +152,13 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
 
   dom.cleanButton.addEventListener('click', async () => {
     await callbacks.cleanChannelRecords();
-    fullRender(); // Re-render to update button state
+    triggerRefresh(); // Re-render to update button state
   });
 
   dom.clearButton.addEventListener('click', async () => {
     await callbacks.clearAllData();
     uiState.setViewMode('log');
-    fullRender();
+    triggerRefresh();
   });
 
   dom.deleteBackupButton.addEventListener('click', async () => {
@@ -165,7 +166,7 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
       confirm('【确认】将永久删除 LocalStorage 中的旧版备份数据。此操作不可撤销，确定要继续吗？')
     ) {
       await callbacks.deleteV6Backup();
-      fullRender();
+      triggerRefresh();
     }
   });
 
@@ -180,7 +181,7 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
 
     if (confirm(confirmMsg)) {
       await callbacks.recoverLegacyData(viewingServer);
-      fullRender();
+      triggerRefresh();
     }
   });
 
@@ -191,7 +192,7 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
       )
     ) {
       await callbacks.clearLegacyData();
-      fullRender();
+      triggerRefresh();
     }
   });
 

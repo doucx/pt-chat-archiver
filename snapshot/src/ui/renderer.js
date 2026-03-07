@@ -50,25 +50,36 @@ export function createRenderer(dom, uiState) {
   };
 
   // --- Main Render Logic ---
-  const render = (appState, callbacks) => {
-    const { viewMode, currentPage, pageSize, viewingServer, activeServer, isLockedToBottom } =
+  /**
+   * RenderContext 结构:
+   * {
+   *   serverList: string[],
+   *   channelList: string[], (当前服务器的频道列表)
+   *   channelCounts: Object, (频道名 -> 消息数)
+   *   messages: Message[], (当前页的消息)
+   *   totalCount: number, (当前频道的总消息数)
+   * }
+   */
+  const render = (context, callbacks) => {
+    const { viewMode, currentPage, totalPages, viewingServer, activeServer, isLockedToBottom } =
       uiState.getState();
+    const { serverList, channelList, channelCounts, messages } = context;
 
-    // 1. 更新服务器选择器 (v6 特有)
-    const servers = Object.keys(appState);
+    // 1. 更新服务器选择器
     if (dom.serverViewSelector) {
       const prevServer = dom.serverViewSelector.value;
       dom.serverViewSelector.innerHTML = '';
-      if (servers.length === 0) {
+      if (serverList.length === 0) {
         dom.serverViewSelector.innerHTML = '<option value="">无存档</option>';
       } else {
-        for (const s of servers) {
+        for (const s of serverList) {
           const opt = document.createElement('option');
           opt.value = s;
           opt.textContent = s === activeServer ? `${s} (正在记录)` : s;
           dom.serverViewSelector.appendChild(opt);
         }
-        dom.serverViewSelector.value = viewingServer || prevServer || servers[0] || '';
+        // 优先保持当前选择，或者是 UI State 认为应该显示的，或者默认第一个
+        dom.serverViewSelector.value = viewingServer || prevServer || serverList[0] || '';
       }
     }
 
@@ -96,32 +107,26 @@ export function createRenderer(dom, uiState) {
       }
     }
 
-    // 3. 获取当前服务器数据并更新频道选择器
-    const serverData = appState[viewingServer] || {};
-    const channels = Object.keys(serverData);
+    // 3. 更新频道选择器
     const prevChannelValue = dom.channelSelector.value;
-
     dom.channelSelector.innerHTML = '';
-    if (channels.length === 0) {
+    if (channelList.length === 0) {
       dom.channelSelector.innerHTML = '<option value="">无记录</option>';
     } else {
-      for (const ch of channels) {
+      for (const ch of channelList) {
         const opt = document.createElement('option');
         opt.value = ch;
-        opt.textContent = `${ch} (${serverData[ch].length})`;
+        const count = channelCounts[ch] || 0;
+        opt.textContent = `${ch} (${count})`;
         dom.channelSelector.appendChild(opt);
       }
-      // 尝试恢复之前的选择，或者默认选择第一个可用频道
-      if (prevChannelValue && channels.includes(prevChannelValue)) {
+      if (prevChannelValue && channelList.includes(prevChannelValue)) {
         dom.channelSelector.value = prevChannelValue;
-      } else if (channels.length > 0) {
-        dom.channelSelector.value = channels[0];
+      } else if (channelList.length > 0) {
+        dom.channelSelector.value = channelList[0];
       }
     }
-
-    // 4. 现在可以安全地获取选中频道的消息了
     const selectedChannel = dom.channelSelector.value;
-    const messages = serverData[selectedChannel] || [];
 
     // Toggle view visibility
     dom.logView.style.display = viewMode === 'config' ? 'none' : 'flex';
@@ -169,53 +174,48 @@ export function createRenderer(dom, uiState) {
         dom.lastSavedInfo.textContent = '尚未保存';
       }
 
-      // 计算所有服务器的重复项总数
-      let totalDuplicates = 0;
-      for (const server in appState) {
-        totalDuplicates += callbacks.detectTotalDuplicates(appState[server]);
+      // 计算重复项总数 (需要从 callbacks 获取全量数据进行计算，或者由上层计算后传入)
+      // 这里的逻辑暂时保留依赖 callbacks，直到查重功能也被重构
+      if (callbacks.detectTotalDuplicates && callbacks.getRawState) {
+        const rawState = callbacks.getRawState();
+        let totalDuplicates = 0;
+        for (const server in rawState) {
+          totalDuplicates += callbacks.detectTotalDuplicates(rawState[server]);
+        }
+        updateCleanButtonState(totalDuplicates);
       }
-      updateCleanButtonState(totalDuplicates);
       return;
     }
 
     if (viewMode === 'stats') {
       dom.paginationControls.style.display = 'none';
       updateTextareaAndPreserveSelection(() => {
+        // 统计模式需要全量数据，这里 messages 只是当前页。
+        // 如果需要全量统计，Renderer 需要知道这里的数据不全。
+        // 暂时假设 messages 在 stats 模式下上层会传递全量 (Phase 1 特性)
+        // 或者 Stats 功能在 Phase 4 才完全重构。
+        // 为了兼容 Phase 1，上层在 stats 模式下应传递所有消息
         dom.logDisplay.value = generateStatisticsText(messages, selectedChannel);
       });
     } else {
       // 'log' view
       dom.paginationControls.style.display = 'flex';
-      uiState.setTotalPages(Math.ceil(messages.length / pageSize));
-      const { totalPages } = uiState.getState();
-
-      // 自动翻页逻辑：如果吸附到底部，强制同步到最后一页
-      if (isLockedToBottom) {
-        uiState.setPage(totalPages);
-      } else if (currentPage > totalPages) {
-        uiState.setPage(totalPages);
-      }
-
-      // 重新获取最新的状态值进行渲染
-      const activeState = uiState.getState();
-      const activePage = activeState.currentPage;
-
-      const startIndex = (activePage - 1) * pageSize;
-      const paginatedMessages = messages.slice(startIndex, startIndex + pageSize);
+      
+      // 分页计算逻辑已移出 Renderer，直接使用 UI State 中的 totalPages
 
       updateTextareaAndPreserveSelection(() => {
         dom.logDisplay.value =
-          paginatedMessages.length > 0
-            ? paginatedMessages.map(formatMessageForDisplay).join('\n')
+          messages.length > 0
+            ? messages.map(formatMessageForDisplay).join('\n')
             : `--- 在频道 [${selectedChannel}] 中没有记录 ---`;
       });
 
       // 如果处于吸附模式，确保滚动到底部
-      if (isLockedToBottom && activePage === totalPages) {
+      if (isLockedToBottom && currentPage === totalPages) {
         dom.logDisplay.scrollTop = dom.logDisplay.scrollHeight;
       }
 
-      dom.pageInfoSpan.textContent = `${activePage} / ${totalPages}`;
+      dom.pageInfoSpan.textContent = `${currentPage} / ${totalPages}`;
       const isFirst = currentPage === 1;
       const isLast = currentPage === totalPages;
       dom.pageFirstBtn.disabled = dom.pagePrevBtn.disabled = isFirst;
@@ -223,8 +223,6 @@ export function createRenderer(dom, uiState) {
 
       // 状态反馈：锁定模式下按钮变绿
       dom.pageLastBtn.classList.toggle('active', isLockedToBottom);
-
-      // 最后一页按钮仅在“已处于吸附模式”且“已经在最后一页”时才禁用
       dom.pageLastBtn.disabled = isLast && isLockedToBottom;
     }
   };

@@ -257,7 +257,27 @@ import { debounce, getISOTimestamp } from './utils.js';
 
     // 2. 加载状态与初始化 UI
     inMemoryChatState = await storageManager.loadAllV6();
-    uiControls = await createUI(inMemoryChatState, {
+
+    // 构建 DataAdapter：UI 层与数据层的隔离界面
+    const dataAdapter = {
+      getServers: async () => Object.keys(inMemoryChatState),
+      getChannels: async (server) => Object.keys(inMemoryChatState[server] || {}),
+      getMessages: async (server, channel, page, pageSize) => {
+        const list = inMemoryChatState[server]?.[channel] || [];
+        const total = list.length;
+        const start = (page - 1) * pageSize;
+        // 模拟异步延迟以确保 UI 能够正确处理 Loading 态 (可选，暂不加延迟)
+        return {
+          messages: list.slice(start, start + pageSize),
+          total,
+        };
+      },
+      getAllData: async () => inMemoryChatState, // 用于导出功能
+      // 兼容旧接口，用于分析模块
+      getRawState: () => inMemoryChatState, 
+    };
+
+    uiControls = await createUI(dataAdapter, {
       scanAndMergeHistory,
       saveMessagesToStorage: (state) => storageManager.saveAllV6(state), // Pass a compatible function
       cleanChannelRecords,
@@ -267,6 +287,7 @@ import { debounce, getISOTimestamp } from './utils.js';
       onAutoSaveIntervalChange: startAutoSaveTimer,
       replaceState: (newState) => {
         inMemoryChatState = newState;
+        // 注意：UI 内部现在不持有 state，所以 replaceState 后 UI 会通过 refreshView 自动拉取新数据
       },
     });
 
