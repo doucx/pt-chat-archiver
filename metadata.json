@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(tests): 适配 UI 异步 DataAdapter 接口并修复回归", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772891511.6398215, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(ui): 确保初始渲染同步完成并修复测试异步竞争", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772891589.012075, "duration_ms": 0}}

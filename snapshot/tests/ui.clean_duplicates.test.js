@@ -119,7 +119,9 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     await createUI(adapter, mockCallbacks);
 
     fireEvent.click(screen.getByTitle('设置'));
-    const cleanButton = screen.getByText('清理重复记录');
+    
+    // 使用 findByText 异步等待设置视图渲染完成
+    const cleanButton = await screen.findByText('清理重复记录');
 
     fireEvent.click(cleanButton);
     expect(window.alert).toHaveBeenCalledWith('未发现可清理的重复记录。');

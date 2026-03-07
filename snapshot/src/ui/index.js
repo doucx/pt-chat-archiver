@@ -329,7 +329,8 @@ export async function createUI(dataAdapter, appCallbacks) {
   });
 
   // 4. Initial Render
-  refreshView();
+  // 必须等待首屏渲染完成，确保 UI 实例返回时 DOM 已就绪
+  await refreshView();
 
   // 5. Return the public API
   return {

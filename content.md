@@ -1,123 +1,53 @@
-由于我们在 Phase 1 中将 UI 与数据层解耦并引入了 `DataAdapter` 接口，原有的测试用例仍然在向 `createUI` 传递旧的同步 `state` 对象，这导致了 `TypeError: dataAdapter.getAllData is not a function`。
+测试失败的主要原因是 UI 重构为**异步渲染管道**后，测试代码没有等待异步操作（`refreshView`）完成就进行了断言。在 `createUI` 返回时，初始渲染可能还在进行中；同理，点击按钮后的视图切换也是异步的。
 
-我将生成一个计划来修复 `src/ui/index.js` 中的回调传递，并更新测试套件以匹配新的异步接口。
+我将生成一个计划，通过在 `createUI` 中增加对初始渲染的等待，并更新测试用例以使用异步查询来修复这些问题。
 
-## [WIP] fix(tests): 适配 UI 异步 DataAdapter 接口并修复回归
+## [WIP] fix(ui): 确保初始渲染同步完成并修复测试异步竞争
 
 ### 错误分析
-1.  **接口不匹配**: `createUI` 现在期望接收一个 `DataAdapter` 对象，但测试用例仍传递 `mockAppState` (Plain Object)。
-2.  **回调缺失**: `src/ui/index.js` 在构建 `uiCallbacks` 时，忘记将 `dataAdapter.getRawState` 传递给 Renderer，导致查重按钮的计数逻辑（依赖该方法访问数据进行分析）在测试中无法获取数据。
+1.  **初始渲染未等待**: `createUI` 内部调用了 `refreshView()` 但没有 `await`。由于 `refreshView` 是异步的（涉及 `dataAdapter` 调用），`createUI` 会在 DOM 还没填充数据前就返回，导致测试中获取到的 `channelSelector.value` 为空。
+2.  **测试竞争条件**: `tests/ui.integration.test.js` 中的 `fireEvent.click` 触发了异步的视图切换。测试代码立即执行了 `expect(logView).not.toBeVisible()`，而此时异步渲染函数还没来得及修改 DOM 的 `display` 样式。
+3.  **文本匹配问题**: 在 `tests/ui.clean_duplicates.test.js` 中，直接使用 `getByText` 同步获取可能尚未更新的按钮文本，导致找不到元素。
 
 ### 用户需求
-修复测试失败，确保重构后的 UI 逻辑在异步环境下依然正确，且维持原有的查重等功能的兼容性。
+修复异步重构引入的测试回归，确保 UI 在初始化和交互后的状态断言是可靠的。
 
 ### 评论
-在 Phase 1 阶段，我们依然保留了部分功能的“全量数据依赖”（如查重分析和导出），因此适配器必须提供这些兼容方法。测试用例也需要通过 Mock 适配器来模拟真实的运行环境。
+这是异步化重构后的典型“成长的烦恼”。通过在入口函数中等待首屏渲染，以及在测试中使用 `await waitFor` 或 `findBy` 系列方法，可以优雅地解决此类非确定性问题。
 
 ### 目标
-1.  修正 `src/ui/index.js`，将 `dataAdapter.getRawState` 暴露给 `uiCallbacks`，使 Renderer 能够进行查重计数。
-2.  更新 `tests/ui.clean_duplicates.test.js`，实现 `createMockAdapter` 辅助函数。
-3.  更新 `tests/ui.integration.test.js`，实现 `createMockAdapter` 辅助函数。
-
-### 基本原理
-在测试中，我们构建一个简单的同步封装器来满足 `DataAdapter` 的异步接口。由于 `inMemoryState` 本身是同步的，这种包装可以极低成本地模拟异步行为，确保测试逻辑在不改变原有断层检测逻辑的情况下通过。
+1.  修改 `src/ui/index.js`，在返回 API 之前 `await refreshView()`，确保 UI 实例创建后即处于就绪状态。
+2.  更新 `tests/ui.clean_duplicates.test.js`，将同步获取改为异步等待。
+3.  更新 `tests/ui.integration.test.js`，为所有涉及 DOM 变更的断言增加 `await waitFor`。
 
 ### 标签
-#intent/fix #flow/ready #priority/high #comp/tests #comp/ui #scope/core #ai/instruct #task/domain/testing #task/object/async-adapter-fix #task/action/refactor #task/state/continue
+#intent/fix #flow/ready #priority/high #comp/ui #comp/tests #scope/core #task/domain/testing #task/object/async-timing-fix #task/action/repair #task/state/end #task/status/completed
 
 ---
 
 ### Script
 
-#### Acts 1: 修复 `src/ui/index.js` 中的回调传递
-
-确保查重分析模块能够访问到数据。
+#### Acts 1: 确保 `createUI` 等待初始渲染
 
 ~~~~~act
 patch_file
 src/ui/index.js
 ~~~~~
 ~~~~~old
-  const uiCallbacks = {
-    ...appCallbacks,
-    cleanChannelRecords,
-    clearAllData,
-    importAllData,
+  // 4. Initial Render
+  refreshView();
+
+  // 5. Return the public API
 ~~~~~
 ~~~~~new
-  const uiCallbacks = {
-    ...appCallbacks,
-    getRawState: dataAdapter.getRawState, // 必须提供给分析模块
-    cleanChannelRecords,
-    clearAllData,
-    importAllData,
+  // 4. Initial Render
+  // 必须等待首屏渲染完成，确保 UI 实例返回时 DOM 已就绪
+  await refreshView();
+
+  // 5. Return the public API
 ~~~~~
 
-#### Acts 2: 修复 `tests/ui.clean_duplicates.test.js`
-
-我们需要在测试中构造一个 Mock Adapter。
-
-~~~~~act
-patch_file
-tests/ui.clean_duplicates.test.js
-~~~~~
-~~~~~old
-global.__APP_VERSION__ = '7.0.0-test';
-
-describe('UI Clean Duplicates Regression (V6)', () => {
-~~~~~
-~~~~~new
-global.__APP_VERSION__ = '7.0.0-test';
-
-const createMockAdapter = (state) => ({
-  getServers: async () => Object.keys(state),
-  getChannels: async (server) => Object.keys(state[server] || {}),
-  getMessages: async (server, channel, page, pageSize) => {
-    const list = state[server]?.[channel] || [];
-    const start = (page - 1) * pageSize;
-    return {
-      messages: list.slice(start, start + pageSize),
-      total: list.length,
-    };
-  },
-  getAllData: async () => state,
-  getRawState: () => state,
-});
-
-describe('UI Clean Duplicates Regression (V6)', () => {
-~~~~~
-
-~~~~~act
-patch_file
-tests/ui.clean_duplicates.test.js
-~~~~~
-~~~~~old
-  it('应当能正确识别跨服务器的重复项并在 UI 按钮上显示总数', async () => {
-    const ui = await createUI(mockAppState, mockCallbacks);
-    ui.updateServerDisplay('Server A');
-~~~~~
-~~~~~new
-  it('应当能正确识别跨服务器的重复项并在 UI 按钮上显示总数', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    ui.updateServerDisplay('Server A');
-~~~~~
-
-~~~~~act
-patch_file
-tests/ui.clean_duplicates.test.js
-~~~~~
-~~~~~old
-  it('点击清理按钮应当递归处理嵌套结构并保存结果', async () => {
-    const ui = await createUI(mockAppState, mockCallbacks);
-    ui.updateServerDisplay('Server A');
-~~~~~
-~~~~~new
-  it('点击清理按钮应当递归处理嵌套结构并保存结果', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    ui.updateServerDisplay('Server A');
-~~~~~
+#### Acts 2: 修复 `tests/ui.clean_duplicates.test.js` 的异步竞争
 
 ~~~~~act
 patch_file
@@ -127,9 +57,13 @@ tests/ui.clean_duplicates.test.js
   it('当没有重复项时，点击按钮应当给出提示', async () => {
     // 构造一个没有重复的状态
     const cleanState = { S1: { L1: [{ content: 'unique', time: new Date().toISOString() }] } };
-    await createUI(cleanState, mockCallbacks);
+    const adapter = createMockAdapter(cleanState);
+    await createUI(adapter, mockCallbacks);
 
     fireEvent.click(screen.getByTitle('设置'));
+    const cleanButton = screen.getByText('清理重复记录');
+
+    fireEvent.click(cleanButton);
 ~~~~~
 ~~~~~new
   it('当没有重复项时，点击按钮应当给出提示', async () => {
@@ -139,68 +73,91 @@ tests/ui.clean_duplicates.test.js
     await createUI(adapter, mockCallbacks);
 
     fireEvent.click(screen.getByTitle('设置'));
+    
+    // 使用 findByText 异步等待设置视图渲染完成
+    const cleanButton = await screen.findByText('清理重复记录');
+
+    fireEvent.click(cleanButton);
 ~~~~~
 
-#### Acts 3: 修复 `tests/ui.integration.test.js`
-
-同步更新集成测试。
+#### Acts 3: 修复 `tests/ui.integration.test.js` 的断言时机
 
 ~~~~~act
 patch_file
 tests/ui.integration.test.js
 ~~~~~
 ~~~~~old
-const mockCallbacks = {
-  scanAndMergeHistory: vi.fn(() => Promise.resolve()),
-  saveMessagesToStorage: vi.fn(() => Promise.resolve()),
-  cleanChannelRecords: vi.fn(),
-  detectTotalDuplicates: vi.fn(() => 0),
-  deactivateLogger: vi.fn(),
-  manualSave: vi.fn(() => Promise.resolve()),
-  onAutoSaveIntervalChange: vi.fn(),
-};
+  it('初始加载时应正确渲染数据和默认频道', async () => {
+    await renderUI(mockAppState);
 
-async function renderUI(initialState) {
-  document.body.innerHTML = '';
-  const ui = await createUI(initialState, mockCallbacks);
-  ui.updateServerDisplay('Test Server');
-  return ui;
-}
+    // 验证默认选中的频道是 Local 并且显示了数据
+    const channelSelector = screen.getByRole('combobox');
+    expect(channelSelector.value).toBe('Local');
+
+    const logDisplay = screen.getByRole('textbox');
+    expect(logDisplay.value).toContain('Message 1');
+  });
+
+  it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
+    await renderUI(mockAppState);
+
+    const settingsButton = screen.getByTitle('设置');
+    const logView = document.getElementById('log-archive-log-view');
+    const configView = document.getElementById('log-archive-config-view');
+
+    // 初始状态
+    expect(logView).toBeVisible();
+    expect(configView).not.toBeVisible();
+
+    // 点击设置 (模拟切换到 config 模式)
+    fireEvent.click(settingsButton);
+    expect(logView).not.toBeVisible();
+    expect(configView).toBeVisible();
+
+    // 再次点击切回
+    fireEvent.click(settingsButton);
+    expect(logView).toBeVisible();
+  });
 ~~~~~
 ~~~~~new
-const mockCallbacks = {
-  scanAndMergeHistory: vi.fn(() => Promise.resolve()),
-  saveMessagesToStorage: vi.fn(() => Promise.resolve()),
-  cleanChannelRecords: vi.fn(),
-  detectTotalDuplicates: vi.fn(() => 0),
-  deactivateLogger: vi.fn(),
-  manualSave: vi.fn(() => Promise.resolve()),
-  onAutoSaveIntervalChange: vi.fn(),
-};
+  it('初始加载时应正确渲染数据和默认频道', async () => {
+    await renderUI(mockAppState);
 
-const createMockAdapter = (state) => ({
-  getServers: async () => Object.keys(state),
-  getChannels: async (server) => Object.keys(state[server] || {}),
-  getMessages: async (server, channel, page, pageSize) => {
-    const list = state[server]?.[channel] || [];
-    const start = (page - 1) * pageSize;
-    return {
-      messages: list.slice(start, start + pageSize),
-      total: list.length,
-    };
-  },
-  getAllData: async () => state,
-  getRawState: () => state,
-});
+    // 虽然 renderUI 内部已经 await refreshView，但在复杂的测试环境中
+    // 配合 waitFor 是一种更稳健的实践
+    await waitFor(() => {
+      const channelSelector = screen.getByRole('combobox');
+      expect(channelSelector.value).toBe('Local');
+    });
 
-async function renderUI(initialState) {
-  document.body.innerHTML = '';
-  const adapter = createMockAdapter(initialState);
-  const ui = await createUI(adapter, mockCallbacks);
-  ui.updateServerDisplay('Test Server');
-  return ui;
-}
+    const logDisplay = screen.getByRole('textbox');
+    expect(logDisplay.value).toContain('Message 1');
+  });
+
+  it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
+    await renderUI(mockAppState);
+
+    const settingsButton = screen.getByTitle('设置');
+    const logView = document.getElementById('log-archive-log-view');
+    const configView = document.getElementById('log-archive-config-view');
+
+    // 初始状态
+    expect(logView).toBeVisible();
+    expect(configView).not.toBeVisible();
+
+    // 点击设置 (触发异步刷新)
+    fireEvent.click(settingsButton);
+    
+    // 必须使用 waitFor 等待异步 DOM 变更
+    await waitFor(() => {
+        expect(logView).not.toBeVisible();
+        expect(configView).toBeVisible();
+    });
+
+    // 再次点击切回
+    fireEvent.click(settingsButton);
+    await waitFor(() => {
+        expect(logView).toBeVisible();
+    });
+  });
 ~~~~~
-
-### 下一步建议
-修复完测试后，我们确信异步渲染管道已经稳健地建立。接下来可以正式开始 **Phase 2**，将 `main.js` 中的全量 `inMemoryChatState` 移除，将 `DataAdapter` 的实现改为真正的 IndexedDB 增量请求。
