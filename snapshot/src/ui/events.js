@@ -1,3 +1,5 @@
+import { UI_FEEDBACK_DURATION } from '../constants.js';
+
 /**
  * Binds all UI event listeners.
  * @param {object} params - An object containing dependencies.
@@ -144,7 +146,7 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     dom.saveNowButton.textContent = '✅ 已保存';
     setTimeout(() => {
       dom.saveNowButton.textContent = originalText;
-    }, 1500);
+    }, UI_FEEDBACK_DURATION);
   });
 
   dom.cleanButton.addEventListener('click', async () => {
@@ -201,7 +203,7 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
         dom.copyButton.textContent = '✅';
         setTimeout(() => {
           dom.copyButton.textContent = originalText;
-        }, 1500);
+        }, UI_FEEDBACK_DURATION);
       });
     }
   });
@@ -212,7 +214,7 @@ export async function bindUIEvents({ dom, uiState, renderer, getAppState, callba
     dom.copyAllButton.textContent = '已复制 JSON!';
     setTimeout(() => {
       dom.copyAllButton.textContent = originalText;
-    }, 1500);
+    }, UI_FEEDBACK_DURATION);
   });
 
   dom.importButton.addEventListener('click', () => {

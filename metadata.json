@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: A .gitignore, A CHANGELOG.md, A README.md ... and 36 more files", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772889803.9195983, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] refactor(ui): 统一 UI 反馈时长常量并应用", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772889811.6640534, "duration_ms": 0}}

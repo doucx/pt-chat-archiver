@@ -1,3 +1,4 @@
+import { UI_FEEDBACK_DURATION } from '../constants.js';
 import { MigrationManager } from '../migrations.js';
 import { storageManager } from '../storage/index.js';
 import { getDOMElements, initDOM } from './dom.js';
@@ -110,7 +111,7 @@ export async function createUI(initialAppState, appCallbacks) {
             dom.importButton.textContent = '✅ 导入成功';
             setTimeout(() => {
               dom.importButton.textContent = originalText;
-            }, 2000);
+            }, UI_FEEDBACK_DURATION);
 
             renderer.render(appState, uiCallbacks);
           }
@@ -150,7 +151,7 @@ export async function createUI(initialAppState, appCallbacks) {
       dom.cleanButton.textContent = '清理完毕!';
       setTimeout(() => {
         renderer.render(appState, uiCallbacks); // Re-render to update button
-      }, 2000);
+      }, UI_FEEDBACK_DURATION);
     }
   };
 
