@@ -13,3 +13,6 @@ export const STORE_CONFIG = 'config';
 
 // 定义被视为主服务器的域名列表，以启用精细化解析
 export const MAIN_SERVER_HOSTS = ['pony.town'];
+
+// UI 交互反馈显示时长 (毫秒)
+export const UI_FEEDBACK_DURATION = 1500;
