@@ -16,9 +16,25 @@ const mockCallbacks = {
   onAutoSaveIntervalChange: vi.fn(),
 };
 
+const createMockAdapter = (state) => ({
+  getServers: async () => Object.keys(state),
+  getChannels: async (server) => Object.keys(state[server] || {}),
+  getMessages: async (server, channel, page, pageSize) => {
+    const list = state[server]?.[channel] || [];
+    const start = (page - 1) * pageSize;
+    return {
+      messages: list.slice(start, start + pageSize),
+      total: list.length,
+    };
+  },
+  getAllData: async () => state,
+  getRawState: () => state,
+});
+
 async function renderUI(initialState) {
   document.body.innerHTML = '';
-  const ui = await createUI(initialState, mockCallbacks);
+  const adapter = createMockAdapter(initialState);
+  const ui = await createUI(adapter, mockCallbacks);
   ui.updateServerDisplay('Test Server');
   return ui;
 }
@@ -44,9 +60,12 @@ describe('UI Integration Smoke Tests', () => {
   it('初始加载时应正确渲染数据和默认频道', async () => {
     await renderUI(mockAppState);
 
-    // 验证默认选中的频道是 Local 并且显示了数据
-    const channelSelector = screen.getByRole('combobox');
-    expect(channelSelector.value).toBe('Local');
+    // 虽然 renderUI 内部已经 await refreshView，但在复杂的测试环境中
+    // 配合 waitFor 是一种更稳健的实践
+    await waitFor(() => {
+      const channelSelector = screen.getByRole('combobox');
+      expect(channelSelector.value).toBe('Local');
+    });
 
     const logDisplay = screen.getByRole('textbox');
     expect(logDisplay.value).toContain('Message 1');
@@ -63,14 +82,20 @@ describe('UI Integration Smoke Tests', () => {
     expect(logView).toBeVisible();
     expect(configView).not.toBeVisible();
 
-    // 点击设置 (模拟切换到 config 模式)
+    // 点击设置 (触发异步刷新)
     fireEvent.click(settingsButton);
-    expect(logView).not.toBeVisible();
-    expect(configView).toBeVisible();
+
+    // 必须使用 waitFor 等待异步 DOM 变更
+    await waitFor(() => {
+      expect(logView).not.toBeVisible();
+      expect(configView).toBeVisible();
+    });
 
     // 再次点击切回
     fireEvent.click(settingsButton);
-    expect(logView).toBeVisible();
+    await waitFor(() => {
+      expect(logView).toBeVisible();
+    });
   });
 
   it('在设置中修改分页大小应能实时改变日志显示条数', async () => {

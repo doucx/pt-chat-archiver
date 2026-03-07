@@ -7,6 +7,21 @@ import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
 
+const createMockAdapter = (state) => ({
+  getServers: async () => Object.keys(state),
+  getChannels: async (server) => Object.keys(state[server] || {}),
+  getMessages: async (server, channel, page, pageSize) => {
+    const list = state[server]?.[channel] || [];
+    const start = (page - 1) * pageSize;
+    return {
+      messages: list.slice(start, start + pageSize),
+      total: list.length,
+    };
+  },
+  getAllData: async () => state,
+  getRawState: () => state,
+});
+
 describe('UI Clean Duplicates Regression (V6)', () => {
   let mockAppState;
   let mockCallbacks;
@@ -55,7 +70,8 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   });
 
   it('应当能正确识别跨服务器的重复项并在 UI 按钮上显示总数', async () => {
-    const ui = await createUI(mockAppState, mockCallbacks);
+    const adapter = createMockAdapter(mockAppState);
+    const ui = await createUI(adapter, mockCallbacks);
     ui.updateServerDisplay('Server A');
 
     // 进入设置页面
@@ -69,7 +85,8 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   });
 
   it('点击清理按钮应当递归处理嵌套结构并保存结果', async () => {
-    const ui = await createUI(mockAppState, mockCallbacks);
+    const adapter = createMockAdapter(mockAppState);
+    const ui = await createUI(adapter, mockCallbacks);
     ui.updateServerDisplay('Server A');
 
     fireEvent.click(screen.getByTitle('设置'));
@@ -96,12 +113,17 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   });
 
   it('当没有重复项时，点击按钮应当给出提示', async () => {
-    // 构造一个没有重复的状态
-    const cleanState = { S1: { L1: [{ content: 'unique', time: new Date().toISOString() }] } };
-    await createUI(cleanState, mockCallbacks);
+    // 构造一个没有重复的状态，增加缺失的 type 字段
+    const cleanState = {
+      S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
+    };
+    const adapter = createMockAdapter(cleanState);
+    await createUI(adapter, mockCallbacks);
 
     fireEvent.click(screen.getByTitle('设置'));
-    const cleanButton = screen.getByText('清理重复记录');
+
+    // 使用 findByText 异步等待设置视图渲染完成
+    const cleanButton = await screen.findByText('清理重复记录');
 
     fireEvent.click(cleanButton);
     expect(window.alert).toHaveBeenCalledWith('未发现可清理的重复记录。');

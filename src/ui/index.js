@@ -8,12 +8,14 @@ import { createUIState } from './state.js';
 
 /**
  * Initializes and orchestrates the entire UI module.
- * @param {object} initialAppState - The initial application state (inMemoryChatState).
+ * @param {object} dataAdapter - The adapter interface to fetch data (Async).
  * @param {object} appCallbacks - Callbacks for application-level actions.
  * @returns {Promise<object>} Public API for the UI module.
  */
-export async function createUI(initialAppState, appCallbacks) {
-  let appState = initialAppState;
+export async function createUI(dataAdapter, appCallbacks) {
+  // 临时保留 appState 仅用于那些尚未重构的导出功能 (downloadJSON etc.)
+  // 一旦这些功能也迁移到 Adapter，这个变量即可移除
+  let legacyAppState = await dataAdapter.getAllData();
 
   // 1. Initialize DOM structure
   initDOM(__APP_VERSION__);
@@ -23,8 +25,92 @@ export async function createUI(initialAppState, appCallbacks) {
   const uiState = await createUIState();
   const renderer = createRenderer(dom, uiState);
 
-  // 3. Prepare callbacks and bind events
-  const getAppState = () => appState;
+  // --- Async Controller Logic ---
+
+  /**
+   * 核心控制器方法：异步刷新视图
+   * 1. 获取 UI 状态 (当前服务器、页码等)
+   * 2. 调用 Adapter 获取数据 (消息列表、总数等)
+   * 3. 计算派生状态 (TotalPages)
+   * 4. 调用 Renderer 更新 DOM
+   */
+  const refreshView = async () => {
+    const { viewingServer, currentPage, pageSize, viewMode, isLockedToBottom } = uiState.getState();
+    const serverList = await dataAdapter.getServers();
+
+    // 确保 viewingServer 有效
+    if (!viewingServer && serverList.length > 0) {
+      uiState.setViewingServer(serverList[0]);
+    }
+    const currentServer = uiState.getState().viewingServer; // 可能已被上面更新
+
+    // 获取当前服务器的频道列表和统计信息
+    const channelList = await dataAdapter.getChannels(currentServer);
+    const channelCounts = {};
+    for (const ch of channelList) {
+      // 临时：为了 Phase 1 快速实现，我们这里可能需要优化
+      // 现在的 getMessages 返回 total，我们或许需要一个独立的 getChannelStats
+      // 这里的实现依赖 getMessages 的开销，如果是全量内存没问题，如果是 DB 可能会慢
+      // 暂时先用 dummy 或者让 renderer 自己处理？
+      // Renderer 需要显示 "Global (500)"。
+      // 让我们假设 inMemoryState 依然很快。
+      const { total } = await dataAdapter.getMessages(currentServer, ch, 1, 1);
+      channelCounts[ch] = total;
+    }
+
+    // 确定当前选中的 Channel (Renderer 依赖 DOM，但我们可以先从 DOM 读一下之前的选择?)
+    // 更好的方式是 UI State 也管理 selectedChannel，但目前在 DOM 里。
+    // 我们先渲染一次 Server/Channel 列表，让 DOM 更新，然后读取值，再请求消息？
+    // 或者一次性把上下文给 Renderer，让 Renderer 决定 Channel，然后 Renderer 再回调请求消息？
+    // 不，这太复杂。
+    // 简化方案：Controller 读取 DOM 状态 (Dirty read)
+    let selectedChannel = dom.channelSelector.value;
+    if (!selectedChannel && channelList.length > 0) selectedChannel = channelList[0];
+
+    // 如果列表变了导致 selectedChannel 无效，修正它
+    if (selectedChannel && !channelList.includes(selectedChannel)) selectedChannel = channelList[0];
+
+    // 获取消息数据
+    let messages = [];
+    let totalCount = 0;
+
+    if (currentServer && selectedChannel) {
+      // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
+      const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
+      const fetchPage = viewMode === 'stats' ? 1 : currentPage;
+
+      const result = await dataAdapter.getMessages(
+        currentServer,
+        selectedChannel,
+        fetchPage,
+        fetchSize,
+      );
+      messages = result.messages;
+      totalCount = result.total;
+    }
+
+    // 更新分页状态
+    const newTotalPages = Math.ceil(totalCount / pageSize);
+    uiState.setTotalPages(newTotalPages);
+
+    // 自动吸附逻辑修正: 如果锁定了底部，强制跳到最后一页
+    // (这需要在 fetch 之前做吗？不需要，fetch 后发现页码不对再 fetch?
+    //  不，为了性能，应该在 fetch 前决定。但 totalCount 未知...)
+    // 现在的逻辑是：先 fetch 这一页，Renderer 发现不对劲会改页码。
+    // 我们保持原样，Renderer 可能会修正页码并触发重绘吗？
+    // 原 Renderer 逻辑: if (locked) setPage(total);
+    // 这会导致一次额外的渲染。为了 Phase 1 简单，先保留。
+
+    const context = {
+      serverList,
+      channelList,
+      channelCounts,
+      messages,
+      totalCount,
+    };
+
+    renderer.render(context, uiCallbacks);
+  };
 
   // --- Export Helper Functions ---
 
@@ -67,28 +153,32 @@ export async function createUI(initialAppState, appCallbacks) {
 
   // --- Export Callbacks ---
 
-  const downloadJSON = () => {
-    if (Object.keys(appState).length === 0) return;
+  const downloadJSON = async () => {
+    const allData = await dataAdapter.getAllData();
+    if (Object.keys(allData).length === 0) return;
     triggerDownload(
-      JSON.stringify(appState, null, 2),
+      JSON.stringify(allData, null, 2),
       `pt-saver-${getExportTimestamp()}.json`,
       'application/json',
     );
   };
 
-  const downloadTXT = () => {
-    if (Object.keys(appState).length === 0) return;
-    const text = generateFullTextExport(appState);
+  const downloadTXT = async () => {
+    const allData = await dataAdapter.getAllData();
+    if (Object.keys(allData).length === 0) return;
+    const text = generateFullTextExport(allData);
     triggerDownload(text, `pt-saver-${getExportTimestamp()}.txt`, 'text/plain');
   };
 
-  const copyJSON = () => {
-    const data = JSON.stringify(appState, null, 2);
+  const copyJSON = async () => {
+    const allData = await dataAdapter.getAllData();
+    const data = JSON.stringify(allData, null, 2);
     navigator.clipboard.writeText(data);
   };
 
-  const copyTXT = () => {
-    const text = generateFullTextExport(appState);
+  const copyTXT = async () => {
+    const allData = await dataAdapter.getAllData();
+    const text = generateFullTextExport(allData);
     navigator.clipboard.writeText(text);
   };
 
@@ -124,11 +214,11 @@ export async function createUI(initialAppState, appCallbacks) {
             if (appCallbacks.replaceState) {
               appCallbacks.replaceState(importedData);
             }
-            // 2. 更新 UI 本地状态
-            appState = importedData;
+            // 2. 更新 UI 本地 legacy 状态 (用于未重构的功能)
+            legacyAppState = importedData;
 
             // 3. 持久化
-            await appCallbacks.saveMessagesToStorage(appState);
+            await appCallbacks.saveMessagesToStorage(importedData);
 
             const originalText = dom.importButton.textContent;
             dom.importButton.textContent = '✅ 导入成功';
@@ -136,7 +226,7 @@ export async function createUI(initialAppState, appCallbacks) {
               dom.importButton.textContent = originalText;
             }, UI_FEEDBACK_DURATION);
 
-            renderer.render(appState, uiCallbacks);
+            refreshView();
           }
         } catch (err) {
           console.error('[Archiver] Import failed:', err);
@@ -149,10 +239,14 @@ export async function createUI(initialAppState, appCallbacks) {
     input.click();
   };
 
+  // 注意：cleanChannelRecords 等功能仍深度依赖同步计算，
+  // 在 Phase 4 重构分析模块之前，我们暂时保留其同步逻辑，
+  // 但操作的是 legacyAppState，并通过 callbacks 同步回 main.js
   const cleanChannelRecords = async () => {
     let totalToClean = 0;
-    for (const server in appState) {
-      totalToClean += appCallbacks.detectTotalDuplicates(appState[server]);
+    // 使用 legacyAppState 进行同步计算
+    for (const server in legacyAppState) {
+      totalToClean += appCallbacks.detectTotalDuplicates(legacyAppState[server]);
     }
 
     if (totalToClean === 0) return alert('未发现可清理的重复记录。');
@@ -161,17 +255,17 @@ export async function createUI(initialAppState, appCallbacks) {
         `【确认】此操作将根据特定规则删除 ${totalToClean} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
       )
     ) {
-      for (const server in appState) {
-        const serverData = appState[server];
+      for (const server in legacyAppState) {
+        const serverData = legacyAppState[server];
         for (const channel in serverData) {
           const { cleanedRecords } = appCallbacks.cleanChannelRecords(serverData[channel]);
           serverData[channel] = cleanedRecords;
         }
       }
-      await appCallbacks.saveMessagesToStorage(appState);
+      await appCallbacks.saveMessagesToStorage(legacyAppState);
       dom.cleanButton.textContent = '清理完毕!';
       setTimeout(() => {
-        renderer.render(appState, uiCallbacks);
+        refreshView();
       }, UI_FEEDBACK_DURATION);
     }
   };
@@ -184,12 +278,12 @@ export async function createUI(initialAppState, appCallbacks) {
     ) {
       appCallbacks.deactivateLogger();
       await storageManager.clearAllData();
-      for (const key of Object.keys(appState)) {
-        delete appState[key];
+      for (const key of Object.keys(legacyAppState)) {
+        delete legacyAppState[key];
       }
       await appCallbacks.scanAndMergeHistory();
-      await appCallbacks.saveMessagesToStorage(appState);
-      renderer.render(appState, uiCallbacks);
+      await appCallbacks.saveMessagesToStorage(legacyAppState);
+      refreshView();
     }
   };
 
@@ -199,12 +293,12 @@ export async function createUI(initialAppState, appCallbacks) {
 
   const recoverLegacyData = async (targetServer) => {
     try {
-      const newState = await MigrationManager.recoverAndMergeAll(appState, targetServer);
+      const newState = await MigrationManager.recoverAndMergeAll(legacyAppState, targetServer);
       if (appCallbacks.replaceState) {
         appCallbacks.replaceState(newState);
       }
-      appState = newState;
-      await appCallbacks.saveMessagesToStorage(appState);
+      legacyAppState = newState;
+      await appCallbacks.saveMessagesToStorage(legacyAppState);
       alert('数据恢复合并完成！已自动清理旧版残留。');
     } catch (err) {
       console.error('[Recovery] Failed:', err);
@@ -219,6 +313,7 @@ export async function createUI(initialAppState, appCallbacks) {
 
   const uiCallbacks = {
     ...appCallbacks,
+    getRawState: dataAdapter.getRawState, // 必须提供给分析模块
     cleanChannelRecords,
     clearAllData,
     importAllData,
@@ -234,34 +329,34 @@ export async function createUI(initialAppState, appCallbacks) {
   await bindUIEvents({
     dom,
     uiState,
-    renderer,
-    getAppState,
+    refreshView,
     callbacks: uiCallbacks,
   });
 
   // 4. Initial Render
-  renderer.render(appState, uiCallbacks);
+  // 必须等待首屏渲染完成，确保 UI 实例返回时 DOM 已就绪
+  await refreshView();
 
   // 5. Return the public API
   return {
     updateUI: () => {
       if (!uiState.getState().isUIPaused) {
-        renderer.render(appState, uiCallbacks);
+        refreshView();
       }
     },
     setState: (newState) => {
-      appState = newState;
-      renderer.render(appState, uiCallbacks);
+      legacyAppState = newState;
+      refreshView();
     },
     checkStorageUsage: async () => await renderer.checkStorageUsage(),
     isUIPaused: () => uiState.getState().isUIPaused,
     updateServerDisplay: (serverName) => {
       uiState.setActiveServer(serverName);
-      renderer.render(appState, uiCallbacks);
+      refreshView();
     },
     setLastSavedTime: (time) => {
       uiState.setLastSavedTime(time);
-      renderer.render(appState, uiCallbacks);
+      refreshView();
     },
     getAutoSaveInterval: () => uiState.getState().autoSaveInterval,
   };
