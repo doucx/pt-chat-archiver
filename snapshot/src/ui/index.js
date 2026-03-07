@@ -308,6 +308,7 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const uiCallbacks = {
     ...appCallbacks,
+    getRawState: dataAdapter.getRawState, // 必须提供给分析模块
     cleanChannelRecords,
     clearAllData,
     importAllData,

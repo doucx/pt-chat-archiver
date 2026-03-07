@@ -16,9 +16,25 @@ const mockCallbacks = {
   onAutoSaveIntervalChange: vi.fn(),
 };
 
+const createMockAdapter = (state) => ({
+  getServers: async () => Object.keys(state),
+  getChannels: async (server) => Object.keys(state[server] || {}),
+  getMessages: async (server, channel, page, pageSize) => {
+    const list = state[server]?.[channel] || [];
+    const start = (page - 1) * pageSize;
+    return {
+      messages: list.slice(start, start + pageSize),
+      total: list.length,
+    };
+  },
+  getAllData: async () => state,
+  getRawState: () => state,
+});
+
 async function renderUI(initialState) {
   document.body.innerHTML = '';
-  const ui = await createUI(initialState, mockCallbacks);
+  const adapter = createMockAdapter(initialState);
+  const ui = await createUI(adapter, mockCallbacks);
   ui.updateServerDisplay('Test Server');
   return ui;
 }
