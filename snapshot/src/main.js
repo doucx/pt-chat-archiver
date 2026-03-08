@@ -26,6 +26,9 @@ import { debounce, getISOTimestamp } from './utils.js';
   // UI 控制句柄
   let uiControls = null;
   const autoSaveTimer = null;
+  
+  // 用于保证实时消息绝对单调递增的全局时钟状态
+  let lastRealtimeTimestamp = 0;
 
   /*
    * =================================================================
@@ -179,7 +182,16 @@ import { debounce, getISOTimestamp } from './utils.js';
     if (!currentActiveChannel) return;
 
     const selfName = (await storageManager.getSelfName()) || '';
-    const preciseTime = getISOTimestamp();
+    
+    // --- 强制毫秒级时钟推进 (Monotonic Time Stepper) ---
+    // 确保即使在同一毫秒内到达的多条消息，也能获得绝对递增的时间戳
+    let currentMs = Date.now();
+    if (currentMs <= lastRealtimeTimestamp) {
+      currentMs = lastRealtimeTimestamp + 1;
+    }
+    lastRealtimeTimestamp = currentMs;
+    const preciseTime = new Date(currentMs).toISOString();
+
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
     if (messageData?.content) {
