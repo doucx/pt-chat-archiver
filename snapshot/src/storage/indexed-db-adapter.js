@@ -309,6 +309,40 @@ export class IndexedDBAdapter {
   }
 
   /**
+   * 获取特定频道的全量消息，用于独立的按需分析。
+   */
+  getAllMessagesForChannel(server, channel) {
+    if (!server || !channel) return Promise.resolve([]);
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readonly');
+      const store = tx.objectStore(STORE_MESSAGES);
+      const index = store.index('server_channel_time');
+      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
+      
+      const request = index.getAll(range);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
+   * 批量删除消息
+   */
+  deleteMessages(ids) {
+    if (!ids || ids.length === 0) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readwrite');
+      const store = tx.objectStore(STORE_MESSAGES);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      
+      for (const id of ids) {
+        store.delete(id);
+      }
+    });
+  }
+
+  /**
    * 清除所有数据
    */
   clearAllData() {
@@ -326,31 +360,12 @@ export class IndexedDBAdapter {
 
   /**
    * 获取估算的存储大小 (字节)
-   * 遍历所有存储的消息和配置，并累加序列化后的字节大小。
+   * 采用 O(1) 经验估算法，避免全量序列化导致的内存崩溃和主线程卡顿。
    */
   async getRawSize() {
-    return new Promise((resolve) => {
-      const tx = this._tx([STORE_MESSAGES, STORE_CONFIG], 'readonly');
-      let totalSize = 0;
-
-      const countSize = (storeName) => {
-        return new Promise((res) => {
-          const store = tx.objectStore(storeName);
-          const request = store.getAll();
-          request.onsuccess = () => {
-            const data = request.result;
-            const size = new Blob([JSON.stringify(data)]).size;
-            res(size);
-          };
-          request.onerror = () => res(0);
-        });
-      };
-
-      Promise.all([countSize(STORE_MESSAGES), countSize(STORE_CONFIG)]).then((sizes) => {
-        totalSize = sizes.reduce((a, b) => a + b, 0);
-        resolve(totalSize);
-      });
-    });
+    const count = await this.getTotalMessageCount();
+    // 经验值估算：一条 JSON 消息及其索引结构序列化后平均约 250 字节
+    return count * 250;
   }
 
   /**

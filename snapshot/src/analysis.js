@@ -132,65 +132,85 @@ function identifyBurstDuplicates(records) {
 }
 
 /**
- * 清理一个频道记录中的重复数据。
+ * 异步检测所有频道中可被清理的重复记录总数。
+ * 通过单频道迭代和释放主线程时间片，避免一次性加载全量数据卡死 UI。
  */
-export function cleanChannelRecords(records) {
-  if (!records || records.length === 0) return { cleanedRecords: [], removedCount: 0 };
-  const is_in_burst = identifyBurstDuplicates(records);
-  const cleanedRecords = [];
-  const seen_contents = new Set();
-  let removedCount = 0;
-  for (let i = 0; i < records.length; i++) {
-    const record = records[i];
-
-    // 彻底忽略 archiver 消息，它们不参与重复检测，也不应该阻断 content 的连续性判断
-    if (record.is_archiver) {
-      cleanedRecords.push(record);
-      continue;
-    }
-
-    const content = record.content;
-    const is_duplicate = content != null && seen_contents.has(content);
-    // 只有非历史导入的、且处于爆发期的重复消息才会被删除
-    const should_delete = !record.is_historical && is_duplicate && is_in_burst[i];
-
-    if (!should_delete) {
-      cleanedRecords.push(record);
-    } else {
-      removedCount++;
-    }
-
-    if (content != null) seen_contents.add(content);
-  }
-  return { cleanedRecords, removedCount };
-}
-
-/**
- * 检测所有频道中可被清理的重复记录总数。
- */
-export function detectTotalDuplicates(messagesByChannel) {
+export async function detectTotalDuplicatesAsync(dataAdapter) {
   let totalDuplicates = 0;
-  if (!messagesByChannel) return 0;
-  for (const channel in messagesByChannel) {
-    const records = messagesByChannel[channel];
-    if (!records || records.length === 0) continue;
-    const is_in_burst = identifyBurstDuplicates(records);
-    const seen_contents = new Set();
-    for (let i = 0; i < records.length; i++) {
-      const record = records[i];
-      if (record.is_archiver) continue; // 忽略标记
+  const servers = await dataAdapter.getServers();
+  
+  for (const server of servers) {
+    const channels = await dataAdapter.getChannels(server);
+    for (const channel of channels) {
+      const records = await dataAdapter.getAllMessagesForChannel(server, channel);
+      if (!records || records.length === 0) continue;
+      
+      const is_in_burst = identifyBurstDuplicates(records);
+      const seen_contents = new Set();
+      
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        if (record.is_archiver) continue;
 
-      const content = record.content;
-      if (
-        !record.is_historical &&
-        content != null &&
-        seen_contents.has(content) &&
-        is_in_burst[i]
-      ) {
-        totalDuplicates++;
+        const content = record.content;
+        if (
+          !record.is_historical &&
+          content != null &&
+          seen_contents.has(content) &&
+          is_in_burst[i]
+        ) {
+          totalDuplicates++;
+        }
+        if (content != null) seen_contents.add(content);
       }
-      if (content != null) seen_contents.add(content);
+      
+      // 释放主线程时间片
+      await new Promise((r) => setTimeout(r, 0));
     }
   }
   return totalDuplicates;
+}
+
+/**
+ * 异步清理所有频道中的重复数据，直接执行实际的数据库批量删除操作。
+ */
+export async function cleanAllChannelRecordsAsync(dataAdapter) {
+  let removedCount = 0;
+  const servers = await dataAdapter.getServers();
+  
+  for (const server of servers) {
+    const channels = await dataAdapter.getChannels(server);
+    for (const channel of channels) {
+      const records = await dataAdapter.getAllMessagesForChannel(server, channel);
+      if (!records || records.length === 0) continue;
+      
+      const is_in_burst = identifyBurstDuplicates(records);
+      const seen_contents = new Set();
+      const idsToDelete = [];
+      
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        if (record.is_archiver) continue;
+
+        const content = record.content;
+        const is_duplicate = content != null && seen_contents.has(content);
+        const should_delete = !record.is_historical && is_duplicate && is_in_burst[i];
+
+        if (should_delete) {
+          idsToDelete.push(record.id);
+        }
+        
+        if (content != null) seen_contents.add(content);
+      }
+      
+      if (idsToDelete.length > 0) {
+        await dataAdapter.deleteMessages(idsToDelete);
+        removedCount += idsToDelete.length;
+      }
+      
+      // 释放主线程时间片
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  }
+  return removedCount;
 }

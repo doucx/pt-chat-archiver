@@ -245,28 +245,22 @@ export async function createUI(dataAdapter, appCallbacks) {
   // 注意：cleanChannelRecords 等功能仍深度依赖同步计算，
   // 在 Phase 4 重构分析模块之前，我们暂时通过异步加载全量数据来维持逻辑
   const cleanChannelRecords = async () => {
-    const rawState = await dataAdapter.getRawState();
-    let totalToClean = 0;
-    for (const server in rawState) {
-      totalToClean += appCallbacks.detectTotalDuplicates(rawState[server]);
-    }
+    const totalToClean = await appCallbacks.getDuplicatesCount();
 
     if (totalToClean === 0) return alert('未发现可清理的重复记录。');
     if (
       confirm(
-        `【确认】此操作将根据特定规则删除 ${totalToClean} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
+        `【确认】此操作将从数据库中永久删除 ${totalToClean} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
       )
     ) {
-      for (const server in rawState) {
-        const serverData = rawState[server];
-        for (const channel in serverData) {
-          const { cleanedRecords } = appCallbacks.cleanChannelRecords(serverData[channel]);
-          serverData[channel] = cleanedRecords;
-        }
-      }
-      await appCallbacks.saveMessagesToStorage(rawState);
+      const originalText = dom.cleanButton.textContent;
+      dom.cleanButton.textContent = '清理中...';
+
+      await appCallbacks.cleanAllChannelRecordsAsync();
+      
       dom.cleanButton.textContent = '清理完毕!';
       setTimeout(() => {
+        dom.cleanButton.textContent = originalText;
         refreshView();
       }, UI_FEEDBACK_DURATION);
     }
@@ -308,7 +302,7 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const uiCallbacks = {
     ...appCallbacks,
-    getRawState: dataAdapter.getRawState, // 必须提供给分析模块
+    getDuplicatesCount: async () => await appCallbacks.detectTotalDuplicatesAsync(dataAdapter),
     cleanChannelRecords,
     clearAllData,
     importAllData,

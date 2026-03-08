@@ -72,6 +72,18 @@ export class LocalStorageAdapter {
     return Promise.resolve(size);
   }
 
+  getAllMessagesForChannel(server, channel) {
+    return this.loadAllV6().then((state) => {
+      if (state[server] && state[server][channel]) return state[server][channel];
+      return [];
+    });
+  }
+
+  deleteMessages(ids) {
+    // LocalStorage 现在只是迁移源，不执行实际删除
+    return Promise.resolve();
+  }
+
   // --- Legacy Migration Support ---
 
   loadAllV4() {

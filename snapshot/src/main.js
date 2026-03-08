@@ -1,5 +1,5 @@
 import './ui/style.css';
-import { cleanChannelRecords, detectTotalDuplicates } from './analysis.js';
+import { cleanAllChannelRecordsAsync, detectTotalDuplicatesAsync } from './analysis.js';
 import { SELF_NAME_KEY } from './constants.js';
 import { MigrationManager } from './migrations.js';
 import {
@@ -265,15 +265,19 @@ import { debounce, getISOTimestamp } from './utils.js';
         return await storageManager.getMessages(server, channel, page, pageSize);
       },
       getAllData: async () => await storageManager.loadAllV6(), // 用于导出功能
-      // 兼容旧接口，用于重型操作如分析模块等
-      getRawState: async () => await storageManager.loadAllV6(),
+      getAllMessagesForChannel: async (server, channel) => {
+        return await storageManager.getAllMessagesForChannel(server, channel);
+      },
+      deleteMessages: async (ids) => {
+        return await storageManager.deleteMessages(ids);
+      },
     };
 
     uiControls = await createUI(dataAdapter, {
       scanAndMergeHistory,
       saveMessagesToStorage: async (state) => await storageManager.saveAllV6(state), // 仍提供给批量导入等特殊维护操作使用
-      cleanChannelRecords,
-      detectTotalDuplicates,
+      cleanAllChannelRecordsAsync: async () => await cleanAllChannelRecordsAsync(dataAdapter),
+      detectTotalDuplicatesAsync,
       deactivateLogger,
       manualSave: async () => {}, // 增量写入模式下已无需手动保存
       onAutoSaveIntervalChange: () => {}, // 设置间隔仅为了兼容旧UI交互

@@ -108,6 +108,20 @@ class StorageManager {
     return this.adapter.getRawSize();
   }
 
+  getAllMessagesForChannel(server, channel) {
+    if (this.adapter?.getAllMessagesForChannel) {
+      return this.adapter.getAllMessagesForChannel(server, channel);
+    }
+    return Promise.resolve([]);
+  }
+
+  deleteMessages(ids) {
+    if (this.adapter?.deleteMessages) {
+      return this.adapter.deleteMessages(ids);
+    }
+    return Promise.resolve();
+  }
+
   getTotalMessageCount() {
     if (this.adapter?.getTotalMessageCount) {
       return this.adapter.getTotalMessageCount();
