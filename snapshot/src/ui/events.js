@@ -131,12 +131,6 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
     triggerRefresh();
   });
 
-  dom.autoSaveIntervalInput.addEventListener('change', async () => {
-    await uiState.setAutoSaveInterval(dom.autoSaveIntervalInput.value);
-    callbacks.onAutoSaveIntervalChange();
-    triggerRefresh();
-  });
-
   dom.autoFollowInput.addEventListener('change', async () => {
     await uiState.setAutoFollowServer(dom.autoFollowInput.checked);
     triggerRefresh();
@@ -275,6 +269,5 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
   // --- Initial value setup ---
   dom.selfNameInput.value = await uiState.getSelfName();
   dom.pageSizeInput.value = uiState.getState().pageSize;
-  dom.autoSaveIntervalInput.value = uiState.getState().autoSaveInterval;
   dom.autoFollowInput.checked = uiState.getState().autoFollowServer;
 }

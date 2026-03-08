@@ -25,7 +25,6 @@ import { debounce, getISOTimestamp } from './utils.js';
   let isSwitchingTabs = false;
   // UI 控制句柄
   let uiControls = null;
-  const autoSaveTimer = null;
 
   // 用于保证实时消息绝对单调递增的全局时钟状态
   let lastRealtimeTimestamp = 0;
@@ -328,7 +327,6 @@ import { debounce, getISOTimestamp } from './utils.js';
       deleteMessages: async (ids) => await storageManager.deleteMessages(ids),
       deactivateLogger,
       manualSave: async () => {}, // 增量写入模式下已无需手动保存
-      onAutoSaveIntervalChange: () => {}, // 设置间隔仅为了兼容旧UI交互
       replaceState: async (newState) => {
         // UI 会被通知刷新以自动请求新数据
       },
