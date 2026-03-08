@@ -188,14 +188,19 @@ export class IndexedDBAdapter {
       const tx = this._tx([STORE_MESSAGES], 'readonly');
       const store = tx.objectStore(STORE_MESSAGES);
       const index = store.index('server_channel_time');
-      
+
       let range;
       if (lastTime) {
-        range = IDBKeyRange.bound([server, channel, lastTime], [server, channel, '\uffff'], true, false);
+        range = IDBKeyRange.bound(
+          [server, channel, lastTime],
+          [server, channel, '\uffff'],
+          true,
+          false,
+        );
       } else {
         range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
       }
-      
+
       const request = index.getAll(range, limit);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -364,7 +369,7 @@ export class IndexedDBAdapter {
   async getRawSize() {
     const count = await this.getTotalMessageCount();
     // 假设每条消息平均占用 150 字节的存储空间
-    const estimatedSize = count * 150; 
+    const estimatedSize = count * 150;
     return estimatedSize;
   }
 

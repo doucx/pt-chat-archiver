@@ -31,7 +31,7 @@ const createMockAdapter = (state) => ({
     const list = state[server]?.[channel] || [];
     let startIndex = 0;
     if (lastTime) {
-      startIndex = list.findIndex(m => m.time > lastTime);
+      startIndex = list.findIndex((m) => m.time > lastTime);
       if (startIndex === -1) return [];
     }
     return list.slice(startIndex, startIndex + limit);

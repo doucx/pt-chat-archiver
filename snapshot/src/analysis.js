@@ -139,14 +139,14 @@ function identifyBurstDuplicates(records) {
 export async function scanAllDuplicatesAsync(dataAdapter) {
   const duplicateIds = [];
   const servers = await dataAdapter.getServers();
-  
+
   for (const server of servers) {
     const channels = await dataAdapter.getChannels(server);
-    
+
     for (const channel of channels) {
       const channelMessages = [];
       let lastTime = null;
-      
+
       // 分片加载当前频道的所有消息
       while (true) {
         const chunk = await dataAdapter.getMessagesChunk(server, channel, lastTime, 5000);
@@ -154,35 +154,35 @@ export async function scanAllDuplicatesAsync(dataAdapter) {
         channelMessages.push(...chunk);
         lastTime = chunk[chunk.length - 1].time;
         if (chunk.length < 5000) break;
-        
+
         // 关键：在加载每一片后让出主线程，避免 UI 冻结
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
-      
+
       // 分析当前频道的重复项
       const is_in_burst = identifyBurstDuplicates(channelMessages);
       const seen_contents = new Set();
-      
+
       for (let i = 0; i < channelMessages.length; i++) {
         const record = channelMessages[i];
         if (record.is_archiver) continue;
-        
+
         const content = record.content;
         const is_duplicate = content != null && seen_contents.has(content);
         const should_delete = !record.is_historical && is_duplicate && is_in_burst[i];
-        
+
         if (should_delete) {
           duplicateIds.push(record.id);
         }
-        
+
         if (content != null) seen_contents.add(content);
       }
-      
+
       // 释放内存，进入下一个频道
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
   }
-  
+
   return duplicateIds;
 }
 

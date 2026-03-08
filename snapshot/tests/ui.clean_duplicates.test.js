@@ -22,7 +22,7 @@ const createMockAdapter = (state) => ({
     const list = state[server]?.[channel] || [];
     let startIndex = 0;
     if (lastTime) {
-      startIndex = list.findIndex(m => m.time > lastTime);
+      startIndex = list.findIndex((m) => m.time > lastTime);
       if (startIndex === -1) return [];
     }
     return list.slice(startIndex, startIndex + limit);
@@ -95,7 +95,7 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     fireEvent.click(settingsButton);
 
     const scanButton = await screen.findByText('扫描重复记录');
-    
+
     // 点击扫描
     fireEvent.click(scanButton);
 
@@ -111,10 +111,10 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     ui.updateServerDisplay('Server A');
 
     fireEvent.click(screen.getByTitle('设置'));
-    
+
     const scanButton = await screen.findByText('扫描重复记录');
     fireEvent.click(scanButton);
-    
+
     const cleanButton = await screen.findByText(/清理重复 \(24\)/);
 
     // 执行清理
@@ -139,7 +139,7 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   it('当没有重复项时，点击扫描应当重置按钮', async () => {
     // 覆盖 mock 返回空数组
     mockCallbacks.scanAllDuplicatesAsync.mockResolvedValueOnce([]);
-    
+
     const cleanState = {
       S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
     };

@@ -164,7 +164,11 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
       }
     } else {
       // 当前是“清理”状态
-      if (confirm(`【确认】将删除 ${pendingDuplicateIds.length} 条重复记录。此操作不可逆。确定要继续吗？`)) {
+      if (
+        confirm(
+          `【确认】将删除 ${pendingDuplicateIds.length} 条重复记录。此操作不可逆。确定要继续吗？`,
+        )
+      ) {
         dom.cleanButton.textContent = '清理中...';
         dom.cleanButton.disabled = true;
         try {

@@ -83,8 +83,7 @@ class StorageManager {
   }
 
   deleteMessages(ids) {
-    if (this.adapter?.deleteMessages)
-      return this.adapter.deleteMessages(ids);
+    if (this.adapter?.deleteMessages) return this.adapter.deleteMessages(ids);
     return Promise.resolve();
   }
 
