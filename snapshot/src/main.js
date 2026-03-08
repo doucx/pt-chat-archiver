@@ -334,13 +334,14 @@ import { debounce, getISOTimestamp } from './utils.js';
     const uiObserver = new MutationObserver(() => {
       const { chatLogContainer } = locateChatElements();
       if (chatLogContainer) {
-        const isVisible = chatLogContainer.style.display !== 'none';
-        if (isVisible && !messageObserver) {
+        // 不再因为 display: none 而注销监听器。
+        // 这确保了在手机端隐藏聊天框时，依然能在后台正常捕获新消息，
+        // 并且避免了反复显示隐藏时触发大量无意义的 DOM 重扫描。
+        if (!messageObserver) {
           activateLogger();
-        } else if (!isVisible && messageObserver) {
-          deactivateLogger();
         }
       } else if (messageObserver) {
+        // 只有当聊天容器彻底从 DOM 中被移除时，才注销监听。
         deactivateLogger();
       }
     });

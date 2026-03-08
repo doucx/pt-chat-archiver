@@ -101,8 +101,10 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
 
   if (discontinuityDetected && oldSigs.length > 0) {
     console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
+    const markTime = getISOTimestamp();
     const discontinuityMark = {
-      time: getISOTimestamp(),
+      id: generateULID(new Date(markTime).getTime()),
+      time: markTime,
       type: 'system',
       sender: 'Archiver',
       receiver: 'System',
@@ -129,6 +131,10 @@ function ensureIdMonotonicity(messages) {
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
+
+    if (!msg.id) {
+      msg.id = generateULID(new Date(msg.time).getTime());
+    }
 
     // 简单的字符串字典序比较
     if (lastId && msg.id < lastId) {
