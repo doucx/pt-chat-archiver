@@ -1,73 +1,112 @@
-## [WIP] fix: 撤销错误的后台静默监听以适应游戏 DOM 刷新机制
+## [WIP] fix: 彻底消除初始化盲区与实时消息重复插入问题
 
 ### 错误分析
 
-在之前的修改中，为了防止重复扫描，我们将 `uiObserver` 修改为在 `display: none` 时继续保持监听。但根据最新反馈，游戏在聊天框被隐藏时会清空后台 DOM 消息。这导致静默监听失去了意义。更严重的是，当聊天框重新显示时，游戏会逐条重新渲染历史消息。如果不重置监听器状态，这些重新渲染的旧消息可能会绕过初始化防抖逻辑，被错误地识别为实时新消息并无条件插入数据库。
+1.  **初始化交接盲区**: 在 `scanAndMergeHistory` 异步执行期间，新产生的消息既不会被包含在已生成的历史快照中，也会因为 `isInitializingChat` 仍为 `true` 而被实时监听器丢弃，导致数据丢失。
+2.  **解封冲突**: 当 `isInitializingChat` 变为 `false` 时，若仍有历史消息在延迟渲染，实时监听器（通道 B）会将其误认为新消息。由于通道 B 缺乏查重机制且会赋予新时间戳，这导致了数据库被虚假的“新消息”污染，进而引发后续的循环重复。
 
 ### 用户需求
 
-恢复聊天框隐藏时注销监听器的逻辑。等待进一步分析出正确的 DOM 渲染机制和防重策略。
+确保在开关聊天框、进入游戏等时刻，消息既不丢失也不重复。新旧消息的切换应当是平滑且具备自愈能力的。
 
 ### 评论
 
-这是一个必要的战术撤退。在彻底摸清游戏如何动态装载和销毁聊天 DOM 之前，绝不能贸然保持监听状态，否则会导致更严重的数据污染。
+这是对“核心假设”的重构。我们将不再信任“时间上的先后顺序”来区分新旧消息，而是信任“内容指纹”。
 
 ### 目标
 
-1. 将 `main.js` 中的 `uiObserver` 回退到根据 `chatLogContainer.style.display !== 'none'` 来决定是否激活/注销 Logger 的状态。
+1.  **为实时监听引入查重逻辑**: 每次实时捕获消息时，先检查数据库中最近的几条记录，若重复则拒绝插入。
+2.  **优化初始化交接逻辑**: 缩短 `isInitializingChat` 的锁定时间，利用通道 B 的查重能力来平滑衔接历史扫描。
 
 ### 基本原理
 
-回退代码，确保系统行为可预测，为下一步修复真实的核心假设漏洞（例如防抖机制或实时增量判断机制）扫清障碍。
+利用我们之前引入的 IndexedDB 内存缓存和高效的 `getLatestMessages`，实时查重的成本极低（毫秒级）。有了这个安全网，我们就不再害怕“误抓”旧消息，系统将变得极其健壮。
 
 ### 标签
 
-#intent/fix #flow/ready #priority/high #comp/engine #concept/sync #scope/core #ai/delegate #task/domain/sync #task/object/history-merger #task/action/revert #task/state/continue
+#intent/fix #flow/ready #priority/critical #comp/engine #concept/sync #scope/core #ai/delegate #task/domain/sync #task/object/handover-logic #task/action/refactor #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 回退 uiObserver 逻辑
+#### Acts 1: 为实时监听添加防重安全网
 
-恢复在容器不可见时注销监听器的逻辑。
+修改 `main.js` 中的 `handleNewChatMessage`。在每一条实时消息进入数据库前，增加一次与最近记录的对比。由于使用了缓存，这个操作非常快。
 
 ~~~~~act
 patch_file
 src/main.js
 ~~~~~
 ~~~~~javascript
-    const uiObserver = new MutationObserver(() => {
-      const { chatLogContainer } = locateChatElements();
-      if (chatLogContainer) {
-        // 不再因为 display: none 而注销监听器。
-        // 这确保了在手机端隐藏聊天框时，依然能在后台正常捕获新消息，
-        // 并且避免了反复显示隐藏时触发大量无意义的 DOM 重扫描。
-        if (!messageObserver) {
-          activateLogger();
-        }
-      } else if (messageObserver) {
-        // 只有当聊天容器彻底从 DOM 中被移除时，才注销监听。
-        deactivateLogger();
-      }
-    });
+    const selfName = (await storageManager.getSelfName()) || '';
+    const preciseTime = getISOTimestamp();
+    const messageData = extractUsefulData(node, selfName, preciseTime);
+
+    if (messageData?.content) {
+      messageData.server = detectedServerName;
+      messageData.channel = currentActiveChannel;
+
+      await storageManager.putMessage(messageData);
 ~~~~~
 ~~~~~javascript
-    const uiObserver = new MutationObserver(() => {
-      const { chatLogContainer } = locateChatElements();
-      if (chatLogContainer) {
-        const isVisible = chatLogContainer.style.display !== 'none';
-        if (isVisible && !messageObserver) {
-          activateLogger();
-        } else if (!isVisible && messageObserver) {
-          deactivateLogger();
-        }
-      } else if (messageObserver) {
-        deactivateLogger();
+    const selfName = (await storageManager.getSelfName()) || '';
+    const preciseTime = getISOTimestamp();
+    const messageData = extractUsefulData(node, selfName, preciseTime);
+
+    if (messageData?.content) {
+      messageData.server = detectedServerName;
+      messageData.channel = currentActiveChannel;
+
+      // --- 实时防重检查 ---
+      // 获取最近的 10 条记录进行比对，防止误抓延迟渲染的旧消息
+      const recentMessages = await storageManager.getLatestMessages(
+        messageData.server,
+        messageData.channel,
+        10
+      );
+      
+      const isDuplicate = recentMessages.some(m => 
+        m.sender === messageData.sender && 
+        m.content === messageData.content
+      );
+
+      if (isDuplicate) {
+        // console.log('[Archiver] 实时监听拦截到重复消息，已忽略:', messageData.content);
+        return;
       }
-    });
+
+      await storageManager.putMessage(messageData);
+~~~~~
+
+#### Acts 2: 优化初始化交接时序
+
+修改 `main.js` 中的 `activateLogger`。将 `isInitializingChat` 的解锁时机提前，利用实时查重逻辑来覆盖异步扫描期间的盲区。
+
+~~~~~act
+patch_file
+src/main.js
+~~~~~
+~~~~~javascript
+    const finalizeInitialization = debounce(async () => {
+      await scanAndMergeHistory();
+      isInitializingChat = false;
+    }, 500);
+~~~~~
+~~~~~javascript
+    const finalizeInitialization = debounce(async () => {
+      // 关键：在开始异步扫描前就解锁实时监听。
+      // 通道 B 现在有了实时查重，它会自动处理与扫描快照重叠的消息。
+      // 这彻底消除了之前在 await 期间的消息丢失盲区。
+      isInitializingChat = false; 
+      await scanAndMergeHistory();
+    }, 500);
 ~~~~~
 
 ### 下一步建议
 
-代码已回退。请结合我上面列出的三个核心假设，告诉我你认为在反复开关聊天框时，是哪个环节的假设与游戏的实际表现发生了冲突？我们再对症下药。
+这两项修改直接打破了导致重复加载的“死循环”。现在：
+1.  **延迟渲染的消息**会被通道 B 识别并因为内容重复被拦截。
+2.  **真正的实时新消息**即使在扫描期间产生，也会因为 `isInitializingChat` 已提前设为 `false` 而被通道 B 捕获，不再丢失。
+
+建议你在手机端疯狂测试开关操作，观察控制台是否还有警告。如果有，我们需要进一步调优 500ms 的防抖参数。

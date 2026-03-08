@@ -186,6 +186,24 @@ import { debounce, getISOTimestamp } from './utils.js';
       messageData.server = detectedServerName;
       messageData.channel = currentActiveChannel;
 
+      // --- 实时防重检查 ---
+      // 获取最近的 10 条记录进行比对，防止误抓延迟渲染的旧消息
+      const recentMessages = await storageManager.getLatestMessages(
+        messageData.server,
+        messageData.channel,
+        10
+      );
+      
+      const isDuplicate = recentMessages.some(m => 
+        m.sender === messageData.sender && 
+        m.content === messageData.content
+      );
+
+      if (isDuplicate) {
+        // console.log('[Archiver] 实时监听拦截到重复消息，已忽略:', messageData.content);
+        return;
+      }
+
       await storageManager.putMessage(messageData);
 
       const synthChannel = getSyntheticChannelName(messageData, currentActiveChannel);
@@ -232,8 +250,11 @@ import { debounce, getISOTimestamp } from './utils.js';
     });
 
     const finalizeInitialization = debounce(async () => {
+      // 关键：在开始异步扫描前就解锁实时监听。
+      // 通道 B 现在有了实时查重，它会自动处理与扫描快照重叠的消息。
+      // 这彻底消除了之前在 await 期间的消息丢失盲区。
+      isInitializingChat = false; 
       await scanAndMergeHistory();
-      isInitializingChat = false;
     }, 500);
 
     messageObserver = new MutationObserver((mutationsList) => {
