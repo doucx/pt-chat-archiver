@@ -68,10 +68,6 @@ export const getMainContainerHTML = (version) => `
                 <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
             </div>
             <div class="config-group">
-                <label for="log-archive-auto-save-interval">自动保存间隔 (秒)</label>
-                <input type="number" id="log-archive-auto-save-interval" min="5" max="3600" step="5">
-            </div>
-            <div class="config-group">
                 <label>维护操作</label>
                 <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 2px;"></div>
                 <div id="log-archive-config-msg-count" class="info-text-dim" style="margin-bottom: 8px;"></div>

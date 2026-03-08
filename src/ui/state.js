@@ -8,7 +8,6 @@ export async function createUIState() {
   const state = {
     currentPage: 1,
     pageSize: 1000,
-    autoSaveInterval: 30,
     autoFollowServer: true,
     lastSavedTime: null,
     totalPages: 1,
@@ -23,13 +22,11 @@ export async function createUIState() {
   // Async load config
   const config = await storageManager.getConfig();
   state.pageSize = config.pageSize || 1000;
-  state.autoSaveInterval = config.autoSaveInterval || 30;
   state.autoFollowServer = config.autoFollowServer !== false; // 默认为 true
 
   const saveConfig = async () => {
     await storageManager.saveConfig({
       pageSize: state.pageSize,
-      autoSaveInterval: state.autoSaveInterval,
       autoFollowServer: state.autoFollowServer,
     });
   };
@@ -52,13 +49,6 @@ export async function createUIState() {
       const val = Number.parseInt(size, 10);
       if (!Number.isNaN(val) && val >= 10) {
         state.pageSize = val;
-        await saveConfig();
-      }
-    },
-    setAutoSaveInterval: async (seconds) => {
-      const val = Number.parseInt(seconds, 10);
-      if (!Number.isNaN(val) && val >= 5) {
-        state.autoSaveInterval = val;
         await saveConfig();
       }
     },

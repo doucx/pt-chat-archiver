@@ -332,6 +332,5 @@ export async function createUI(dataAdapter, appCallbacks) {
       uiState.setActiveServer(serverName);
       refreshView();
     },
-    getAutoSaveInterval: () => uiState.getState().autoSaveInterval,
   };
 }

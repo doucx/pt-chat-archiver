@@ -320,7 +320,7 @@ export class IndexedDBAdapter {
    * 获取配置
    */
   getConfig() {
-    const defaultCfg = { pageSize: 1000, autoSaveInterval: 30 };
+    const defaultCfg = { pageSize: 1000 };
     return new Promise((resolve) => {
       const tx = this._tx([STORE_CONFIG], 'readonly');
       const store = tx.objectStore(STORE_CONFIG);
