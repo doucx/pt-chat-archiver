@@ -59,8 +59,6 @@ export function getDOMElements() {
     selfNameInput: document.getElementById('log-archive-self-name-input'),
     pageSizeInput: document.getElementById('log-archive-page-size-input'),
     autoSaveIntervalInput: document.getElementById('log-archive-auto-save-interval'),
-    lastSavedInfo: document.getElementById('log-archive-last-saved-info'),
-    saveNowButton: document.getElementById('log-archive-save-now-button'),
     configStorageInfo: document.getElementById('log-archive-config-storage-info'),
     configMsgCount: document.getElementById('log-archive-config-msg-count'),
     legacyRecoveryGroup: document.getElementById('log-archive-legacy-recovery-group'),

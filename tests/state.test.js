@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMessageToSyntheticChannelIfNeeded, mergeAndDeduplicateMessages } from '../src/state.js';
+import { getSyntheticChannelName, mergeAndDeduplicateMessages } from '../src/state.js';
 
 describe('state.js: mergeAndDeduplicateMessages', () => {
   it('应当能合并有重叠的消息序列', () => {
@@ -19,10 +19,15 @@ describe('state.js: mergeAndDeduplicateMessages', () => {
 });
 
 describe('state.js: Synthetic Channels', () => {
-  it('应当将队伍消息复制到 Party-Local 频道', () => {
-    const channelMap = { Local: [] };
+  it('应当正确识别需要复制到 Party-Local 频道的队伍消息', () => {
     const partyMsg = { type: 'party', content: 'team up!' };
-    addMessageToSyntheticChannelIfNeeded(channelMap, partyMsg, 'Local');
-    expect(channelMap['Party-Local'][0].content).toBe('team up!');
+    const result = getSyntheticChannelName(partyMsg, 'Local');
+    expect(result).toBe('Party-Local');
+  });
+
+  it('非 Local 频道的队伍消息不应产生合成频道', () => {
+    const partyMsg = { type: 'party', content: 'team up!' };
+    const result = getSyntheticChannelName(partyMsg, 'Party');
+    expect(result).toBeNull();
   });
 });
