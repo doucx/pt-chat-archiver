@@ -54,7 +54,7 @@ export function createRenderer(dom, uiState) {
   const render = (context, callbacks) => {
     const { viewMode, currentPage, totalPages, viewingServer, activeServer, isLockedToBottom } =
       uiState.getState();
-    const { serverList, channelList, channelCounts, messages } = context;
+    const { serverList, channelList, channelCounts, messages, selectedChannel } = context;
 
     // 1. 更新服务器选择器
     if (dom.serverViewSelector) {
@@ -99,7 +99,6 @@ export function createRenderer(dom, uiState) {
     }
 
     // 3. 更新频道选择器
-    const prevChannelValue = dom.channelSelector.value;
     dom.channelSelector.innerHTML = '';
     if (channelList.length === 0) {
       dom.channelSelector.innerHTML = '<option value="">无记录</option>';
@@ -111,13 +110,11 @@ export function createRenderer(dom, uiState) {
         opt.textContent = `${ch} (${count})`;
         dom.channelSelector.appendChild(opt);
       }
-      if (prevChannelValue && channelList.includes(prevChannelValue)) {
-        dom.channelSelector.value = prevChannelValue;
-      } else if (channelList.length > 0) {
-        dom.channelSelector.value = channelList[0];
+      // 直接应用 context 中计算好的选中频道
+      if (selectedChannel) {
+        dom.channelSelector.value = selectedChannel;
       }
     }
-    const selectedChannel = dom.channelSelector.value;
 
     // Toggle view visibility
     dom.logView.style.display = viewMode === 'config' ? 'none' : 'flex';

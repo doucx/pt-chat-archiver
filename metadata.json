@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修复聊天记录自动跟随在产生新页时的中断问题", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772972724.6854908, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] refactor: 统一频道状态管理并修复数据恢复接口错误", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772973323.5425014, "duration_ms": 0}}

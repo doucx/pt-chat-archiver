@@ -17,6 +17,7 @@ export async function createUIState() {
     isUIPaused: false,
     activeServer: null, // 当前物理所在的服务器
     viewingServer: null, // 当前正在查看的存档服务器
+    selectedChannel: 'Local', // 默认为 Local 频道
   };
 
   // Async load config
@@ -87,6 +88,9 @@ export async function createUIState() {
     },
     setViewingServer: (serverName) => {
       state.viewingServer = serverName;
+    },
+    setSelectedChannel: (channel) => {
+      state.selectedChannel = channel;
     },
     getSelfName: async () => await storageManager.getSelfName(),
     setSelfName: async (name) => await storageManager.setSelfName(name),
