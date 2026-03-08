@@ -178,12 +178,13 @@ export function createRenderer(dom, uiState) {
       // 计算重复项总数 (需要从 callbacks 获取全量数据进行计算，或者由上层计算后传入)
       // 这里的逻辑暂时保留依赖 callbacks，直到查重功能也被重构
       if (callbacks.detectTotalDuplicates && callbacks.getRawState) {
-        const rawState = callbacks.getRawState();
-        let totalDuplicates = 0;
-        for (const server in rawState) {
-          totalDuplicates += callbacks.detectTotalDuplicates(rawState[server]);
-        }
-        updateCleanButtonState(totalDuplicates);
+        callbacks.getRawState().then((rawState) => {
+          let totalDuplicates = 0;
+          for (const server in rawState) {
+            totalDuplicates += callbacks.detectTotalDuplicates(rawState[server]);
+          }
+          updateCleanButtonState(totalDuplicates);
+        });
       }
       return;
     }

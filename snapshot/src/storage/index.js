@@ -45,6 +45,36 @@ class StorageManager {
     console.info(`[StorageManager] Initialized with ${this.adapter.constructor.name}`);
   }
 
+  putMessage(msg) {
+    if (this.adapter?.putMessage) return this.adapter.putMessage(msg);
+    return Promise.resolve();
+  }
+
+  putMessages(msgs) {
+    if (this.adapter?.putMessages) return this.adapter.putMessages(msgs);
+    return Promise.resolve();
+  }
+
+  getServers() {
+    if (this.adapter?.getServers) return this.adapter.getServers();
+    return Promise.resolve([]);
+  }
+
+  getChannels(server) {
+    if (this.adapter?.getChannels) return this.adapter.getChannels(server);
+    return Promise.resolve([]);
+  }
+
+  getMessages(server, channel, page, pageSize) {
+    if (this.adapter?.getMessages) return this.adapter.getMessages(server, channel, page, pageSize);
+    return Promise.resolve({ messages: [], total: 0 });
+  }
+
+  getLatestMessages(server, channel, limit) {
+    if (this.adapter?.getLatestMessages) return this.adapter.getLatestMessages(server, channel, limit);
+    return Promise.resolve([]);
+  }
+
   loadAllV6() {
     return this.adapter.loadAllV6();
   }

@@ -13,10 +13,6 @@ import { createUIState } from './state.js';
  * @returns {Promise<object>} Public API for the UI module.
  */
 export async function createUI(dataAdapter, appCallbacks) {
-  // 临时保留 appState 仅用于那些尚未重构的导出功能 (downloadJSON etc.)
-  // 一旦这些功能也迁移到 Adapter，这个变量即可移除
-  let legacyAppState = await dataAdapter.getAllData();
-
   // 1. Initialize DOM structure
   initDOM(__APP_VERSION__);
   const dom = getDOMElements();
@@ -210,14 +206,7 @@ export async function createUI(dataAdapter, appCallbacks) {
           const warning = `准备导入文件: ${file.name}\n包含 ${serverCount} 个服务器的数据。\n\n【严重警告】\n此操作将完全清空并覆盖当前浏览器的所有本地存档！\n此操作不可撤销。\n\n确定要继续吗？`;
 
           if (confirm(warning)) {
-            // 1. 更新全局状态引用 (main.js)
-            if (appCallbacks.replaceState) {
-              appCallbacks.replaceState(importedData);
-            }
-            // 2. 更新 UI 本地 legacy 状态 (用于未重构的功能)
-            legacyAppState = importedData;
-
-            // 3. 持久化
+            // 持久化覆盖
             await appCallbacks.saveMessagesToStorage(importedData);
 
             const originalText = dom.importButton.textContent;
@@ -240,13 +229,12 @@ export async function createUI(dataAdapter, appCallbacks) {
   };
 
   // 注意：cleanChannelRecords 等功能仍深度依赖同步计算，
-  // 在 Phase 4 重构分析模块之前，我们暂时保留其同步逻辑，
-  // 但操作的是 legacyAppState，并通过 callbacks 同步回 main.js
+  // 在 Phase 4 重构分析模块之前，我们暂时通过异步加载全量数据来维持逻辑
   const cleanChannelRecords = async () => {
+    const rawState = await dataAdapter.getRawState();
     let totalToClean = 0;
-    // 使用 legacyAppState 进行同步计算
-    for (const server in legacyAppState) {
-      totalToClean += appCallbacks.detectTotalDuplicates(legacyAppState[server]);
+    for (const server in rawState) {
+      totalToClean += appCallbacks.detectTotalDuplicates(rawState[server]);
     }
 
     if (totalToClean === 0) return alert('未发现可清理的重复记录。');
@@ -255,14 +243,14 @@ export async function createUI(dataAdapter, appCallbacks) {
         `【确认】此操作将根据特定规则删除 ${totalToClean} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
       )
     ) {
-      for (const server in legacyAppState) {
-        const serverData = legacyAppState[server];
+      for (const server in rawState) {
+        const serverData = rawState[server];
         for (const channel in serverData) {
           const { cleanedRecords } = appCallbacks.cleanChannelRecords(serverData[channel]);
           serverData[channel] = cleanedRecords;
         }
       }
-      await appCallbacks.saveMessagesToStorage(legacyAppState);
+      await appCallbacks.saveMessagesToStorage(rawState);
       dom.cleanButton.textContent = '清理完毕!';
       setTimeout(() => {
         refreshView();
@@ -278,11 +266,7 @@ export async function createUI(dataAdapter, appCallbacks) {
     ) {
       appCallbacks.deactivateLogger();
       await storageManager.clearAllData();
-      for (const key of Object.keys(legacyAppState)) {
-        delete legacyAppState[key];
-      }
       await appCallbacks.scanAndMergeHistory();
-      await appCallbacks.saveMessagesToStorage(legacyAppState);
       refreshView();
     }
   };
@@ -293,12 +277,9 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const recoverLegacyData = async (targetServer) => {
     try {
-      const newState = await MigrationManager.recoverAndMergeAll(legacyAppState, targetServer);
-      if (appCallbacks.replaceState) {
-        appCallbacks.replaceState(newState);
-      }
-      legacyAppState = newState;
-      await appCallbacks.saveMessagesToStorage(legacyAppState);
+      const rawState = await dataAdapter.getRawState();
+      const newState = await MigrationManager.recoverAndMergeAll(rawState, targetServer);
+      await appCallbacks.saveMessagesToStorage(newState);
       alert('数据恢复合并完成！已自动清理旧版残留。');
     } catch (err) {
       console.error('[Recovery] Failed:', err);
@@ -345,7 +326,6 @@ export async function createUI(dataAdapter, appCallbacks) {
       }
     },
     setState: (newState) => {
-      legacyAppState = newState;
       refreshView();
     },
     checkStorageUsage: async () => await renderer.checkStorageUsage(),

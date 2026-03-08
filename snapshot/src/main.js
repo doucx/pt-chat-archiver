@@ -8,7 +8,7 @@ import {
   findActiveTabByClass,
   locateChatElements,
 } from './parser.js';
-import { addMessageToSyntheticChannelIfNeeded, mergeAndDeduplicateMessages } from './state.js';
+import { getSyntheticChannelName, mergeAndDeduplicateMessages } from './state.js';
 import { storageManager } from './storage/index.js';
 import { createUI } from './ui/index.js';
 import { generateULID } from './utils.js';
@@ -16,7 +16,6 @@ import { debounce, getISOTimestamp } from './utils.js';
 
 (async () => {
   // --- 全局状态 ---
-  let inMemoryChatState = {};
   let messageObserver = null;
   let tabObserver = null;
   let serverObserver = null;
@@ -110,19 +109,33 @@ import { debounce, getISOTimestamp } from './utils.js';
 
     if (historicalState.current_tab && historicalState.messages.length > 0) {
       const channelName = historicalState.current_tab;
-      if (!inMemoryChatState[detectedServerName]) inMemoryChatState[detectedServerName] = {};
-      const serverData = inMemoryChatState[detectedServerName];
-
-      const oldMessages = serverData[channelName] || [];
+      
+      // 通过数据库获取当前频道的最末尾消息片段，用于比较查重和断层
+      const oldMessages = await storageManager.getLatestMessages(detectedServerName, channelName, 200);
       const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
 
       if (newMergedMessages.length > oldMessages.length) {
-        serverData[channelName] = newMergedMessages;
-        dataChanged = true;
-        const newlyAddedHistoricalMessages = newMergedMessages.slice(oldMessages.length);
-        for (const msg of newlyAddedHistoricalMessages) {
-          addMessageToSyntheticChannelIfNeeded(serverData, msg, channelName);
+        const newlyAdded = newMergedMessages.slice(oldMessages.length);
+        for (const msg of newlyAdded) {
+          msg.server = detectedServerName;
+          msg.channel = channelName;
         }
+        await storageManager.putMessages(newlyAdded);
+        
+        const synthMessages = [];
+        for (const msg of newlyAdded) {
+          const synthChannel = getSyntheticChannelName(msg, channelName);
+          if (synthChannel) {
+            const synthMsg = { ...msg, channel: synthChannel };
+            // 清除原有生成的 ID，使新插入的合成记录能够被分配新 ID 以确保唯一性
+            delete synthMsg.id;
+            synthMessages.push(synthMsg);
+          }
+        }
+        if (synthMessages.length > 0) {
+          await storageManager.putMessages(synthMessages);
+        }
+        dataChanged = true;
       }
     }
     if (dataChanged && uiControls && !uiControls.isUIPaused()) {
@@ -147,14 +160,17 @@ import { debounce, getISOTimestamp } from './utils.js';
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
     if (messageData?.content) {
-      if (!inMemoryChatState[detectedServerName]) inMemoryChatState[detectedServerName] = {};
-      const serverData = inMemoryChatState[detectedServerName];
+      messageData.server = detectedServerName;
+      messageData.channel = currentActiveChannel;
+      
+      await storageManager.putMessage(messageData);
 
-      if (!serverData[currentActiveChannel]) {
-        serverData[currentActiveChannel] = [];
+      const synthChannel = getSyntheticChannelName(messageData, currentActiveChannel);
+      if (synthChannel) {
+        const synthMsg = { ...messageData, channel: synthChannel };
+        delete synthMsg.id;
+        await storageManager.putMessage(synthMsg);
       }
-      serverData[currentActiveChannel].push(messageData);
-      addMessageToSyntheticChannelIfNeeded(serverData, messageData, currentActiveChannel);
 
       if (uiControls && !uiControls.isUIPaused()) {
         uiControls.updateUI();
@@ -231,63 +247,34 @@ import { debounce, getISOTimestamp } from './utils.js';
     currentActiveChannel = null;
   }
 
-  /** 执行一次完整的保存动作并更新 UI。*/
-  async function performAutoSave() {
-    console.info('Saving archive to local storage (V6)...');
-    await storageManager.saveAllV6(inMemoryChatState);
-    if (uiControls) {
-      uiControls.setLastSavedTime(getISOTimestamp());
-      await uiControls.checkStorageUsage();
-    }
-  }
-
-  /** (重新)启动自动保存定时器。*/
-  function startAutoSaveTimer() {
-    if (autoSaveTimer) clearInterval(autoSaveTimer);
-    const intervalSeconds = uiControls ? uiControls.getAutoSaveInterval() : 30;
-    console.log(`[Archiver] Auto-save timer started, interval: ${intervalSeconds}s`);
-    autoSaveTimer = setInterval(performAutoSave, intervalSeconds * 1000);
-  }
-
   /** 脚本主入口函数。*/
   async function main() {
     // 1. 初始化存储层 (并自动触发 V6->V7 迁移)
     // 开启 useIndexedDB = true
     await storageManager.init(true);
 
-    // 2. 加载状态与初始化 UI
-    inMemoryChatState = await storageManager.loadAllV6();
-
     // 构建 DataAdapter：UI 层与数据层的隔离界面
     const dataAdapter = {
-      getServers: async () => Object.keys(inMemoryChatState),
-      getChannels: async (server) => Object.keys(inMemoryChatState[server] || {}),
+      getServers: async () => await storageManager.getServers(),
+      getChannels: async (server) => await storageManager.getChannels(server),
       getMessages: async (server, channel, page, pageSize) => {
-        const list = inMemoryChatState[server]?.[channel] || [];
-        const total = list.length;
-        const start = (page - 1) * pageSize;
-        // 模拟异步延迟以确保 UI 能够正确处理 Loading 态 (可选，暂不加延迟)
-        return {
-          messages: list.slice(start, start + pageSize),
-          total,
-        };
+        return await storageManager.getMessages(server, channel, page, pageSize);
       },
-      getAllData: async () => inMemoryChatState, // 用于导出功能
-      // 兼容旧接口，用于分析模块
-      getRawState: () => inMemoryChatState,
+      getAllData: async () => await storageManager.loadAllV6(), // 用于导出功能
+      // 兼容旧接口，用于重型操作如分析模块等
+      getRawState: async () => await storageManager.loadAllV6(),
     };
 
     uiControls = await createUI(dataAdapter, {
       scanAndMergeHistory,
-      saveMessagesToStorage: (state) => storageManager.saveAllV6(state), // Pass a compatible function
+      saveMessagesToStorage: async (state) => await storageManager.saveAllV6(state), // 仍提供给批量导入等特殊维护操作使用
       cleanChannelRecords,
       detectTotalDuplicates,
       deactivateLogger,
-      manualSave: performAutoSave,
-      onAutoSaveIntervalChange: startAutoSaveTimer,
-      replaceState: (newState) => {
-        inMemoryChatState = newState;
-        // 注意：UI 内部现在不持有 state，所以 replaceState 后 UI 会通过 refreshView 自动拉取新数据
+      manualSave: async () => {}, // 增量写入模式下已无需手动保存
+      onAutoSaveIntervalChange: () => {}, // 设置间隔仅为了兼容旧UI交互
+      replaceState: async (newState) => {
+        // UI 会被通知刷新以自动请求新数据
       },
     });
 
@@ -304,13 +291,13 @@ import { debounce, getISOTimestamp } from './utils.js';
         }
 
         // 3. 检查并触发交互式迁移 (如 v5 -> v6)
+        const currentState = await storageManager.loadAllV6();
         await MigrationManager.checkAndTriggerInteractiveMigrations(
           storageManager,
           server,
-          inMemoryChatState,
+          currentState,
           (newState) => {
-            inMemoryChatState = newState;
-            uiControls.setState(inMemoryChatState);
+            if (uiControls.setState) uiControls.setState(newState);
           },
         );
       }
@@ -334,10 +321,6 @@ import { debounce, getISOTimestamp } from './utils.js';
       }
     });
     uiObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
-
-    startAutoSaveTimer();
-
-    window.addEventListener('pagehide', () => storageManager.saveAllV6(inMemoryChatState));
   }
 
   if (document.readyState === 'complete') {

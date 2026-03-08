@@ -7,7 +7,7 @@ export const CONFIG_KEY = 'chatLogArchive_config';
 
 // IndexedDB 配置
 export const DB_NAME = 'pt-chat-archiver-v7';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 export const STORE_MESSAGES = 'messages';
 export const STORE_CONFIG = 'config';
 

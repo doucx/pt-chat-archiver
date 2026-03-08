@@ -158,26 +158,19 @@ function ensureIdMonotonicity(messages) {
 }
 
 /**
- * 根据条件将消息添加到合成频道。
- * @param {object} channelMap - 对应服务器的频道映射对象 (inMemoryChatState[server])。
+ * 确定消息是否应分配到一个额外的合成频道（例如 Party-Local）。
  * @param {object} message - 消息数据对象。
  * @param {string} activeChannel - 消息产生时所在的活跃频道。
+ * @returns {string|null} - 返回合成频道名，如果不适用则返回 null。
  */
-export function addMessageToSyntheticChannelIfNeeded(channelMap, message, activeChannel) {
-  if (activeChannel !== 'Local' || !channelMap) {
-    return;
+export function getSyntheticChannelName(message, activeChannel) {
+  if (activeChannel !== 'Local') {
+    return null;
   }
-  let syntheticChannelName = null;
   if (message.type.includes('party')) {
-    syntheticChannelName = 'Party-Local';
+    return 'Party-Local';
   } else if (message.type.includes('whisper')) {
-    syntheticChannelName = 'Whisper-Local';
+    return 'Whisper-Local';
   }
-  if (syntheticChannelName) {
-    if (!channelMap[syntheticChannelName]) {
-      channelMap[syntheticChannelName] = [];
-    }
-    channelMap[syntheticChannelName].push({ ...message });
-    // console.log(`消息已自动复制到合成频道 [${syntheticChannelName}]`);
-  }
+  return null;
 }

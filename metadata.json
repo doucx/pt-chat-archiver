@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] refactor(ui): decouple UI from global state with async DataAdapter (Phase 1)", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772891801.8814733, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] refactor: 实现数据库层的现代化和异步增量操作", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772962574.6921537, "duration_ms": 0}}

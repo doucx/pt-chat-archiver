@@ -30,18 +30,165 @@ export class IndexedDBAdapter {
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
+        let msgStore;
         // 创建消息存储 Store
         if (!db.objectStoreNames.contains(STORE_MESSAGES)) {
-          const msgStore = db.createObjectStore(STORE_MESSAGES, { keyPath: 'id' });
+          msgStore = db.createObjectStore(STORE_MESSAGES, { keyPath: 'id' });
           msgStore.createIndex('server', 'server', { unique: false });
           msgStore.createIndex('channel', 'channel', { unique: false });
           msgStore.createIndex('time', 'time', { unique: false });
+        } else {
+          msgStore = event.target.transaction.objectStore(STORE_MESSAGES);
         }
+        
+        // V2 新增复合索引
+        if (!msgStore.indexNames.contains('server_channel')) {
+          msgStore.createIndex('server_channel', ['server', 'channel'], { unique: false });
+        }
+        if (!msgStore.indexNames.contains('server_channel_time')) {
+          msgStore.createIndex('server_channel_time', ['server', 'channel', 'time'], { unique: false });
+        }
+
         // 创建配置存储 Store
         if (!db.objectStoreNames.contains(STORE_CONFIG)) {
           db.createObjectStore(STORE_CONFIG, { keyPath: 'key' });
         }
       };
+    });
+  }
+
+  putMessage(msg) {
+    return new Promise((resolve, reject) => {
+      if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
+      const tx = this._tx([STORE_MESSAGES], 'readwrite');
+      const store = tx.objectStore(STORE_MESSAGES);
+      const request = store.put(msg);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  putMessages(msgs) {
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readwrite');
+      const store = tx.objectStore(STORE_MESSAGES);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      for (const msg of msgs) {
+        if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
+        store.put(msg);
+      }
+    });
+  }
+
+  getServers() {
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readonly');
+      const store = tx.objectStore(STORE_MESSAGES);
+      const index = store.index('server');
+      const req = index.openKeyCursor(null, 'nextunique');
+      const servers = [];
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          servers.push(cursor.key);
+          cursor.continue();
+        } else {
+          resolve(servers);
+        }
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  getChannels(server) {
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readonly');
+      const store = tx.objectStore(STORE_MESSAGES);
+      const index = store.index('server_channel');
+      const range = IDBKeyRange.bound([server, ''], [server, '\uffff']);
+      const req = index.openKeyCursor(range, 'nextunique');
+      const channels = [];
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          channels.push(cursor.key[1]);
+          cursor.continue();
+        } else {
+          resolve(channels);
+        }
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  getMessages(server, channel, page, pageSize) {
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readonly');
+      const store = tx.objectStore(STORE_MESSAGES);
+      const index = store.index('server_channel_time');
+      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
+      
+      const countReq = index.count(range);
+      countReq.onsuccess = () => {
+        const total = countReq.result;
+        const messages = [];
+        const start = (page - 1) * pageSize;
+        
+        if (start >= total || total === 0) {
+          return resolve({ messages, total });
+        }
+        
+        const cursorReq = index.openCursor(range, 'next');
+        let advanced = false;
+        
+        cursorReq.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (!cursor) {
+            return resolve({ messages, total });
+          }
+          if (start > 0 && !advanced) {
+            advanced = true;
+            cursor.advance(start);
+          } else {
+            messages.push(cursor.value);
+            if (messages.length < pageSize) {
+              cursor.continue();
+            } else {
+              resolve({ messages, total });
+            }
+          }
+        };
+        cursorReq.onerror = () => reject(cursorReq.error);
+      };
+      countReq.onerror = () => reject(countReq.error);
+    });
+  }
+
+  getLatestMessages(server, channel, limit) {
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readonly');
+      const store = tx.objectStore(STORE_MESSAGES);
+      const index = store.index('server_channel_time');
+      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
+      
+      const cursorReq = index.openCursor(range, 'prev');
+      const messages = [];
+      
+      cursorReq.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          messages.unshift(cursor.value); // 加入队首以保持升序
+          if (messages.length < limit) {
+            cursor.continue();
+          } else {
+            resolve(messages);
+          }
+        } else {
+          resolve(messages);
+        }
+      };
+      cursorReq.onerror = () => reject(cursorReq.error);
     });
   }
 
