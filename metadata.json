@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修复同毫秒并发导致的消息乱序与重复加载漏洞", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772971638.8895786, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "style: 优化初始化防抖阈值以提升高频聊天下的响应速度 Capture: M main.js", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772972089.2937014, "duration_ms": 0}}
