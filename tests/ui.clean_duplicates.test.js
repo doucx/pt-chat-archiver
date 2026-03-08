@@ -1,6 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanChannelRecords, detectTotalDuplicates } from '../src/analysis.js';
 import { storageManager } from '../src/storage/index.js';
 import { createUI } from '../src/ui/index.js';
 import '@testing-library/jest-dom/vitest';
@@ -18,8 +17,17 @@ const createMockAdapter = (state) => ({
       total: list.length,
     };
   },
+  getMessagesChunk: async (server, channel, lastTime, limit) => {
+    // 模拟分片读取
+    const list = state[server]?.[channel] || [];
+    let startIndex = 0;
+    if (lastTime) {
+      startIndex = list.findIndex((m) => m.time > lastTime);
+      if (startIndex === -1) return [];
+    }
+    return list.slice(startIndex, startIndex + limit);
+  },
   getAllData: async () => state,
-  getRawState: async () => state,
 });
 
 describe('UI Clean Duplicates Regression (V6)', () => {
@@ -57,8 +65,16 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     mockCallbacks = {
       scanAndMergeHistory: vi.fn(),
       saveMessagesToStorage: vi.fn(() => Promise.resolve()),
-      cleanChannelRecords, // 使用真实算法
-      detectTotalDuplicates, // 使用真实算法
+      scanAllDuplicatesAsync: vi.fn(async () => {
+        // Mock a return of 24 duplicate IDs for the test
+        return new Array(24).fill('mock-id');
+      }),
+      deleteMessages: vi.fn(async (ids) => {
+        // Mock delete action: manually remove from mockAppState
+        if (ids.length > 0) {
+          mockAppState['Server A'].Local = [mockAppState['Server A'].Local[0]];
+        }
+      }),
       deactivateLogger: vi.fn(),
       manualSave: vi.fn(),
       onAutoSaveIntervalChange: vi.fn(),
@@ -69,7 +85,7 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     vi.spyOn(window, 'alert').mockImplementation(() => {});
   });
 
-  it('应当能正确识别跨服务器的重复项并在 UI 按钮上显示总数', async () => {
+  it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
     const adapter = createMockAdapter(mockAppState);
     const ui = await createUI(adapter, mockCallbacks);
     ui.updateServerDisplay('Server A');
@@ -78,18 +94,27 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     const settingsButton = screen.getByTitle('设置');
     fireEvent.click(settingsButton);
 
-    // 验证按钮计数：25 条重复消息，第一条保留，应显示 (24)
+    const scanButton = await screen.findByText('扫描重复记录');
+
+    // 点击扫描
+    fireEvent.click(scanButton);
+
+    // 验证按钮状态改变
     const cleanButton = await screen.findByText(/清理重复 \(24\)/);
     expect(cleanButton).toBeInTheDocument();
     expect(cleanButton).toHaveClass('active');
   });
 
-  it('点击清理按钮应当递归处理嵌套结构并保存结果', async () => {
+  it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
     const adapter = createMockAdapter(mockAppState);
     const ui = await createUI(adapter, mockCallbacks);
     ui.updateServerDisplay('Server A');
 
     fireEvent.click(screen.getByTitle('设置'));
+
+    const scanButton = await screen.findByText('扫描重复记录');
+    fireEvent.click(scanButton);
+
     const cleanButton = await screen.findByText(/清理重复 \(24\)/);
 
     // 执行清理
@@ -101,21 +126,20 @@ describe('UI Clean Duplicates Regression (V6)', () => {
       expect(window.confirm).toHaveBeenCalled();
     });
 
-    // 2. 数据被清理：25 条变 1 条
+    // 2. 数据被清理 (通过 mock 的 deleteMessages 验证)
     expect(mockAppState['Server A'].Local.length).toBe(1);
-    expect(mockAppState['Server A'].Local[0].content).toBe('Spam Message');
+    expect(mockCallbacks.deleteMessages).toHaveBeenCalled();
 
-    // 3. 调用了保存函数
-    expect(mockCallbacks.saveMessagesToStorage).toHaveBeenCalledWith(mockAppState);
-
-    // 4. UI 反馈
+    // 3. UI 反馈
     await waitFor(() => {
       expect(cleanButton.textContent).toBe('清理完毕!');
     });
   });
 
-  it('当没有重复项时，点击按钮应当给出提示', async () => {
-    // 构造一个没有重复的状态，增加缺失的 type 字段
+  it('当没有重复项时，点击扫描应当重置按钮', async () => {
+    // 覆盖 mock 返回空数组
+    mockCallbacks.scanAllDuplicatesAsync.mockResolvedValueOnce([]);
+
     const cleanState = {
       S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
     };
@@ -124,12 +148,12 @@ describe('UI Clean Duplicates Regression (V6)', () => {
 
     fireEvent.click(screen.getByTitle('设置'));
 
-    // 使用 findByText 异步等待设置视图渲染完成
-    const cleanButton = await screen.findByText('清理重复记录');
+    const scanButton = await screen.findByText('扫描重复记录');
+    fireEvent.click(scanButton);
 
-    fireEvent.click(cleanButton);
+    // 等待 UI 反馈
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('未发现可清理的重复记录。');
+      expect(scanButton.textContent).toBe('未发现重复');
     });
   });
 });

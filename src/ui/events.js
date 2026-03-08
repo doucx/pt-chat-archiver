@@ -141,9 +141,50 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
     triggerRefresh();
   });
 
+  let pendingDuplicateIds = null;
   dom.cleanButton.addEventListener('click', async () => {
-    await callbacks.cleanChannelRecords();
-    triggerRefresh(); // Re-render to update button state
+    if (pendingDuplicateIds === null) {
+      // 当前是“扫描”状态
+      dom.cleanButton.textContent = '扫描中...';
+      dom.cleanButton.disabled = true;
+      try {
+        const ids = await callbacks.scanDuplicates();
+        if (ids.length === 0) {
+          dom.cleanButton.textContent = '未发现重复';
+          setTimeout(() => {
+            dom.cleanButton.textContent = '扫描重复记录';
+          }, UI_FEEDBACK_DURATION);
+        } else {
+          pendingDuplicateIds = ids;
+          dom.cleanButton.textContent = `清理重复 (${ids.length})`;
+          dom.cleanButton.classList.add('active');
+        }
+      } finally {
+        dom.cleanButton.disabled = false;
+      }
+    } else {
+      // 当前是“清理”状态
+      if (
+        confirm(
+          `【确认】将删除 ${pendingDuplicateIds.length} 条重复记录。此操作不可逆。确定要继续吗？`,
+        )
+      ) {
+        dom.cleanButton.textContent = '清理中...';
+        dom.cleanButton.disabled = true;
+        try {
+          await callbacks.deleteMessages(pendingDuplicateIds);
+          pendingDuplicateIds = null;
+          dom.cleanButton.textContent = '清理完毕!';
+          dom.cleanButton.classList.remove('active');
+          setTimeout(() => {
+            dom.cleanButton.textContent = '扫描重复记录';
+            triggerRefresh();
+          }, UI_FEEDBACK_DURATION);
+        } finally {
+          dom.cleanButton.disabled = false;
+        }
+      }
+    }
   });
 
   dom.clearButton.addEventListener('click', async () => {

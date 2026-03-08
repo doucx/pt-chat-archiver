@@ -70,10 +70,21 @@ class StorageManager {
     return Promise.resolve({ messages: [], total: 0 });
   }
 
+  getMessagesChunk(server, channel, lastTime, limit) {
+    if (this.adapter?.getMessagesChunk)
+      return this.adapter.getMessagesChunk(server, channel, lastTime, limit);
+    return Promise.resolve([]);
+  }
+
   getLatestMessages(server, channel, limit) {
     if (this.adapter?.getLatestMessages)
       return this.adapter.getLatestMessages(server, channel, limit);
     return Promise.resolve([]);
+  }
+
+  deleteMessages(ids) {
+    if (this.adapter?.deleteMessages) return this.adapter.deleteMessages(ids);
+    return Promise.resolve();
   }
 
   loadAllV6() {

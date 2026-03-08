@@ -9,8 +9,8 @@ global.__APP_VERSION__ = '7.0.0-test';
 const mockCallbacks = {
   scanAndMergeHistory: vi.fn(() => Promise.resolve()),
   saveMessagesToStorage: vi.fn(() => Promise.resolve()),
-  cleanChannelRecords: vi.fn(),
-  detectTotalDuplicates: vi.fn(() => 0),
+  scanAllDuplicatesAsync: vi.fn(async () => []),
+  deleteMessages: vi.fn(async () => {}),
   deactivateLogger: vi.fn(),
   manualSave: vi.fn(() => Promise.resolve()),
   onAutoSaveIntervalChange: vi.fn(),
@@ -27,8 +27,16 @@ const createMockAdapter = (state) => ({
       total: list.length,
     };
   },
+  getMessagesChunk: async (server, channel, lastTime, limit) => {
+    const list = state[server]?.[channel] || [];
+    let startIndex = 0;
+    if (lastTime) {
+      startIndex = list.findIndex((m) => m.time > lastTime);
+      if (startIndex === -1) return [];
+    }
+    return list.slice(startIndex, startIndex + limit);
+  },
   getAllData: async () => state,
-  getRawState: async () => state,
 });
 
 async function renderUI(initialState) {
