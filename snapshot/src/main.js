@@ -26,7 +26,7 @@ import { debounce, getISOTimestamp } from './utils.js';
   // UI 控制句柄
   let uiControls = null;
   const autoSaveTimer = null;
-  
+
   // 用于保证实时消息绝对单调递增的全局时钟状态
   let lastRealtimeTimestamp = 0;
 
@@ -182,7 +182,7 @@ import { debounce, getISOTimestamp } from './utils.js';
     if (!currentActiveChannel) return;
 
     const selfName = (await storageManager.getSelfName()) || '';
-    
+
     // --- 强制毫秒级时钟推进 (Monotonic Time Stepper) ---
     // 确保即使在同一毫秒内到达的多条消息，也能获得绝对递增的时间戳
     let currentMs = Date.now();
@@ -203,12 +203,11 @@ import { debounce, getISOTimestamp } from './utils.js';
       const recentMessages = await storageManager.getLatestMessages(
         messageData.server,
         messageData.channel,
-        10
+        10,
       );
-      
-      const isDuplicate = recentMessages.some(m => 
-        m.sender === messageData.sender && 
-        m.content === messageData.content
+
+      const isDuplicate = recentMessages.some(
+        (m) => m.sender === messageData.sender && m.content === messageData.content,
       );
 
       if (isDuplicate) {
@@ -265,7 +264,7 @@ import { debounce, getISOTimestamp } from './utils.js';
       // 关键：在开始异步扫描前就解锁实时监听。
       // 通道 B 现在有了实时查重，它会自动处理与扫描快照重叠的消息。
       // 这彻底消除了之前在 await 期间的消息丢失盲区。
-      isInitializingChat = false; 
+      isInitializingChat = false;
       await scanAndMergeHistory();
     }, 150);
 

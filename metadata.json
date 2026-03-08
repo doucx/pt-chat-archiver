@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] fix: 彻底修复重复加载、UI 阻塞及同毫秒时序混乱问题", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772972431.1085548, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "biome Capture: M analysis.js, M main.js, M state.js", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772972438.0768673, "duration_ms": 0}}

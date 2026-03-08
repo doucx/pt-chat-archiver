@@ -237,11 +237,7 @@ export function detectTotalDuplicates(messagesByChannel) {
       if (record.is_archiver) continue; // 忽略标记
 
       const content = record.content;
-      if (
-        content != null &&
-        seen_contents.has(content) &&
-        is_in_burst[i]
-      ) {
+      if (content != null && seen_contents.has(content) && is_in_burst[i]) {
         totalDuplicates++;
       }
       if (content != null) seen_contents.add(content);

@@ -92,7 +92,7 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
 
   // 恢复正向的时间顺序
   missingIndices.reverse();
-  const messagesToAdd = missingIndices.map(idx => newUserMessages[idx]);
+  const messagesToAdd = missingIndices.map((idx) => newUserMessages[idx]);
 
   if (messagesToAdd.length === 0) return oldMessages;
 
