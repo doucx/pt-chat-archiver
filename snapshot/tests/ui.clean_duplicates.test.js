@@ -57,8 +57,14 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     mockCallbacks = {
       scanAndMergeHistory: vi.fn(),
       saveMessagesToStorage: vi.fn(() => Promise.resolve()),
-      cleanChannelRecords, // 使用真实算法
-      detectTotalDuplicates, // 使用真实算法
+      cleanAllChannelRecordsAsync: async (adapter) => {
+        const { cleanAllChannelRecordsAsync: realClean } = await import('../src/analysis.js');
+        return await realClean(adapter);
+      },
+      detectTotalDuplicatesAsync: async (adapter) => {
+        const { detectTotalDuplicatesAsync: realDetect } = await import('../src/analysis.js');
+        return await realDetect(adapter);
+      },
       deactivateLogger: vi.fn(),
       manualSave: vi.fn(),
       onAutoSaveIntervalChange: vi.fn(),

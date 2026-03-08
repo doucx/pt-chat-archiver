@@ -242,23 +242,28 @@ export async function createUI(dataAdapter, appCallbacks) {
     input.click();
   };
 
-  // 注意：cleanChannelRecords 等功能仍深度依赖同步计算，
-  // 在 Phase 4 重构分析模块之前，我们暂时通过异步加载全量数据来维持逻辑
+  // 注意：cleanChannelRecords 现在通过异步 Adapter 独立进行扫描和执行
   const cleanChannelRecords = async () => {
-    const totalToClean = await appCallbacks.getDuplicatesCount();
+    // 1. Scan (扫描阶段)
+    const totalToClean = await appCallbacks.detectTotalDuplicatesAsync(dataAdapter);
 
     if (totalToClean === 0) return alert('未发现可清理的重复记录。');
+    
     if (
       confirm(
         `【确认】此操作将从数据库中永久删除 ${totalToClean} 条被识别为错误重复导入的记录。此操作不可逆。确定要继续吗？`,
       )
     ) {
+      // 2. Execute (执行阶段)
       const originalText = dom.cleanButton.textContent;
       dom.cleanButton.textContent = '清理中...';
 
       await appCallbacks.cleanAllChannelRecordsAsync();
       
       dom.cleanButton.textContent = '清理完毕!';
+      // 立即禁用按钮，防止重复点击
+      dom.cleanButton.classList.remove('active');
+      
       setTimeout(() => {
         dom.cleanButton.textContent = originalText;
         refreshView();

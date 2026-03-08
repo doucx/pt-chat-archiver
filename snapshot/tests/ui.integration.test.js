@@ -9,8 +9,8 @@ global.__APP_VERSION__ = '7.0.0-test';
 const mockCallbacks = {
   scanAndMergeHistory: vi.fn(() => Promise.resolve()),
   saveMessagesToStorage: vi.fn(() => Promise.resolve()),
-  cleanChannelRecords: vi.fn(),
-  detectTotalDuplicates: vi.fn(() => 0),
+  cleanAllChannelRecordsAsync: vi.fn(() => Promise.resolve(0)),
+  detectTotalDuplicatesAsync: vi.fn(() => Promise.resolve(0)),
   deactivateLogger: vi.fn(),
   manualSave: vi.fn(() => Promise.resolve()),
   onAutoSaveIntervalChange: vi.fn(),
