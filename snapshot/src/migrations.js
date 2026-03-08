@@ -100,8 +100,8 @@ export const MigrationManager = {
     // 检查是否需要从 V6 (LocalStorage) 迁移到 V7 (IndexedDB)
     const v6DataExists = localStorage.getItem(STORAGE_KEY_V6) !== null;
 
-    // 如果源数据存在，且目标适配器是 IndexedDB
-    if (v6DataExists && targetAdapter.constructor.name === 'IndexedDBAdapter') {
+    // 如果源数据存在，且目标适配器是 IndexedDB 或 WorkerAdapter
+    if (v6DataExists && (targetAdapter.constructor.name === 'IndexedDBAdapter' || targetAdapter.constructor.name === 'WorkerAdapter')) {
       // 安全检查：只有当 IDB 为空时才执行静默覆盖迁移
       const currentCount = await targetAdapter.getTotalMessageCount();
       if (currentCount > 0) {

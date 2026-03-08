@@ -1,6 +1,6 @@
 import { MigrationManager } from '../migrations.js';
-import { IndexedDBAdapter } from './indexed-db-adapter.js';
 import { LocalStorageAdapter } from './local-storage.adapter.js';
+import { WorkerAdapter } from './worker-adapter.js';
 
 /**
  * Manages the storage backend for the application.
@@ -24,7 +24,7 @@ class StorageManager {
     if (this.adapter && !useIndexedDB) return;
 
     if (useIndexedDB) {
-      const targetAdapter = new IndexedDBAdapter();
+      const targetAdapter = new WorkerAdapter();
       await targetAdapter.init();
 
       // --- 迁移逻辑集成 ---

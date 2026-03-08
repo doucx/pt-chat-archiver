@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] refactor: 实现 IndexedDB 增量存储与 UI 异步化", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772964102.282995, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] refactor(storage): 将 IndexedDB 操作重定向至 Web Worker 以实现主线程解耦", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772964660.2819417, "duration_ms": 0}}

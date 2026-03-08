@@ -1,70 +1,191 @@
-好的，Phase 2（数据库现代化）的重构工作已经圆满完成。我们成功将架构从“全量内存状态+定时快照保存”转向了“流式增量写入+按需分页查询”。这不仅大幅降低了内存压力，也彻底消除了定时保存带来的卡顿，并为后续引入 Web Worker 奠定了坚实基础。
+收到指令。为了彻底解决主线程的数据序列化和 I/O 带来的 UI 卡顿，我将为你实现 Web Worker 架构。我们将把 IndexedDB 的所有操作移入独立的 Worker 线程，并在主线程通过 RPC 与其进行通信。
 
-我将生成一个 `[COMMIT]` 计划来提交这些变更。
-
-## [COMMIT] refactor: 实现 IndexedDB 增量存储与 UI 异步化
+## [WIP] refactor(storage): 将 IndexedDB 操作重定向至 Web Worker 以实现主线程解耦
 
 ### 用户需求
-将存储引擎升级为增量读写模式，移除内存全量状态，并清理过时的“立刻保存”UI。
+实现性能重构路线图的第三阶段：引入 Web Worker。将 `IndexedDBAdapter` 移入 Web Worker，并在主线程保留相应的代理适配器，通过消息传递实现数据的异步读写，从而彻底避免数据库操作导致的 UI 渲染阻塞。
 
 ### 评论
-这是一次深度的架构解耦。我们不仅在底层实现了复合索引的分页查询，还在逻辑层完成了从“同步副作用”向“异步纯函数”的转变。通过移除 `inMemoryChatState`，脚本的内存占用将不再随聊天记录的增长而膨胀。
+这是本次性能重构中最关键的一环，真正意义上实现了主线程只负责 UI 渲染和事件监听，繁重的数据 I/O 被彻底剥离。得益于先前的异步化改造，接入 Worker RPC 的过程将非常平滑，无需对高层业务逻辑进行大量修改。
 
 ### 目标
-1. 提交数据库 Schema 升级逻辑（v1 -> v2）及其复合索引。
-2. 提交 `IndexedDBAdapter` 的分页查询与增量写入实现。
-3. 提交 `main.js` 和 `ui/index.js` 的去状态化重构。
-4. 提交对“立刻保存”按钮及相关陈旧逻辑的清理。
-5. 提交适配异步架构的测试套件更新。
+1. 创建 `worker.js`，包含 `IndexedDBAdapter` 的实例并监听 `postMessage` 消息。
+2. 创建 `worker-adapter.js`，通过 Promise 和 `postMessage` 封装一套 RPC 通信层，暴露与 `IndexedDBAdapter` 完全相同的接口。
+3. 修改 `StorageManager` 的初始化逻辑，使用 `WorkerAdapter` 替代 `IndexedDBAdapter`。
+4. 调整 `MigrationManager` 中的适配器类型判定，使其兼容 `WorkerAdapter` 的类名。
 
 ### 基本原理
-通过 Git 提交将上述分散的重构动作合并为一个逻辑完整的工作单元。这标志着 Phase 2 路线图任务的正式终结。
+利用 Vite 的 `?worker&inline` 特性将 Worker 脚本内联打包为 base64 字符串（借助 vite-plugin-monkey 的能力），确保在 Userscript（油猴脚本）环境下的高度兼容性。主线程与 Worker 之间通过唯一的消息 ID（`msgId`）和 `Promise` 的 resolve/reject 进行匹配映射，实现无缝的 RPC 调用。由于我们在前面阶段已确保存储接口返回 Promise 且数据属于结构化可克隆对象，这次底层替换不会对上层消费者产生感知。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/engine #comp/ui #comp/tests #scope/core #scope/performance #ai/instruct #task/domain/storage #task/object/indexed-db-modernization #task/action/implementation #task/state/end
+#intent/refine #flow/ready #priority/high #comp/build #concept/executor #scope/core #ai/delegate #task/domain/storage #task/object/indexed-db-worker #task/action/integration #task/state/begin
 
 ---
 
 ### Script
 
-#### Acts 1: 提交变更
+#### Acts 1: 创建 Web Worker 及适配器
 
-我们将所有受影响的文件添加到暂存区，并创建一个详细描述重构内容的提交。
-
-~~~~~act
-run_command
-~~~~~
-~~~~~
-git add src/constants.js src/main.js src/state.js src/storage/index.js src/storage/indexed-db-adapter.js src/ui/dom.js src/ui/events.js src/ui/index.js src/ui/renderer.js src/ui/templates.js tests/state.test.js tests/ui.clean_duplicates.test.js tests/ui.integration.test.js
-~~~~~
+我们将创建后台运行的 `worker.js` 以及在主线程负责代理调用的 `worker-adapter.js`。
 
 ~~~~~act
-git_commit
+write_file
+src/storage/worker.js
 ~~~~~
-~~~~~text
-refactor: transition to incremental IndexedDB storage and async UI flow
+~~~~~javascript
+import { IndexedDBAdapter } from './indexed-db-adapter.js';
 
-This major refactor moves the application away from a monolithic, memory-heavy state management system towards a modern, database-driven architecture.
+const adapter = new IndexedDBAdapter();
 
-Key Changes:
-- Database: Upgraded schema to v2, adding composite indexes [server, channel, time] and [server, channel] for O(1) page access and fast directory listing.
-- Storage: Implemented incremental 'putMessage' and cursor-based pagination, replacing the expensive 'saveAllV6' (full clear + rewrite) logic.
-- Runtime: Completely removed 'inMemoryChatState' and the 30s auto-save timer. Messages are now persisted immediately upon parsing.
-- UI Layer: Fully decoupled UI from global state. The renderer now requests data asynchronously through the adapter. Removed the obsolete 'Save Now' button.
-- Logic: Refactored synthetic channel assignment into a pure function 'getSyntheticChannelName'.
-- Stability: Added defensive checks for IDBKeyRange parameters and updated the test suite to comply with the new async contracts.
+self.onmessage = async (e) => {
+  const { id, method, args } = e.data;
+  try {
+    if (typeof adapter[method] === 'function') {
+      const result = await adapter[method](...args);
+      self.postMessage({ id, result });
+    } else {
+      throw new Error(`Method ${method} not found in adapter`);
+    }
+  } catch (error) {
+    self.postMessage({ id, error: error.message || error.toString() });
+  }
+};
+~~~~~
 
-Performance Impact:
-- Dramatically reduced JS heap usage as full history is no longer held in memory.
-- Eliminated periodic UI freezes caused by JSON serialization of large archives.
-- Prepared the codebase for Phase 3 (Web Worker offloading).
+~~~~~act
+write_file
+src/storage/worker-adapter.js
+~~~~~
+~~~~~javascript
+import IDBWorker from './worker.js?worker&inline';
+
+/**
+ * 将对 IndexedDBAdapter 的调用代理到 Web Worker 中。
+ * 提供与 IndexedDBAdapter 完全相同的 Promise 接口。
+ */
+export class WorkerAdapter {
+  constructor() {
+    this.worker = new IDBWorker();
+    this.msgId = 0;
+    this.pending = new Map();
+
+    this.worker.onmessage = (e) => {
+      const { id, result, error } = e.data;
+      if (this.pending.has(id)) {
+        const { resolve, reject } = this.pending.get(id);
+        if (error) {
+          reject(new Error(error));
+        } else {
+          resolve(result);
+        }
+        this.pending.delete(id);
+      }
+    };
+
+    this.worker.onerror = (err) => {
+      console.error('[WorkerAdapter] Worker error:', err);
+    };
+  }
+
+  _call(method, args = []) {
+    return new Promise((resolve, reject) => {
+      const id = this.msgId++;
+      this.pending.set(id, { resolve, reject });
+      this.worker.postMessage({ id, method, args });
+    });
+  }
+
+  // --- 代理 IndexedDBAdapter 的所有公共方法 ---
+
+  init() { return this._call('init'); }
+  putMessage(msg) { return this._call('putMessage', [msg]); }
+  putMessages(msgs) { return this._call('putMessages', [msgs]); }
+  getServers() { return this._call('getServers'); }
+  getChannels(server) { return this._call('getChannels', [server]); }
+  getMessages(server, channel, page, pageSize) { return this._call('getMessages', [server, channel, page, pageSize]); }
+  getLatestMessages(server, channel, limit) { return this._call('getLatestMessages', [server, channel, limit]); }
+  loadAllV6() { return this._call('loadAllV6'); }
+  saveAllV6(state) { return this._call('saveAllV6', [state]); }
+  getConfig() { return this._call('getConfig'); }
+  saveConfig(config) { return this._call('saveConfig', [config]); }
+  getSelfName() { return this._call('getSelfName'); }
+  setSelfName(name) { return this._call('setSelfName', [name]); }
+  clearAllData() { return this._call('clearAllData'); }
+  getRawSize() { return this._call('getRawSize'); }
+  getTotalMessageCount() { return this._call('getTotalMessageCount'); }
+  
+  // --- 旧版遗留兼容接口 ---
+  loadAllV4() { return this._call('loadAllV4'); }
+  removeV4Data() { return this._call('removeV4Data'); }
+  loadAllV5() { return this._call('loadAllV5'); }
+  removeV5Data() { return this._call('removeV5Data'); }
+}
+~~~~~
+
+#### Acts 2: 将 StorageManager 切入 Worker 架构
+
+修改存储管理器的入口，弃用主线程直接实例化 IndexedDB，改为实例化 Worker 适配器。同时更新迁移管理器对适配器类型的检测。
+
+~~~~~act
+patch_file
+src/storage/index.js
+~~~~~
+~~~~~javascript.old
+import { MigrationManager } from '../migrations.js';
+import { IndexedDBAdapter } from './indexed-db-adapter.js';
+import { LocalStorageAdapter } from './local-storage.adapter.js';
+
+/**
+~~~~~
+~~~~~javascript.new
+import { MigrationManager } from '../migrations.js';
+import { LocalStorageAdapter } from './local-storage.adapter.js';
+import { WorkerAdapter } from './worker-adapter.js';
+
+/**
+~~~~~
+
+~~~~~act
+patch_file
+src/storage/index.js
+~~~~~
+~~~~~javascript.old
+    if (useIndexedDB) {
+      const targetAdapter = new IndexedDBAdapter();
+      await targetAdapter.init();
+
+      // --- 迁移逻辑集成 ---
+~~~~~
+~~~~~javascript.new
+    if (useIndexedDB) {
+      const targetAdapter = new WorkerAdapter();
+      await targetAdapter.init();
+
+      // --- 迁移逻辑集成 ---
+~~~~~
+
+~~~~~act
+patch_file
+src/migrations.js
+~~~~~
+~~~~~javascript.old
+  async runSilentMigrations(sourceAdapter, targetAdapter) {
+    // 检查是否需要从 V6 (LocalStorage) 迁移到 V7 (IndexedDB)
+    const v6DataExists = localStorage.getItem(STORAGE_KEY_V6) !== null;
+
+    // 如果源数据存在，且目标适配器是 IndexedDB
+    if (v6DataExists && targetAdapter.constructor.name === 'IndexedDBAdapter') {
+      // 安全检查：只有当 IDB 为空时才执行静默覆盖迁移
+~~~~~
+~~~~~javascript.new
+  async runSilentMigrations(sourceAdapter, targetAdapter) {
+    // 检查是否需要从 V6 (LocalStorage) 迁移到 V7 (IndexedDB)
+    const v6DataExists = localStorage.getItem(STORAGE_KEY_V6) !== null;
+
+    // 如果源数据存在，且目标适配器是 IndexedDB 或 WorkerAdapter
+    if (v6DataExists && (targetAdapter.constructor.name === 'IndexedDBAdapter' || targetAdapter.constructor.name === 'WorkerAdapter')) {
+      // 安全检查：只有当 IDB 为空时才执行静默覆盖迁移
 ~~~~~
 
 ### 下一步建议
-
-Phase 2 现已正式结项。你的系统目前已经具备了处理超大规模聊天记录的能力，且内存表现非常优秀。
-
-**下一步建议 (Phase 3: 性能巅峰)**：
-我们将开始 **Web Worker** 的引入工作。虽然现在的 IDB 操作是异步的，但它们依然在主线程执行序列化工作。在 Phase 3 中，我们将把整个 `IndexedDBAdapter` 搬进 Worker 线程，实现真正的“零主线程阻塞”存储引擎。
-
-如果你准备好进行这项挑战，请告诉我，我们将开始设计 Worker RPC 通信协议。
+实施完成后，我们需要测试脚本。Vite 的热更新将重载带有 Worker 的应用。在此期间进行一些页面切换或发消息的操作，观察控制台是否有跨线程传递报错，确认查重、加载数据等耗时操作是否不再引起主线程的冻结。测试通过后，我们将使用一个新的 `[COMMIT]` 计划提交更改。
