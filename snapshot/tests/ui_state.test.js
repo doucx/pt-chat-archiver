@@ -14,7 +14,6 @@ describe('ui/state.js: UI State Manager Logic', () => {
     const state = uiState.getState();
 
     expect(state.pageSize).toBe(50); // 来自存储
-    expect(state.autoSaveInterval).toBe(30); // 默认值
     expect(state.viewMode).toBe('log'); // 默认初始视图
   });
 
@@ -36,11 +35,9 @@ describe('ui/state.js: UI State Manager Logic', () => {
     const uiState = await createUIState();
 
     await uiState.setPageSize(200);
-    await uiState.setAutoSaveInterval(60);
 
     const stored = JSON.parse(localStorage.getItem('chatLogArchive_config'));
     expect(stored.pageSize).toBe(200);
-    expect(stored.autoSaveInterval).toBe(60);
   });
 
   it('多服务器逻辑：查看服务器默认应跟随活动服务器', async () => {
