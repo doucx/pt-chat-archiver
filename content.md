@@ -1,171 +1,70 @@
-简要回答
-完全同意。在实现了增量写入（每条消息即刻持久化）后，手动触发全量保存的“立刻保存”按钮不仅多余，而且容易误导用户。现在数据的安全性由数据库层实时保证，我们可以清理掉这些过时的 UI 元素。
+好的，Phase 2（数据库现代化）的重构工作已经圆满完成。我们成功将架构从“全量内存状态+定时快照保存”转向了“流式增量写入+按需分页查询”。这不仅大幅降低了内存压力，也彻底消除了定时保存带来的卡顿，并为后续引入 Web Worker 奠定了坚实基础。
 
-## [WIP] style(ui): 移除过时的“立刻保存”按钮和相关逻辑
+我将生成一个 `[COMMIT]` 计划来提交这些变更。
 
-### 错误分析
-无。这是基于存储架构升级（从全量保存转为增量写入）后的 UI 优化。
+## [COMMIT] refactor: 实现 IndexedDB 增量存储与 UI 异步化
 
 ### 用户需求
-删除 UI 界面中不再需要的“立刻保存”按钮。
+将存储引擎升级为增量读写模式，移除内存全量状态，并清理过时的“立刻保存”UI。
 
 ### 评论
-删除此按钮标志着系统正式告别了“基于 JSON 快照”的旧时代。这也简化了设置界面的布局，使用户能够专注于真正的维护操作（如导入和清理）。
+这是一次深度的架构解耦。我们不仅在底层实现了复合索引的分页查询，还在逻辑层完成了从“同步副作用”向“异步纯函数”的转变。通过移除 `inMemoryChatState`，脚本的内存占用将不再随聊天记录的增长而膨胀。
 
 ### 目标
-1. 从 `templates.js` 中移除“立刻保存”按钮和“上次保存时间”的 HTML 结构。
-2. 从 `dom.js` 中移除对应的 DOM 元素引用。
-3. 从 `events.js` 中移除点击事件监听器。
-4. 在 `renderer.js` 中移除对上次保存时间的渲染逻辑。
-5. 清理 `index.js` 和 `main.js` 中遗留的相关方法。
+1. 提交数据库 Schema 升级逻辑（v1 -> v2）及其复合索引。
+2. 提交 `IndexedDBAdapter` 的分页查询与增量写入实现。
+3. 提交 `main.js` 和 `ui/index.js` 的去状态化重构。
+4. 提交对“立刻保存”按钮及相关陈旧逻辑的清理。
+5. 提交适配异步架构的测试套件更新。
+
+### 基本原理
+通过 Git 提交将上述分散的重构动作合并为一个逻辑完整的工作单元。这标志着 Phase 2 路线图任务的正式终结。
 
 ### 标签
-#intent/refine #flow/ready #priority/low #comp/ui #scope/ux #ai/instruct #task/domain/ui #task/object/save-button #task/action/remove #task/state/end
+#intent/refine #flow/ready #priority/high #comp/engine #comp/ui #comp/tests #scope/core #scope/performance #ai/instruct #task/domain/storage #task/object/indexed-db-modernization #task/action/implementation #task/state/end
 
 ---
 
 ### Script
 
-#### Acts 1: 修改 UI 模板
-移除 HTML 中负责显示保存按钮和状态信息的容器。
+#### Acts 1: 提交变更
+
+我们将所有受影响的文件添加到暂存区，并创建一个详细描述重构内容的提交。
 
 ~~~~~act
-patch_file
-src/ui/templates.js
+run_command
 ~~~~~
-~~~~~javascript
-                <div id="log-archive-config-msg-count" class="info-text-dim" style="margin-bottom: 8px;"></div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <button id="log-archive-save-now-button" class="log-archive-ui-button" style="flex-grow: 1;">💾 立即保存</button>
-                        <span id="log-archive-last-saved-info" class="info-text-dim" style="font-size: 0.8em; white-space: nowrap;">未保存</span>
-                    </div>
-                    
-                    <div class="config-actions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
 ~~~~~
-~~~~~javascript
-                <div id="log-archive-config-msg-count" class="info-text-dim" style="margin-bottom: 8px;"></div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <div class="config-actions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+git add src/constants.js src/main.js src/state.js src/storage/index.js src/storage/indexed-db-adapter.js src/ui/dom.js src/ui/events.js src/ui/index.js src/ui/renderer.js src/ui/templates.js tests/state.test.js tests/ui.clean_duplicates.test.js tests/ui.integration.test.js
 ~~~~~
-
-#### Acts 2: 清理 DOM 引用
-从 `domElements` 缓存中删除已不存在的元素。
 
 ~~~~~act
-patch_file
-src/ui/dom.js
+git_commit
 ~~~~~
-~~~~~javascript
-    selfNameInput: document.getElementById('log-archive-self-name-input'),
-    pageSizeInput: document.getElementById('log-archive-page-size-input'),
-    autoSaveIntervalInput: document.getElementById('log-archive-auto-save-interval'),
-    lastSavedInfo: document.getElementById('log-archive-last-saved-info'),
-    saveNowButton: document.getElementById('log-archive-save-now-button'),
-    configStorageInfo: document.getElementById('log-archive-config-storage-info'),
-~~~~~
-~~~~~javascript
-    selfNameInput: document.getElementById('log-archive-self-name-input'),
-    pageSizeInput: document.getElementById('log-archive-page-size-input'),
-    autoSaveIntervalInput: document.getElementById('log-archive-auto-save-interval'),
-    configStorageInfo: document.getElementById('log-archive-config-storage-info'),
-~~~~~
+~~~~~text
+refactor: transition to incremental IndexedDB storage and async UI flow
 
-#### Acts 3: 移除事件监听器
-删除对保存按钮的点击处理逻辑。
+This major refactor moves the application away from a monolithic, memory-heavy state management system towards a modern, database-driven architecture.
 
-~~~~~act
-patch_file
-src/ui/events.js
-~~~~~
-~~~~~javascript
-  dom.autoFollowInput.addEventListener('change', async () => {
-    await uiState.setAutoFollowServer(dom.autoFollowInput.checked);
-    triggerRefresh();
-  });
+Key Changes:
+- Database: Upgraded schema to v2, adding composite indexes [server, channel, time] and [server, channel] for O(1) page access and fast directory listing.
+- Storage: Implemented incremental 'putMessage' and cursor-based pagination, replacing the expensive 'saveAllV6' (full clear + rewrite) logic.
+- Runtime: Completely removed 'inMemoryChatState' and the 30s auto-save timer. Messages are now persisted immediately upon parsing.
+- UI Layer: Fully decoupled UI from global state. The renderer now requests data asynchronously through the adapter. Removed the obsolete 'Save Now' button.
+- Logic: Refactored synthetic channel assignment into a pure function 'getSyntheticChannelName'.
+- Stability: Added defensive checks for IDBKeyRange parameters and updated the test suite to comply with the new async contracts.
 
-  dom.saveNowButton.addEventListener('click', async () => {
-    await callbacks.manualSave();
-    const originalText = dom.saveNowButton.textContent;
-    dom.saveNowButton.textContent = '✅ 已保存';
-    setTimeout(() => {
-      dom.saveNowButton.textContent = originalText;
-    }, UI_FEEDBACK_DURATION);
-  });
-
-  dom.cleanButton.addEventListener('click', async () => {
-~~~~~
-~~~~~javascript
-  dom.autoFollowInput.addEventListener('change', async () => {
-    await uiState.setAutoFollowServer(dom.autoFollowInput.checked);
-    triggerRefresh();
-  });
-
-  dom.cleanButton.addEventListener('click', async () => {
-~~~~~
-
-#### Acts 4: 移除渲染逻辑
-删除在 Renderer 中对保存时间的显示处理。
-
-~~~~~act
-patch_file
-src/ui/renderer.js
-~~~~~
-~~~~~javascript
-      if (storageManager.hasV6Backup()) {
-        dom.deleteBackupGroup.style.display = 'flex';
-      } else {
-        dom.deleteBackupGroup.style.display = 'none';
-      }
-
-      const { lastSavedTime } = uiState.getState();
-      if (lastSavedTime) {
-        dom.lastSavedInfo.textContent = `上次保存: ${formatISOTimeForDisplay(lastSavedTime).split(' ')[1]}`;
-      } else {
-        dom.lastSavedInfo.textContent = '尚未保存';
-      }
-
-      // 计算重复项总数 (需要从 callbacks 获取全量数据进行计算，或者由上层计算后传入)
-~~~~~
-~~~~~javascript
-      if (storageManager.hasV6Backup()) {
-        dom.deleteBackupGroup.style.display = 'flex';
-      } else {
-        dom.deleteBackupGroup.style.display = 'none';
-      }
-
-      // 计算重复项总数 (需要从 callbacks 获取全量数据进行计算，或者由上层计算后传入)
-~~~~~
-
-#### Acts 5: 最终代码清理
-移除 `ui/index.js` 对外暴露的已失效方法。
-
-~~~~~act
-patch_file
-src/ui/index.js
-~~~~~
-~~~~~javascript
-    isUIPaused: () => uiState.getState().isUIPaused,
-    updateServerDisplay: (serverName) => {
-      uiState.setActiveServer(serverName);
-      refreshView();
-    },
-    setLastSavedTime: (time) => {
-      uiState.setLastSavedTime(time);
-      refreshView();
-    },
-    getAutoSaveInterval: () => uiState.getState().autoSaveInterval,
-~~~~~
-~~~~~javascript
-    isUIPaused: () => uiState.getState().isUIPaused,
-    updateServerDisplay: (serverName) => {
-      uiState.setActiveServer(serverName);
-      refreshView();
-    },
-    getAutoSaveInterval: () => uiState.getState().autoSaveInterval,
+Performance Impact:
+- Dramatically reduced JS heap usage as full history is no longer held in memory.
+- Eliminated periodic UI freezes caused by JSON serialization of large archives.
+- Prepared the codebase for Phase 3 (Web Worker offloading).
 ~~~~~
 
 ### 下一步建议
-通过移除这些旧时代的痕迹，界面变得更加清爽且符合其真正的运行逻辑。至此，Phase 2 的所有工作已圆满完成。
 
-系统现在拥有了一个高效、增量、基于索引的数据库底层。接下来我们可以开始执行 **Phase 3：引入 Web Worker**，将数据库操作移出主线程，彻底消除在进行大型数据库读写时可能产生的微小掉帧。
+Phase 2 现已正式结项。你的系统目前已经具备了处理超大规模聊天记录的能力，且内存表现非常优秀。
+
+**下一步建议 (Phase 3: 性能巅峰)**：
+我们将开始 **Web Worker** 的引入工作。虽然现在的 IDB 操作是异步的，但它们依然在主线程执行序列化工作。在 Phase 3 中，我们将把整个 `IndexedDBAdapter` 搬进 Worker 线程，实现真正的“零主线程阻塞”存储引擎。
+
+如果你准备好进行这项挑战，请告诉我，我们将开始设计 Worker RPC 通信协议。
