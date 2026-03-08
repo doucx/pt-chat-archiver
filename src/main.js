@@ -27,6 +27,9 @@ import { debounce, getISOTimestamp } from './utils.js';
   let uiControls = null;
   const autoSaveTimer = null;
 
+  // 用于保证实时消息绝对单调递增的全局时钟状态
+  let lastRealtimeTimestamp = 0;
+
   /*
    * =================================================================
    * 核心功能模块
@@ -102,7 +105,10 @@ import { debounce, getISOTimestamp } from './utils.js';
   /**
    * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
    */
-  async function scanAndMergeHistory() {
+  let isScanningHistory = false;
+  let pendingScan = false;
+
+  async function performScanAndMerge() {
     if (!detectedServerName) return;
     const historicalState = await extractHistoricalChatState();
     let dataChanged = false;
@@ -147,6 +153,22 @@ import { debounce, getISOTimestamp } from './utils.js';
     }
   }
 
+  async function scanAndMergeHistory() {
+    if (isScanningHistory) {
+      pendingScan = true;
+      return;
+    }
+    isScanningHistory = true;
+    try {
+      do {
+        pendingScan = false;
+        await performScanAndMerge();
+      } while (pendingScan);
+    } finally {
+      isScanningHistory = false;
+    }
+  }
+
   /*
    * =================================================================
    * 脚本主程序与生命周期管理
@@ -160,12 +182,38 @@ import { debounce, getISOTimestamp } from './utils.js';
     if (!currentActiveChannel) return;
 
     const selfName = (await storageManager.getSelfName()) || '';
-    const preciseTime = getISOTimestamp();
+
+    // --- 强制毫秒级时钟推进 (Monotonic Time Stepper) ---
+    // 确保即使在同一毫秒内到达的多条消息，也能获得绝对递增的时间戳
+    let currentMs = Date.now();
+    if (currentMs <= lastRealtimeTimestamp) {
+      currentMs = lastRealtimeTimestamp + 1;
+    }
+    lastRealtimeTimestamp = currentMs;
+    const preciseTime = new Date(currentMs).toISOString();
+
     const messageData = extractUsefulData(node, selfName, preciseTime);
 
     if (messageData?.content) {
       messageData.server = detectedServerName;
       messageData.channel = currentActiveChannel;
+
+      // --- 实时防重检查 ---
+      // 获取最近的 10 条记录进行比对，防止误抓延迟渲染的旧消息
+      const recentMessages = await storageManager.getLatestMessages(
+        messageData.server,
+        messageData.channel,
+        10,
+      );
+
+      const isDuplicate = recentMessages.some(
+        (m) => m.sender === messageData.sender && m.content === messageData.content,
+      );
+
+      if (isDuplicate) {
+        // console.log('[Archiver] 实时监听拦截到重复消息，已忽略:', messageData.content);
+        return;
+      }
 
       await storageManager.putMessage(messageData);
 
@@ -213,9 +261,12 @@ import { debounce, getISOTimestamp } from './utils.js';
     });
 
     const finalizeInitialization = debounce(async () => {
-      await scanAndMergeHistory();
+      // 关键：在开始异步扫描前就解锁实时监听。
+      // 通道 B 现在有了实时查重，它会自动处理与扫描快照重叠的消息。
+      // 这彻底消除了之前在 await 期间的消息丢失盲区。
       isInitializingChat = false;
-    }, 500);
+      await scanAndMergeHistory();
+    }, 150);
 
     messageObserver = new MutationObserver((mutationsList) => {
       let hasNewNodes = false;

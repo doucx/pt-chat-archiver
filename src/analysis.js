@@ -169,7 +169,8 @@ export async function scanAllDuplicatesAsync(dataAdapter) {
 
         const content = record.content;
         const is_duplicate = content != null && seen_contents.has(content);
-        const should_delete = !record.is_historical && is_duplicate && is_in_burst[i];
+        // 放开限制：允许清理故障产生的、且处于爆发期的重复历史记录
+        const should_delete = is_duplicate && is_in_burst[i];
 
         if (should_delete) {
           duplicateIds.push(record.id);
@@ -206,8 +207,8 @@ export function cleanChannelRecords(records) {
 
     const content = record.content;
     const is_duplicate = content != null && seen_contents.has(content);
-    // 只有非历史导入的、且处于爆发期的重复消息才会被删除
-    const should_delete = !record.is_historical && is_duplicate && is_in_burst[i];
+    // 允许清理所有处于爆发期内的绝对重复记录
+    const should_delete = is_duplicate && is_in_burst[i];
 
     if (!should_delete) {
       cleanedRecords.push(record);
@@ -236,12 +237,7 @@ export function detectTotalDuplicates(messagesByChannel) {
       if (record.is_archiver) continue; // 忽略标记
 
       const content = record.content;
-      if (
-        !record.is_historical &&
-        content != null &&
-        seen_contents.has(content) &&
-        is_in_burst[i]
-      ) {
+      if (content != null && seen_contents.has(content) && is_in_burst[i]) {
         totalDuplicates++;
       }
       if (content != null) seen_contents.add(content);

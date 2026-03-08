@@ -9,6 +9,10 @@ import { generateULID } from '../utils.js';
 export class IndexedDBAdapter {
   constructor() {
     this.db = null;
+    this.cache = {
+      servers: null,
+      channels: {}, // { serverName: [channel1, channel2] }
+    };
   }
 
   /**
@@ -59,9 +63,24 @@ export class IndexedDBAdapter {
     });
   }
 
+  _updateCache(msg) {
+    if (this.cache.servers && !this.cache.servers.includes(msg.server)) {
+      this.cache.servers.push(msg.server);
+    }
+    if (msg.server && msg.channel) {
+      if (!this.cache.channels[msg.server]) {
+        this.cache.channels[msg.server] = [];
+      }
+      if (!this.cache.channels[msg.server].includes(msg.channel)) {
+        this.cache.channels[msg.server].push(msg.channel);
+      }
+    }
+  }
+
   putMessage(msg) {
     return new Promise((resolve, reject) => {
       if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
+      this._updateCache(msg);
       const tx = this._tx([STORE_MESSAGES], 'readwrite');
       const store = tx.objectStore(STORE_MESSAGES);
       const request = store.put(msg);
@@ -78,6 +97,7 @@ export class IndexedDBAdapter {
       tx.onerror = () => reject(tx.error);
       for (const msg of msgs) {
         if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
+        this._updateCache(msg);
         store.put(msg);
       }
     });
@@ -97,6 +117,7 @@ export class IndexedDBAdapter {
   }
 
   getServers() {
+    if (this.cache.servers) return Promise.resolve([...this.cache.servers]);
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES], 'readonly');
       const store = tx.objectStore(STORE_MESSAGES);
@@ -109,7 +130,8 @@ export class IndexedDBAdapter {
           servers.push(cursor.key);
           cursor.continue();
         } else {
-          resolve(servers);
+          this.cache.servers = servers;
+          resolve([...servers]);
         }
       };
       req.onerror = () => reject(req.error);
@@ -118,6 +140,7 @@ export class IndexedDBAdapter {
 
   getChannels(server) {
     if (!server) return Promise.resolve([]);
+    if (this.cache.channels[server]) return Promise.resolve([...this.cache.channels[server]]);
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES], 'readonly');
       const store = tx.objectStore(STORE_MESSAGES);
@@ -131,7 +154,8 @@ export class IndexedDBAdapter {
           channels.push(cursor.key[1]);
           cursor.continue();
         } else {
-          resolve(channels);
+          this.cache.channels[server] = channels;
+          resolve([...channels]);
         }
       };
       req.onerror = () => reject(req.error);
@@ -266,6 +290,7 @@ export class IndexedDBAdapter {
    * 目前采用全量清理 + 全量写入的策略以保证一致性 (未来可优化为差异更新)。
    */
   saveAllV6(state) {
+    this.cache = { servers: null, channels: {} };
     return new Promise((resolve, reject) => {
       const flatMessages = flattenV6State(state);
       const tx = this._tx([STORE_MESSAGES], 'readwrite');
@@ -350,6 +375,7 @@ export class IndexedDBAdapter {
    * 清除所有数据
    */
   clearAllData() {
+    this.cache = { servers: null, channels: {} };
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES, STORE_CONFIG], 'readwrite');
       tx.oncomplete = () => resolve();
