@@ -25,7 +25,7 @@ import { debounce, getISOTimestamp } from './utils.js';
   let isSwitchingTabs = false;
   // UI 控制句柄
   let uiControls = null;
-  let autoSaveTimer = null;
+  const autoSaveTimer = null;
 
   /*
    * =================================================================
@@ -109,9 +109,13 @@ import { debounce, getISOTimestamp } from './utils.js';
 
     if (historicalState.current_tab && historicalState.messages.length > 0) {
       const channelName = historicalState.current_tab;
-      
+
       // 通过数据库获取当前频道的最末尾消息片段，用于比较查重和断层
-      const oldMessages = await storageManager.getLatestMessages(detectedServerName, channelName, 200);
+      const oldMessages = await storageManager.getLatestMessages(
+        detectedServerName,
+        channelName,
+        200,
+      );
       const newMergedMessages = mergeAndDeduplicateMessages(oldMessages, historicalState.messages);
 
       if (newMergedMessages.length > oldMessages.length) {
@@ -121,14 +125,14 @@ import { debounce, getISOTimestamp } from './utils.js';
           msg.channel = channelName;
         }
         await storageManager.putMessages(newlyAdded);
-        
+
         const synthMessages = [];
         for (const msg of newlyAdded) {
           const synthChannel = getSyntheticChannelName(msg, channelName);
           if (synthChannel) {
             const synthMsg = { ...msg, channel: synthChannel };
             // 清除原有生成的 ID，使新插入的合成记录能够被分配新 ID 以确保唯一性
-            delete synthMsg.id;
+            synthMsg.id = undefined;
             synthMessages.push(synthMsg);
           }
         }
@@ -162,13 +166,13 @@ import { debounce, getISOTimestamp } from './utils.js';
     if (messageData?.content) {
       messageData.server = detectedServerName;
       messageData.channel = currentActiveChannel;
-      
+
       await storageManager.putMessage(messageData);
 
       const synthChannel = getSyntheticChannelName(messageData, currentActiveChannel);
       if (synthChannel) {
         const synthMsg = { ...messageData, channel: synthChannel };
-        delete synthMsg.id;
+        synthMsg.id = undefined;
         await storageManager.putMessage(synthMsg);
       }
 

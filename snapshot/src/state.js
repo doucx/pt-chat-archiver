@@ -169,7 +169,8 @@ export function getSyntheticChannelName(message, activeChannel) {
   }
   if (message.type.includes('party')) {
     return 'Party-Local';
-  } else if (message.type.includes('whisper')) {
+  }
+  if (message.type.includes('whisper')) {
     return 'Whisper-Local';
   }
   return null;

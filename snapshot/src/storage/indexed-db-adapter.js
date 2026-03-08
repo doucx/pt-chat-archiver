@@ -40,13 +40,15 @@ export class IndexedDBAdapter {
         } else {
           msgStore = event.target.transaction.objectStore(STORE_MESSAGES);
         }
-        
+
         // V2 新增复合索引
         if (!msgStore.indexNames.contains('server_channel')) {
           msgStore.createIndex('server_channel', ['server', 'channel'], { unique: false });
         }
         if (!msgStore.indexNames.contains('server_channel_time')) {
-          msgStore.createIndex('server_channel_time', ['server', 'channel', 'time'], { unique: false });
+          msgStore.createIndex('server_channel_time', ['server', 'channel', 'time'], {
+            unique: false,
+          });
         }
 
         // 创建配置存储 Store
@@ -130,20 +132,20 @@ export class IndexedDBAdapter {
       const store = tx.objectStore(STORE_MESSAGES);
       const index = store.index('server_channel_time');
       const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-      
+
       const countReq = index.count(range);
       countReq.onsuccess = () => {
         const total = countReq.result;
         const messages = [];
         const start = (page - 1) * pageSize;
-        
+
         if (start >= total || total === 0) {
           return resolve({ messages, total });
         }
-        
+
         const cursorReq = index.openCursor(range, 'next');
         let advanced = false;
-        
+
         cursorReq.onsuccess = (event) => {
           const cursor = event.target.result;
           if (!cursor) {
@@ -174,10 +176,10 @@ export class IndexedDBAdapter {
       const store = tx.objectStore(STORE_MESSAGES);
       const index = store.index('server_channel_time');
       const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-      
+
       const cursorReq = index.openCursor(range, 'prev');
       const messages = [];
-      
+
       cursorReq.onsuccess = (event) => {
         const cursor = event.target.result;
         if (cursor) {

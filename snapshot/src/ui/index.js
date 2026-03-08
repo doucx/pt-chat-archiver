@@ -42,13 +42,16 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     if (!currentServer) {
       // 如果没有任何服务器数据，渲染空上下文
-      return renderer.render({
-        serverList,
-        channelList: [],
-        channelCounts: {},
-        messages: [],
-        totalCount: 0,
-      }, uiCallbacks);
+      return renderer.render(
+        {
+          serverList,
+          channelList: [],
+          channelCounts: {},
+          messages: [],
+          totalCount: 0,
+        },
+        uiCallbacks,
+      );
     }
 
     // 获取当前服务器的频道列表和统计信息

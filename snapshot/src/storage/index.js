@@ -71,7 +71,8 @@ class StorageManager {
   }
 
   getLatestMessages(server, channel, limit) {
-    if (this.adapter?.getLatestMessages) return this.adapter.getLatestMessages(server, channel, limit);
+    if (this.adapter?.getLatestMessages)
+      return this.adapter.getLatestMessages(server, channel, limit);
     return Promise.resolve([]);
   }
 
