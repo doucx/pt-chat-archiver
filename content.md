@@ -1,150 +1,53 @@
-你的分析非常精准。测试失败的根本原因是 `ensureIdMonotonicity` 函数在处理测试用例中提供的“简陋”数据（即只有 `content` 而没有 `time` 的对象）时，在进行日期算术运算时产生了 `NaN`，导致 `toISOString()` 崩溃。
+好的，我已经准备好了。我们将把刚才完成的 UI 状态重构以及 `state.js` 的健壮性修复作为一个完整的逻辑单元提交到仓库中。
 
-我将通过增强代码的健壮性和完善测试数据来修复此问题。
-
-## [WIP] fix(state): 修复 ID 单调性逻辑中的无效日期崩溃问题
-
-### 错误分析
-
-在 `src/state.js` 的 `ensureIdMonotonicity` 函数中：
-1.  代码假设输入的消息对象都带有有效的 `time` 属性。
-2.  测试用例 `tests/state.test.js` 传递了类似 `{ content: 'a' }` 的对象。
-3.  `new Date(msg.time).getTime()` 对于 `undefined` 会返回 `NaN`。
-4.  随后的运算 `Math.max(prevTime, currTime) + 1` 结果也是 `NaN`。
-5.  执行 `new Date(NaN).toISOString()` 时，JavaScript 引擎抛出 `RangeError: Invalid time value`。
-
-此外，由于 `oldMsgs` 和 `newMsgs` 的内容完全不匹配且没有 ID，去重逻辑无法识别它们，导致最终生成的数组包含了带有 `NaN` 时间戳的损坏对象。
+## [COMMIT] refactor(ui): 统一频道状态管理并修复状态处理崩溃
 
 ### 用户需求
-修复由于数据不完整或测试 Mock 数据不规范导致的脚本崩溃，确保系统能够优雅地处理缺失时间戳的消息。
+将最近两次关于“UI 状态管理优化”和“状态处理逻辑修复”的代码变更提交到 Git 仓库。
 
 ### 评论
-虽然在生产环境中 `parser.js` 总是会生成带时间戳的消息，但作为核心状态处理逻辑，`state.js` 应当具备防御性编程能力，不应因为输入数据的微小缺失而导致整个进程崩溃。这对于提升系统的容错能力和简化单元测试编写非常有意义。
+这两次修改共同提升了系统的稳定性和架构一致性：一方面消除了 UI 层的“脏读”债务，另一方面增强了核心状态引擎在面对异常数据时的容错能力。这是一个高质量的同步点。
 
 ### 目标
-1.  在 `ensureIdMonotonicity` 中增加对缺失 `time` 的防御。
-2.  确保 `newSeedTime` 永远是一个有效的数字。
-3.  更新单元测试，提供更接近真实的 Mock 数据以通过验证。
+1.  将受影响的文件添加到 Git 暂存区。
+2.  创建一个包含详细说明的提交记录。
 
 ### 基本原理
-在计算前，检查并补全缺失的 `time`。如果发现无效日期，回退到 `Date.now()`。同时，在单元测试中加入必要的时间戳字段，使测试环境与生产环境的预期行为保持一致。
+遵循“原子提交”原则，将逻辑相关的状态管理重构与修复打包在一起，有助于保持 Git 历史的清晰和可追溯性。
 
 ### 标签
-#intent/fix #flow/ready #priority/high #comp/engine #concept/state #scope/core #ai/delegate #task/domain/storage #task/object/id-monotonicity #task/action/bug-fix #task/state/end #task/status/completed
+#intent/tooling #flow/ready #priority/medium #comp/ui #comp/engine #concept/state #scope/dx #ai/instruct #task/domain/git #task/object/commit #task/action/record #task/state/end #task/status/completed
 
 ---
 
 ### Script
 
-#### Acts 1: 增强 `ensureIdMonotonicity` 的健壮性
+#### Acts 1: 提交变更
 
-我们将确保在进行日期计算前，消息对象已经具备了有效的时间戳。
+我们将把 UI 模块和状态引擎模块的相关文件加入暂存区并执行提交。
 
 ~~~~~act
-patch_file
+git_add
+src/ui/state.js
+src/ui/events.js
+src/ui/index.js
+src/ui/renderer.js
 src/state.js
-~~~~~
-~~~~~javascript.old
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-
-    if (!msg.id) {
-      msg.id = generateULID(new Date(msg.time).getTime());
-    }
-
-    // 简单的字符串字典序比较
-    if (lastId && msg.id < lastId) {
-      const prevMsg = messages[i - 1];
-      const prevTime = new Date(prevMsg.time).getTime();
-      const currTime = new Date(msg.time).getTime();
-
-      // 新的时间戳必须至少比上一条大 1ms，同时也尽量贴近当前记录的时间
-      const newSeedTime = Math.max(prevTime, currTime) + 1;
-
-      // 重写 ID
-      msg.id = generateULID(newSeedTime);
-~~~~~
-~~~~~javascript.new
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-
-    // 防御：确保 time 存在且有效
-    if (!msg.time || Number.isNaN(new Date(msg.time).getTime())) {
-      msg.time = getISOTimestamp();
-    }
-
-    if (!msg.id) {
-      msg.id = generateULID(new Date(msg.time).getTime());
-    }
-
-    // 简单的字符串字典序比较
-    if (lastId && msg.id < lastId) {
-      const prevMsg = messages[i - 1];
-      const prevTime = new Date(prevMsg.time).getTime() || Date.now();
-      const currTime = new Date(msg.time).getTime() || Date.now();
-
-      // 新的时间戳必须至少比上一条大 1ms，同时也尽量贴近当前记录的时间
-      const newSeedTime = (Number.isNaN(prevTime) ? Date.now() : Math.max(prevTime, currTime)) + 1;
-
-      // 重写 ID
-      msg.id = generateULID(newSeedTime);
-~~~~~
-
-#### Acts 2: 完善单元测试数据
-
-更新 `tests/state.test.js` 以提供符合逻辑的时间戳，避免触发 ID 重写的极端边界（即 `NaN` 比较）。
-
-~~~~~act
-patch_file
 tests/state.test.js
 ~~~~~
-~~~~~javascript.old
-describe('state.js: mergeAndDeduplicateMessages', () => {
-  it('应当能合并有重叠的消息序列', () => {
-    const oldMsgs = [{ content: 'a' }, { content: 'b' }, { content: 'c' }];
-    const newMsgs = [{ content: 'b' }, { content: 'c' }, { content: 'd' }];
-    const result = mergeAndDeduplicateMessages(oldMsgs, newMsgs);
-    expect(result.map((m) => m.content)).toEqual(['a', 'b', 'c', 'd']);
-  });
 
-  it('当没有重叠时，应当插入断层警告标记', () => {
-    const oldMsgs = [{ content: 'a' }];
-    const newMsgs = [{ content: 'z' }];
-    const result = mergeAndDeduplicateMessages(oldMsgs, newMsgs);
-    expect(result.length).toBe(3);
-    expect(result[1].sender).toBe('Archiver');
-  });
-});
+~~~~~act
+git_commit
 ~~~~~
-~~~~~javascript.new
-describe('state.js: mergeAndDeduplicateMessages', () => {
-  const t = (s) => new Date(2023, 0, 1, 0, 0, s).toISOString();
+~~~~~text
+refactor(ui): unify channel state & fix state processing crashes
 
-  it('应当能合并有重叠的消息序列', () => {
-    const oldMsgs = [
-      { time: t(1), content: 'a' },
-      { time: t(2), content: 'b' },
-      { time: t(3), content: 'c' }
-    ];
-    const newMsgs = [
-      { time: t(2), content: 'b' },
-      { time: t(3), content: 'c' },
-      { time: t(4), content: 'd' }
-    ];
-    const result = mergeAndDeduplicateMessages(oldMsgs, newMsgs);
-    expect(result.map((m) => m.content)).toEqual(['a', 'b', 'c', 'd']);
-  });
-
-  it('当没有重叠时，应当插入断层警告标记', () => {
-    const oldMsgs = [{ time: t(1), content: 'a' }];
-    const newMsgs = [{ time: t(10), content: 'z' }];
-    const result = mergeAndDeduplicateMessages(oldMsgs, newMsgs);
-    expect(result.length).toBe(3);
-    expect(result[1].sender).toBe('Archiver');
-  });
-});
+- UI: Moved 'selectedChannel' from DOM-read to uiState management, ensuring a single source of truth and fixing architectural debt.
+- UI: Fixed bug in recoverLegacyData where the non-existent 'getRawState' was called (replaced with 'getAllData').
+- Fix(state): Handled invalid/missing time values in 'ensureIdMonotonicity' to prevent RangeError crashes during date arithmetic.
+- Test: Updated state.test.js with valid mock date data to reflect realistic message structures and pass the monotonicity checks.
 ~~~~~
 
 ### 下一步建议
-- **运行全量测试**：确认 `state.test.js` 修复后，运行 `npm test` 确保没有引入其他回归。
-- **ID 排序一致性检查**：可以考虑在 IndexedDB 写入前增加一个全局的校验层，确保所有即将存入数据库的消息都具备符合单调性要求的 ID。
+- **性能回归测试**：由于 `ensureIdMonotonicity` 增加了一些防御性检查，建议在处理大规模数据（10k+ 消息）时观察是否有性能抖动。
+- **配置持久化**：下一步可以考虑实现 `selectedChannel` 在 `IndexedDB` 配置中的持久化，让用户体验更连贯。

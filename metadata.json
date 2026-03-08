@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(state): 修复 ID 单调性逻辑中的无效日期崩溃问题", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772973515.6113822, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] refactor(ui): 统一频道状态管理并修复状态处理崩溃", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772973602.069382, "duration_ms": 0}}
