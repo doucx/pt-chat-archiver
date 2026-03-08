@@ -83,6 +83,19 @@ export class IndexedDBAdapter {
     });
   }
 
+  deleteMessages(ids) {
+    if (!ids || ids.length === 0) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readwrite');
+      const store = tx.objectStore(STORE_MESSAGES);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      for (const id of ids) {
+        store.delete(id);
+      }
+    });
+  }
+
   getServers() {
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES], 'readonly');
@@ -166,6 +179,26 @@ export class IndexedDBAdapter {
         cursorReq.onerror = () => reject(cursorReq.error);
       };
       countReq.onerror = () => reject(countReq.error);
+    });
+  }
+
+  getMessagesChunk(server, channel, lastTime, limit = 2000) {
+    if (!server || !channel) return Promise.resolve([]);
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readonly');
+      const store = tx.objectStore(STORE_MESSAGES);
+      const index = store.index('server_channel_time');
+      
+      let range;
+      if (lastTime) {
+        range = IDBKeyRange.bound([server, channel, lastTime], [server, channel, '\uffff'], true, false);
+      } else {
+        range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
+      }
+      
+      const request = index.getAll(range, limit);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
     });
   }
 
@@ -326,31 +359,13 @@ export class IndexedDBAdapter {
 
   /**
    * 获取估算的存储大小 (字节)
-   * 遍历所有存储的消息和配置，并累加序列化后的字节大小。
+   * 通过消息总数进行 O(1) 估算，避免在数据量大时 getAll 导致内存溢出。
    */
   async getRawSize() {
-    return new Promise((resolve) => {
-      const tx = this._tx([STORE_MESSAGES, STORE_CONFIG], 'readonly');
-      let totalSize = 0;
-
-      const countSize = (storeName) => {
-        return new Promise((res) => {
-          const store = tx.objectStore(storeName);
-          const request = store.getAll();
-          request.onsuccess = () => {
-            const data = request.result;
-            const size = new Blob([JSON.stringify(data)]).size;
-            res(size);
-          };
-          request.onerror = () => res(0);
-        });
-      };
-
-      Promise.all([countSize(STORE_MESSAGES), countSize(STORE_CONFIG)]).then((sizes) => {
-        totalSize = sizes.reduce((a, b) => a + b, 0);
-        resolve(totalSize);
-      });
-    });
+    const count = await this.getTotalMessageCount();
+    // 假设每条消息平均占用 150 字节的存储空间
+    const estimatedSize = count * 150; 
+    return estimatedSize;
   }
 
   /**

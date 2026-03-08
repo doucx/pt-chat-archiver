@@ -84,7 +84,7 @@ export const getMainContainerHTML = (version) => `
                     </div>
 
                     <div class="config-actions" style="display: flex; gap: 8px;">
-                        <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">清理重复</button>
+                        <button id="log-archive-clean-button" class="log-archive-ui-button" style="flex-grow: 1;">扫描重复记录</button>
                         <button id="log-archive-import-button" class="log-archive-ui-button" style="flex-grow: 1;">导入 JSON</button>
                     </div>
                 </div>
