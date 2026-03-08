@@ -103,13 +103,18 @@ export async function createUI(dataAdapter, appCallbacks) {
     const newTotalPages = Math.ceil(totalCount / pageSize);
     uiState.setTotalPages(newTotalPages);
 
-    // 自动吸附逻辑修正: 如果锁定了底部，强制跳到最后一页
-    // (这需要在 fetch 之前做吗？不需要，fetch 后发现页码不对再 fetch?
-    //  不，为了性能，应该在 fetch 前决定。但 totalCount 未知...)
-    // 现在的逻辑是：先 fetch 这一页，Renderer 发现不对劲会改页码。
-    // 我们保持原样，Renderer 可能会修正页码并触发重绘吗？
-    // 原 Renderer 逻辑: if (locked) setPage(total);
-    // 这会导致一次额外的渲染。为了 Phase 1 简单，先保留。
+    // 自动吸附逻辑: 如果处于锁定底部模式，且当前页面不是最后一页（说明产生了新数据导致翻页），
+    // 强制将状态更新为最后一页，并重新获取该页数据。
+    if (isLockedToBottom && viewMode === 'log' && newTotalPages > currentPage) {
+      uiState.setPage(newTotalPages);
+      const followResult = await dataAdapter.getMessages(
+        currentServer,
+        selectedChannel,
+        newTotalPages,
+        pageSize,
+      );
+      messages = followResult.messages;
+    }
 
     const context = {
       serverList,
