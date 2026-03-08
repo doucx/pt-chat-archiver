@@ -348,10 +348,6 @@ export async function createUI(dataAdapter, appCallbacks) {
       uiState.setActiveServer(serverName);
       refreshView();
     },
-    setLastSavedTime: (time) => {
-      uiState.setLastSavedTime(time);
-      refreshView();
-    },
     getAutoSaveInterval: () => uiState.getState().autoSaveInterval,
   };
 }

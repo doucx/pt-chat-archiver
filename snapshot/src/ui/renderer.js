@@ -168,13 +168,6 @@ export function createRenderer(dom, uiState) {
         dom.deleteBackupGroup.style.display = 'none';
       }
 
-      const { lastSavedTime } = uiState.getState();
-      if (lastSavedTime) {
-        dom.lastSavedInfo.textContent = `上次保存: ${formatISOTimeForDisplay(lastSavedTime).split(' ')[1]}`;
-      } else {
-        dom.lastSavedInfo.textContent = '尚未保存';
-      }
-
       // 计算重复项总数 (需要从 callbacks 获取全量数据进行计算，或者由上层计算后传入)
       // 这里的逻辑暂时保留依赖 callbacks，直到查重功能也被重构
       if (callbacks.detectTotalDuplicates && callbacks.getRawState) {

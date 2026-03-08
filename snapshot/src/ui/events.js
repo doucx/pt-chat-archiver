@@ -141,15 +141,6 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
     triggerRefresh();
   });
 
-  dom.saveNowButton.addEventListener('click', async () => {
-    await callbacks.manualSave();
-    const originalText = dom.saveNowButton.textContent;
-    dom.saveNowButton.textContent = '✅ 已保存';
-    setTimeout(() => {
-      dom.saveNowButton.textContent = originalText;
-    }, UI_FEEDBACK_DURATION);
-  });
-
   dom.cleanButton.addEventListener('click', async () => {
     await callbacks.cleanChannelRecords();
     triggerRefresh(); // Re-render to update button state

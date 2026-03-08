@@ -76,11 +76,6 @@ export const getMainContainerHTML = (version) => `
                 <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 2px;"></div>
                 <div id="log-archive-config-msg-count" class="info-text-dim" style="margin-bottom: 8px;"></div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <button id="log-archive-save-now-button" class="log-archive-ui-button" style="flex-grow: 1;">💾 立即保存</button>
-                        <span id="log-archive-last-saved-info" class="info-text-dim" style="font-size: 0.8em; white-space: nowrap;">未保存</span>
-                    </div>
-                    
                     <div class="config-actions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                         <button id="log-archive-copy-json-button" class="log-archive-ui-button">复制 JSON</button>
                         <button id="log-archive-copy-txt-button" class="log-archive-ui-button">复制 TXT</button>

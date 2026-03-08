@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "biome Capture: M main.js, M state.js, M index.js ... and 2 more files", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772963282.943657, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] style(ui): 移除过时的“立刻保存”按钮和相关逻辑", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772963988.0113246, "duration_ms": 0}}
