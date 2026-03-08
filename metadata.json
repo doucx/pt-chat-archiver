@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修复重叠算法漏洞与 UI 严重卡顿问题", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772968498.8285315, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix: 撤销错误的后台静默监听以适应游戏 DOM 刷新机制", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772969409.5240896, "duration_ms": 0}}
