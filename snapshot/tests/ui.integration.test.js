@@ -28,7 +28,7 @@ const createMockAdapter = (state) => ({
     };
   },
   getAllData: async () => state,
-  getRawState: () => state,
+  getRawState: async () => state,
 });
 
 async function renderUI(initialState) {

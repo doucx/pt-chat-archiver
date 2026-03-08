@@ -97,7 +97,9 @@ describe('UI Clean Duplicates Regression (V6)', () => {
 
     // 验证逻辑：
     // 1. 弹出确认框 (已 mock)
-    expect(window.confirm).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(window.confirm).toHaveBeenCalled();
+    });
 
     // 2. 数据被清理：25 条变 1 条
     expect(mockAppState['Server A'].Local.length).toBe(1);
@@ -126,6 +128,8 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     const cleanButton = await screen.findByText('清理重复记录');
 
     fireEvent.click(cleanButton);
-    expect(window.alert).toHaveBeenCalledWith('未发现可清理的重复记录。');
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith('未发现可清理的重复记录。');
+    });
   });
 });
