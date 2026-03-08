@@ -132,6 +132,11 @@ function ensureIdMonotonicity(messages) {
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
 
+    // 防御：确保 time 存在且有效
+    if (!msg.time || Number.isNaN(new Date(msg.time).getTime())) {
+      msg.time = getISOTimestamp();
+    }
+
     if (!msg.id) {
       msg.id = generateULID(new Date(msg.time).getTime());
     }
@@ -139,11 +144,11 @@ function ensureIdMonotonicity(messages) {
     // 简单的字符串字典序比较
     if (lastId && msg.id < lastId) {
       const prevMsg = messages[i - 1];
-      const prevTime = new Date(prevMsg.time).getTime();
-      const currTime = new Date(msg.time).getTime();
+      const prevTime = new Date(prevMsg.time).getTime() || Date.now();
+      const currTime = new Date(msg.time).getTime() || Date.now();
 
       // 新的时间戳必须至少比上一条大 1ms，同时也尽量贴近当前记录的时间
-      const newSeedTime = Math.max(prevTime, currTime) + 1;
+      const newSeedTime = (Number.isNaN(prevTime) ? Date.now() : Math.max(prevTime, currTime)) + 1;
 
       // 重写 ID
       msg.id = generateULID(newSeedTime);
