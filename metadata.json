@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "biome Capture: M index.js, M state.test.js", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772973606.788185, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M CHANGELOG.md, M package-lock.json, M package.json", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772974302.1273704, "duration_ms": 0}}
