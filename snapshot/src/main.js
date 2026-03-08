@@ -267,7 +267,7 @@ import { debounce, getISOTimestamp } from './utils.js';
       // 这彻底消除了之前在 await 期间的消息丢失盲区。
       isInitializingChat = false; 
       await scanAndMergeHistory();
-    }, 100);
+    }, 150);
 
     messageObserver = new MutationObserver((mutationsList) => {
       let hasNewNodes = false;
