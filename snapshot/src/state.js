@@ -45,65 +45,61 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
     }
   }
 
-  // 3. 重叠检测 (Overlap Detection)
-  let overlapLength = 0;
-  const maxPossibleOverlap = Math.min(oldSigs.length, newSigs.length);
+  // 3. 贪心对齐检测 (Greedy Alignment Detection)
+  // 从后向前比较，容忍旧数据中的缺失空洞
+  let i = oldSigs.length - 1;
+  let j = newSigs.length - 1;
+  const missingIndices = [];
+  let anyMatchFound = false;
 
-  for (let i = maxPossibleOverlap; i > 0; i--) {
-    // 比较 old 的后缀 和 new 的前缀
-    const suffixSigs = oldSigs.slice(-i);
-    const prefixSigs = newSigs.slice(0, i);
+  while (j >= 0) {
+    if (i >= 0 && oldSigs[i] === newSigs[j]) {
+      anyMatchFound = true;
+      i--;
+      j--;
+    } else {
+      let foundInOld = -1;
+      let foundInNew = -1;
 
-    // 简单的数组比较
-    let match = true;
-    for (let k = 0; k < i; k++) {
-      if (suffixSigs[k] !== prefixSigs[k]) {
-        match = false;
-        break;
+      // 往前探查一小段，确认是哪一侧少了一截
+      for (let k = 1; k <= 5 && i - k >= 0; k++) {
+        if (oldSigs[i - k] === newSigs[j]) {
+          foundInOld = i - k;
+          break;
+        }
+      }
+      for (let k = 1; k <= 5 && j - k >= 0; k++) {
+        if (i >= 0 && newSigs[j - k] === oldSigs[i]) {
+          foundInNew = j - k;
+          break;
+        }
+      }
+
+      if (foundInOld !== -1 && foundInNew === -1) {
+        // DB 里有多余的东西（比如以前错误的重复插入），跳过它们
+        i = foundInOld;
+      } else if (foundInNew !== -1 && foundInOld === -1) {
+        // DOM 里有新的、DB 漏掉的消息
+        missingIndices.push(j);
+        j--;
+      } else {
+        // 两边都没找到，默认 DOM 里的是新产生的未记录消息
+        missingIndices.push(j);
+        j--;
       }
     }
-
-    if (match) {
-      overlapLength = i;
-      break;
-    }
   }
 
-  // 4. 合并结果
-  let messagesToAdd;
-  if (overlapLength > 0) {
-    // 找到重叠，取 newMessages 中重叠部分之后的消息
-    // 注意：我们需要回到原始的 newMessages 数组（包含可能的 archiver 标记，虽然 filter 过了通常没有）
-    // 为了简单，我们使用 newUserMessages 的索引来切分 newMessages
-    // 但 newMessages 可能包含我们 filter 掉的东西吗？
-    // extractHistoricalChatState 生成的消息通常不含 is_archiver。
-    // 所以直接用 newUserMessages 的逻辑是安全的。
-
-    // 找到重叠截止点在 newMessages 中的位置
-    const lastOverlappingMsg = newUserMessages[overlapLength - 1];
-    // 在原始 newMessages 中找到这个消息
-    const indexInOriginal = newMessages.indexOf(lastOverlappingMsg);
-
-    if (indexInOriginal !== -1) {
-      messagesToAdd = newMessages.slice(indexInOriginal + 1);
-    } else {
-      // Fallback (should ideally not happen)
-      messagesToAdd = newMessages.slice(overlapLength);
-    }
-  } else {
-    messagesToAdd = newMessages;
-  }
+  // 恢复正向的时间顺序
+  missingIndices.reverse();
+  const messagesToAdd = missingIndices.map(idx => newUserMessages[idx]);
 
   if (messagesToAdd.length === 0) return oldMessages;
 
-  const discontinuityDetected = overlapLength === 0;
+  // 只有当两个数组没有任何交集时，才真正认定发生了不可恢复的断层
+  const discontinuityDetected = !anyMatchFound;
 
-  if (discontinuityDetected) {
-    // 进一步检查：如果只是 overlap 没找到，但时间上是连续的（或者是旧数据的未来），
-    // 且我们没有更好的办法判断，才插入标记。
-    // 防止“完全不匹配但其实是同一波数据的微调”导致的重复。
-    // 但鉴于我们做了子集检测，如果走到这里，说明 new 有 old 没有的内容，且头部不匹配 old 的尾部。
-    // 这确实像是一个断层。
+  if (discontinuityDetected && oldSigs.length > 0) {
     console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
     const discontinuityMark = {
       time: getISOTimestamp(),
@@ -116,6 +112,8 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
     return ensureIdMonotonicity(oldMessages.concat([discontinuityMark], messagesToAdd));
   }
 
+  // 利用 ensureIdMonotonicity，所有新增历史记录的 ID 和 Time 将被安全地推挤
+  // 从而使得这些补漏记录会被安插在正确的时间线位置（最后一条有效记录之后）
   return ensureIdMonotonicity(oldMessages.concat(messagesToAdd));
 }
 

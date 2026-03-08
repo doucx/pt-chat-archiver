@@ -102,7 +102,10 @@ import { debounce, getISOTimestamp } from './utils.js';
   /**
    * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
    */
-  async function scanAndMergeHistory() {
+  let isScanningHistory = false;
+  let pendingScan = false;
+
+  async function performScanAndMerge() {
     if (!detectedServerName) return;
     const historicalState = await extractHistoricalChatState();
     let dataChanged = false;
@@ -144,6 +147,22 @@ import { debounce, getISOTimestamp } from './utils.js';
     }
     if (dataChanged && uiControls && !uiControls.isUIPaused()) {
       uiControls.updateUI();
+    }
+  }
+
+  async function scanAndMergeHistory() {
+    if (isScanningHistory) {
+      pendingScan = true;
+      return;
+    }
+    isScanningHistory = true;
+    try {
+      do {
+        pendingScan = false;
+        await performScanAndMerge();
+      } while (pendingScan);
+    } finally {
+      isScanningHistory = false;
     }
   }
 

@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] refactor(analysis): optimize duplicate scanning and storage estimation", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772966417.9835494, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix: 修复反复开关聊天框导致的记录疯狂重复与去重失效问题", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1772967544.6086872, "duration_ms": 0}}
