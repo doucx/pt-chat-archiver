@@ -102,6 +102,7 @@ export class IndexedDBAdapter {
   }
 
   getChannels(server) {
+    if (!server) return Promise.resolve([]);
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES], 'readonly');
       const store = tx.objectStore(STORE_MESSAGES);
@@ -123,6 +124,7 @@ export class IndexedDBAdapter {
   }
 
   getMessages(server, channel, page, pageSize) {
+    if (!server || !channel) return Promise.resolve({ messages: [], total: 0 });
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES], 'readonly');
       const store = tx.objectStore(STORE_MESSAGES);
@@ -166,6 +168,7 @@ export class IndexedDBAdapter {
   }
 
   getLatestMessages(server, channel, limit) {
+    if (!server || !channel) return Promise.resolve([]);
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES], 'readonly');
       const store = tx.objectStore(STORE_MESSAGES);

@@ -38,7 +38,18 @@ export async function createUI(dataAdapter, appCallbacks) {
     if (!viewingServer && serverList.length > 0) {
       uiState.setViewingServer(serverList[0]);
     }
-    const currentServer = uiState.getState().viewingServer; // 可能已被上面更新
+    const currentServer = uiState.getState().viewingServer;
+
+    if (!currentServer) {
+      // 如果没有任何服务器数据，渲染空上下文
+      return renderer.render({
+        serverList,
+        channelList: [],
+        channelCounts: {},
+        messages: [],
+        totalCount: 0,
+      }, uiCallbacks);
+    }
 
     // 获取当前服务器的频道列表和统计信息
     const channelList = await dataAdapter.getChannels(currentServer);

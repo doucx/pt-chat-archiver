@@ -19,7 +19,7 @@ const createMockAdapter = (state) => ({
     };
   },
   getAllData: async () => state,
-  getRawState: () => state,
+  getRawState: async () => state,
 });
 
 describe('UI Clean Duplicates Regression (V6)', () => {
