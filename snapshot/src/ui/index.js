@@ -31,7 +31,14 @@ export async function createUI(dataAdapter, appCallbacks) {
    * 4. 调用 Renderer 更新 DOM
    */
   const refreshView = async () => {
-    const { viewingServer, currentPage, pageSize, viewMode, isLockedToBottom, selectedChannel: stateChannel } = uiState.getState();
+    const {
+      viewingServer,
+      currentPage,
+      pageSize,
+      viewMode,
+      isLockedToBottom,
+      selectedChannel: stateChannel,
+    } = uiState.getState();
     const serverList = await dataAdapter.getServers();
 
     // 确保 viewingServer 有效

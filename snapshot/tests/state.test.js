@@ -8,12 +8,12 @@ describe('state.js: mergeAndDeduplicateMessages', () => {
     const oldMsgs = [
       { time: t(1), content: 'a' },
       { time: t(2), content: 'b' },
-      { time: t(3), content: 'c' }
+      { time: t(3), content: 'c' },
     ];
     const newMsgs = [
       { time: t(2), content: 'b' },
       { time: t(3), content: 'c' },
-      { time: t(4), content: 'd' }
+      { time: t(4), content: 'd' },
     ];
     const result = mergeAndDeduplicateMessages(oldMsgs, newMsgs);
     expect(result.map((m) => m.content)).toEqual(['a', 'b', 'c', 'd']);
