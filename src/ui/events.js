@@ -32,6 +32,7 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
   });
 
   dom.channelSelector.addEventListener('change', () => {
+    uiState.setSelectedChannel(dom.channelSelector.value);
     uiState.setPage(1);
     triggerRefresh();
   });

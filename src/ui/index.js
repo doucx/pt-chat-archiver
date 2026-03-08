@@ -31,7 +31,14 @@ export async function createUI(dataAdapter, appCallbacks) {
    * 4. 调用 Renderer 更新 DOM
    */
   const refreshView = async () => {
-    const { viewingServer, currentPage, pageSize, viewMode, isLockedToBottom } = uiState.getState();
+    const {
+      viewingServer,
+      currentPage,
+      pageSize,
+      viewMode,
+      isLockedToBottom,
+      selectedChannel: stateChannel,
+    } = uiState.getState();
     const serverList = await dataAdapter.getServers();
 
     // 确保 viewingServer 有效
@@ -68,17 +75,17 @@ export async function createUI(dataAdapter, appCallbacks) {
       channelCounts[ch] = total;
     }
 
-    // 确定当前选中的 Channel (Renderer 依赖 DOM，但我们可以先从 DOM 读一下之前的选择?)
-    // 更好的方式是 UI State 也管理 selectedChannel，但目前在 DOM 里。
-    // 我们先渲染一次 Server/Channel 列表，让 DOM 更新，然后读取值，再请求消息？
-    // 或者一次性把上下文给 Renderer，让 Renderer 决定 Channel，然后 Renderer 再回调请求消息？
-    // 不，这太复杂。
-    // 简化方案：Controller 读取 DOM 状态 (Dirty read)
-    let selectedChannel = dom.channelSelector.value;
-    if (!selectedChannel && channelList.length > 0) selectedChannel = channelList[0];
+    // 确定当前选中的 Channel
+    let selectedChannel = stateChannel;
 
-    // 如果列表变了导致 selectedChannel 无效，修正它
-    if (selectedChannel && !channelList.includes(selectedChannel)) selectedChannel = channelList[0];
+    // 如果未选择或列表变动导致原选择失效，修正它并同步回 uiState
+    if (!selectedChannel && channelList.length > 0) {
+      selectedChannel = channelList[0];
+      uiState.setSelectedChannel(selectedChannel);
+    } else if (selectedChannel && !channelList.includes(selectedChannel)) {
+      selectedChannel = channelList[0];
+      uiState.setSelectedChannel(selectedChannel);
+    }
 
     // 获取消息数据
     let messages = [];
@@ -122,6 +129,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       channelCounts,
       messages,
       totalCount,
+      selectedChannel, // 显式传递经过控制器校验的选中状态
     };
 
     renderer.render(context, uiCallbacks);
@@ -266,7 +274,8 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const recoverLegacyData = async (targetServer) => {
     try {
-      const rawState = await dataAdapter.getRawState();
+      // 修正接口名：dataAdapter.getRawState -> dataAdapter.getAllData
+      const rawState = await dataAdapter.getAllData();
       const newState = await MigrationManager.recoverAndMergeAll(rawState, targetServer);
       await appCallbacks.saveMessagesToStorage(newState);
       alert('数据恢复合并完成！已自动清理旧版残留。');
