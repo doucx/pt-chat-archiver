@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M CHANGELOG.md, M package-lock.json, M package.json", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1773044575.799422, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] feat: 增加动态初始化防抖延迟设置与短路拦截保护", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1773044624.3046517, "duration_ms": 0}}
