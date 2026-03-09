@@ -67,7 +67,8 @@ class StorageManager {
 
   getChannelCount(server, channel) {
     if (this.adapter?.getChannelCount) return this.adapter.getChannelCount(server, channel);
-    if (this.adapter?.getMessages) return this.adapter.getMessages(server, channel, 1, 1).then(r => r.total);
+    if (this.adapter?.getMessages)
+      return this.adapter.getMessages(server, channel, 1, 1).then((r) => r.total);
     return Promise.resolve(0);
   }
 

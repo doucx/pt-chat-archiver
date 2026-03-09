@@ -64,7 +64,7 @@ export async function createUI(dataAdapter, appCallbacks) {
     // 获取当前服务器的频道列表和统计信息
     const channelList = await dataAdapter.getChannels(currentServer);
     const channelCounts = {};
-    
+
     // 使用 Promise.all 并行获取各个频道的总数，极大提升刷新速度
     await Promise.all(
       channelList.map(async (ch) => {
@@ -75,7 +75,7 @@ export async function createUI(dataAdapter, appCallbacks) {
           const { total } = await dataAdapter.getMessages(currentServer, ch, 1, 1);
           channelCounts[ch] = total;
         }
-      })
+      }),
     );
 
     // 确定当前选中的 Channel
@@ -92,7 +92,7 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     // 获取消息数据
     let messages = [];
-    let totalCount = selectedChannel ? (channelCounts[selectedChannel] || 0) : 0;
+    let totalCount = selectedChannel ? channelCounts[selectedChannel] || 0 : 0;
 
     // 当且仅当非 config 模式下才去抓取具体消息体
     if (currentServer && selectedChannel && viewMode !== 'config') {
