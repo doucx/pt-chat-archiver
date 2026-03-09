@@ -9,6 +9,7 @@ global.__APP_VERSION__ = '7.0.0-test';
 const createMockAdapter = (state) => ({
   getServers: async () => Object.keys(state),
   getChannels: async (server) => Object.keys(state[server] || {}),
+  getChannelCount: async (server, channel) => (state[server]?.[channel] || []).length,
   getMessages: async (server, channel, page, pageSize) => {
     const list = state[server]?.[channel] || [];
     const start = (page - 1) * pageSize;

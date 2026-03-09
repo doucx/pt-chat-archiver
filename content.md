@@ -1,375 +1,102 @@
-## [WIP] perf: 优化大规模记录下的分页与视图切换性能
+## [WIP] fix(tests): 修复性能优化后引起的测试回归错误
+
+### 错误分析
+性能优化引入了 `getChannelCount` 接口，但未同步更新测试用的 Mock 对象，导致 `refreshView` 在测试运行时由于找不到该函数而崩溃。
 
 ### 用户需求
-在积累大量消息后，打开设置页面和进行分页操作时存在明显卡顿，希望解决该性能问题。
+修复由于接口变更导致的自动化测试失败。
 
 ### 评论
-由于历史限制，目前的分页直接依赖了 IndexedDB 游标的 `advance` 方法，在大偏移量下会产生严重的性能退化（尤其是在最新的尾页）。本次优化不改变核心数据结构，纯粹通过计算几何方向的捷径和并行化策略就能彻底解决这个痛点，极具性价比。
+接口变更时同步更新测试代码是标准流程。同时，在 UI 层增加一个小的降级逻辑可以提高系统的健壮性，防止未来其他环境（如导入/导出插件）出现类似问题。
 
 ### 目标
-1. 为 `IndexedDBAdapter` 的分页加入智能的双向游标 `prev`/`next` 判断。
-2. 为存储和数据适配层添加专用的 `getChannelCount` 接口。
-3. 在 UI 层使用 `Promise.all` 提速统计查询，并在设置模式下跳过正文数据查询。
+1. 更新 `tests/ui.clean_duplicates.test.js` 和 `tests/ui.integration.test.js` 中的 Mock 适配器。
+2. 在 `src/ui/index.js` 中添加接口存在性检查。
 
 ### 基本原理
-IndexedDB 不支持原生的 Offset，但支持双向游标。通过 `total` 和 `start` 比较，当请求的页面位于下半区时，从末尾用 `prev` 游标逆向推进，可以极大地减少无效节点遍历数。此外，将无用或可并行的长耗时操作进行解耦，符合响应式 UI 的最佳实践。
+通过在测试 Mock 中返回 `state[server][channel].length` 来快速实现统计接口。在 UI 层，利用可选链或逻辑判断确保即使适配器较旧也能正常工作。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/runtime #comp/ui #concept/sync #scope/core #scope/ux #ai/brainstorm #task/domain/performance #task/object/pagination #task/action/optimize #task/state/begin
+#intent/fix #flow/ready #priority/high #comp/tests #comp/ui #scope/core #ai/instruct #task/domain/testing #task/object/test-mocks #task/action/fix #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 在存储层支持专用 Count 和双向游标
+#### Acts 1: 修复 `ui.clean_duplicates.test.js` 中的 Mock
 
 ~~~~~act
 patch_file
-src/storage/indexed-db-adapter.js
+tests/ui.clean_duplicates.test.js
 ~~~~~
 ~~~~~javascript.old
-  getChannels(server) {
-    if (!server) return Promise.resolve([]);
-    if (this.cache.channels[server]) return Promise.resolve([...this.cache.channels[server]]);
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel');
-      const range = IDBKeyRange.bound([server, ''], [server, '\uffff']);
-      const req = index.openKeyCursor(range, 'nextunique');
-      const channels = [];
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) {
-          channels.push(cursor.key[1]);
-          cursor.continue();
-        } else {
-          this.cache.channels[server] = channels;
-          resolve([...channels]);
-        }
-      };
-      req.onerror = () => reject(req.error);
-    });
-  }
-
-  getMessages(server, channel, page, pageSize) {
-    if (!server || !channel) return Promise.resolve({ messages: [], total: 0 });
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel_time');
-      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-
-      const countReq = index.count(range);
-      countReq.onsuccess = () => {
-        const total = countReq.result;
-        const messages = [];
-        const start = (page - 1) * pageSize;
-
-        if (start >= total || total === 0) {
-          return resolve({ messages, total });
-        }
-
-        const cursorReq = index.openCursor(range, 'next');
-        let advanced = false;
-
-        cursorReq.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (!cursor) {
-            return resolve({ messages, total });
-          }
-          if (start > 0 && !advanced) {
-            advanced = true;
-            cursor.advance(start);
-          } else {
-            messages.push(cursor.value);
-            if (messages.length < pageSize) {
-              cursor.continue();
-            } else {
-              resolve({ messages, total });
-            }
-          }
-        };
-        cursorReq.onerror = () => reject(cursorReq.error);
-      };
-      countReq.onerror = () => reject(countReq.error);
-    });
-  }
+const createMockAdapter = (state) => ({
+  getServers: async () => Object.keys(state),
+  getChannels: async (server) => Object.keys(state[server] || {}),
+  getMessages: async (server, channel, page, pageSize) => {
+    const list = state[server]?.[channel] || [];
 ~~~~~
 ~~~~~javascript.new
-  getChannels(server) {
-    if (!server) return Promise.resolve([]);
-    if (this.cache.channels[server]) return Promise.resolve([...this.cache.channels[server]]);
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel');
-      const range = IDBKeyRange.bound([server, ''], [server, '\uffff']);
-      const req = index.openKeyCursor(range, 'nextunique');
-      const channels = [];
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) {
-          channels.push(cursor.key[1]);
-          cursor.continue();
-        } else {
-          this.cache.channels[server] = channels;
-          resolve([...channels]);
-        }
-      };
-      req.onerror = () => reject(req.error);
-    });
-  }
-
-  getChannelCount(server, channel) {
-    if (!server || !channel) return Promise.resolve(0);
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel_time');
-      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-      const countReq = index.count(range);
-      countReq.onsuccess = () => resolve(countReq.result);
-      countReq.onerror = () => reject(countReq.error);
-    });
-  }
-
-  getMessages(server, channel, page, pageSize) {
-    if (!server || !channel) return Promise.resolve({ messages: [], total: 0 });
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel_time');
-      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-
-      const countReq = index.count(range);
-      countReq.onsuccess = () => {
-        const total = countReq.result;
-        const messages = [];
-        const start = (page - 1) * pageSize;
-
-        if (start >= total || total === 0) {
-          return resolve({ messages, total });
-        }
-
-        // 核心优化：双向游标
-        // 当需要跳过的记录数超过总数的一半时，改为从末尾反向遍历，大幅减少光标 advance() 的性能损耗。
-        const reverse = start > total / 2;
-        let direction = 'next';
-        let advanceCount = start;
-
-        if (reverse) {
-          direction = 'prev';
-          const lastIndexWanted = Math.min(start + pageSize - 1, total - 1);
-          advanceCount = total - 1 - lastIndexWanted;
-        }
-
-        const cursorReq = index.openCursor(range, direction);
-        let advanced = false;
-
-        cursorReq.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (!cursor) {
-            if (reverse) messages.reverse();
-            return resolve({ messages, total });
-          }
-          if (advanceCount > 0 && !advanced) {
-            advanced = true;
-            cursor.advance(advanceCount);
-          } else {
-            messages.push(cursor.value);
-            if (messages.length < pageSize) {
-              cursor.continue();
-            } else {
-              if (reverse) messages.reverse();
-              resolve({ messages, total });
-            }
-          }
-        };
-        cursorReq.onerror = () => reject(cursorReq.error);
-      };
-      countReq.onerror = () => reject(countReq.error);
-    });
-  }
+const createMockAdapter = (state) => ({
+  getServers: async () => Object.keys(state),
+  getChannels: async (server) => Object.keys(state[server] || {}),
+  getChannelCount: async (server, channel) => (state[server]?.[channel] || []).length,
+  getMessages: async (server, channel, page, pageSize) => {
+    const list = state[server]?.[channel] || [];
 ~~~~~
 
-#### Acts 2: 在管理器中暴露 Count
+#### Acts 2: 修复 `ui.integration.test.js` 中的 Mock
 
 ~~~~~act
 patch_file
-src/storage/index.js
+tests/ui.integration.test.js
 ~~~~~
 ~~~~~javascript.old
-  getChannels(server) {
-    if (this.adapter?.getChannels) return this.adapter.getChannels(server);
-    return Promise.resolve([]);
-  }
-
-  getMessages(server, channel, page, pageSize) {
-    if (this.adapter?.getMessages) return this.adapter.getMessages(server, channel, page, pageSize);
-    return Promise.resolve({ messages: [], total: 0 });
-  }
+const createMockAdapter = (state) => ({
+  getServers: async () => Object.keys(state),
+  getChannels: async (server) => Object.keys(state[server] || {}),
+  getMessages: async (server, channel, page, pageSize) => {
+    const list = state[server]?.[channel] || [];
 ~~~~~
 ~~~~~javascript.new
-  getChannels(server) {
-    if (this.adapter?.getChannels) return this.adapter.getChannels(server);
-    return Promise.resolve([]);
-  }
-
-  getChannelCount(server, channel) {
-    if (this.adapter?.getChannelCount) return this.adapter.getChannelCount(server, channel);
-    if (this.adapter?.getMessages) return this.adapter.getMessages(server, channel, 1, 1).then(r => r.total);
-    return Promise.resolve(0);
-  }
-
-  getMessages(server, channel, page, pageSize) {
-    if (this.adapter?.getMessages) return this.adapter.getMessages(server, channel, page, pageSize);
-    return Promise.resolve({ messages: [], total: 0 });
-  }
+const createMockAdapter = (state) => ({
+  getServers: async () => Object.keys(state),
+  getChannels: async (server) => Object.keys(state[server] || {}),
+  getChannelCount: async (server, channel) => (state[server]?.[channel] || []).length,
+  getMessages: async (server, channel, page, pageSize) => {
+    const list = state[server]?.[channel] || [];
 ~~~~~
 
-#### Acts 3: 在主 DataAdapter 提供接口
+#### Acts 3: 在 UI 控制器中添加降级防御
 
-~~~~~act
-patch_file
-src/main.js
-~~~~~
-~~~~~javascript.old
-    // 构建 DataAdapter：UI 层与数据层的隔离界面
-    const dataAdapter = {
-      getServers: async () => await storageManager.getServers(),
-      getChannels: async (server) => await storageManager.getChannels(server),
-      getMessages: async (server, channel, page, pageSize) => {
-        return await storageManager.getMessages(server, channel, page, pageSize);
-      },
-      getMessagesChunk: async (server, channel, lastTime, limit) => {
-        return await storageManager.getMessagesChunk(server, channel, lastTime, limit);
-      },
-      getAllData: async () => await storageManager.loadAllV6(), // 用于导出功能
-    };
-~~~~~
-~~~~~javascript.new
-    // 构建 DataAdapter：UI 层与数据层的隔离界面
-    const dataAdapter = {
-      getServers: async () => await storageManager.getServers(),
-      getChannels: async (server) => await storageManager.getChannels(server),
-      getChannelCount: async (server, channel) => await storageManager.getChannelCount(server, channel),
-      getMessages: async (server, channel, page, pageSize) => {
-        return await storageManager.getMessages(server, channel, page, pageSize);
-      },
-      getMessagesChunk: async (server, channel, lastTime, limit) => {
-        return await storageManager.getMessagesChunk(server, channel, lastTime, limit);
-      },
-      getAllData: async () => await storageManager.loadAllV6(), // 用于导出功能
-    };
-~~~~~
-
-#### Acts 4: 重构 UI 中的 RefreshView 逻辑
-
-并行查询频道数，并拦截设置页的无意义查询。
+即使 Mock 没修好，这里也不会报错。
 
 ~~~~~act
 patch_file
 src/ui/index.js
 ~~~~~
 ~~~~~javascript.old
-    // 获取当前服务器的频道列表和统计信息
-    const channelList = await dataAdapter.getChannels(currentServer);
-    const channelCounts = {};
-    for (const ch of channelList) {
-      // 临时：为了 Phase 1 快速实现，我们这里可能需要优化
-      // 现在的 getMessages 返回 total，我们或许需要一个独立的 getChannelStats
-      // 这里的实现依赖 getMessages 的开销，如果是全量内存没问题，如果是 DB 可能会慢
-      // 暂时先用 dummy 或者让 renderer 自己处理？
-      // Renderer 需要显示 "Global (500)"。
-      // 让我们假设 inMemoryState 依然很快。
-      const { total } = await dataAdapter.getMessages(currentServer, ch, 1, 1);
-      channelCounts[ch] = total;
-    }
-
-    // 确定当前选中的 Channel
-    let selectedChannel = stateChannel;
-
-    // 如果未选择或列表变动导致原选择失效，修正它并同步回 uiState
-    if (!selectedChannel && channelList.length > 0) {
-      selectedChannel = channelList[0];
-      uiState.setSelectedChannel(selectedChannel);
-    } else if (selectedChannel && !channelList.includes(selectedChannel)) {
-      selectedChannel = channelList[0];
-      uiState.setSelectedChannel(selectedChannel);
-    }
-
-    // 获取消息数据
-    let messages = [];
-    let totalCount = 0;
-
-    if (currentServer && selectedChannel) {
-      // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
-      const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
-      const fetchPage = viewMode === 'stats' ? 1 : currentPage;
-
-      const result = await dataAdapter.getMessages(
-        currentServer,
-        selectedChannel,
-        fetchPage,
-        fetchSize,
-      );
-      messages = result.messages;
-      totalCount = result.total;
-    }
-
-    // 更新分页状态
-    const newTotalPages = Math.ceil(totalCount / pageSize);
-    uiState.setTotalPages(newTotalPages);
-~~~~~
-~~~~~javascript.new
-    // 获取当前服务器的频道列表和统计信息
-    const channelList = await dataAdapter.getChannels(currentServer);
-    const channelCounts = {};
-    
     // 使用 Promise.all 并行获取各个频道的总数，极大提升刷新速度
     await Promise.all(
       channelList.map(async (ch) => {
         channelCounts[ch] = await dataAdapter.getChannelCount(currentServer, ch);
       })
     );
-
-    // 确定当前选中的 Channel
-    let selectedChannel = stateChannel;
-
-    // 如果未选择或列表变动导致原选择失效，修正它并同步回 uiState
-    if (!selectedChannel && channelList.length > 0) {
-      selectedChannel = channelList[0];
-      uiState.setSelectedChannel(selectedChannel);
-    } else if (selectedChannel && !channelList.includes(selectedChannel)) {
-      selectedChannel = channelList[0];
-      uiState.setSelectedChannel(selectedChannel);
-    }
-
-    // 获取消息数据
-    let messages = [];
-    let totalCount = selectedChannel ? (channelCounts[selectedChannel] || 0) : 0;
-
-    // 当且仅当非 config 模式下才去抓取具体消息体
-    if (currentServer && selectedChannel && viewMode !== 'config') {
-      // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
-      const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
-      const fetchPage = viewMode === 'stats' ? 1 : currentPage;
-
-      const result = await dataAdapter.getMessages(
-        currentServer,
-        selectedChannel,
-        fetchPage,
-        fetchSize,
-      );
-      messages = result.messages;
-      totalCount = result.total; // 确保一致性
-    }
-
-    // 更新分页状态
-    const newTotalPages = Math.ceil(totalCount / pageSize);
-    uiState.setTotalPages(newTotalPages);
+~~~~~
+~~~~~javascript.new
+    // 使用 Promise.all 并行获取各个频道的总数，极大提升刷新速度
+    await Promise.all(
+      channelList.map(async (ch) => {
+        if (dataAdapter.getChannelCount) {
+          channelCounts[ch] = await dataAdapter.getChannelCount(currentServer, ch);
+        } else {
+          // 降级方案：如果适配器未实现此接口，回落到查询第一页来获取 total
+          const { total } = await dataAdapter.getMessages(currentServer, ch, 1, 1);
+          channelCounts[ch] = total;
+        }
+      })
+    );
 ~~~~~
 
 ### 下一步建议
-以上代码已经修改完毕。我们可以生成提交计划，现在 UI 操作的大部分卡顿都应该消失了。你也可以去设置页面实际验证一下切换体验是否得到了显著的改善。
+修复后请重新运行测试（`npm test`）。在确认所有测试通过后，我们可以继续进行功能完善或准备提交。

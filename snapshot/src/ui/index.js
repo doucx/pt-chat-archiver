@@ -68,7 +68,13 @@ export async function createUI(dataAdapter, appCallbacks) {
     // 使用 Promise.all 并行获取各个频道的总数，极大提升刷新速度
     await Promise.all(
       channelList.map(async (ch) => {
-        channelCounts[ch] = await dataAdapter.getChannelCount(currentServer, ch);
+        if (dataAdapter.getChannelCount) {
+          channelCounts[ch] = await dataAdapter.getChannelCount(currentServer, ch);
+        } else {
+          // 降级方案：如果适配器未实现此接口，回落到查询第一页来获取 total
+          const { total } = await dataAdapter.getMessages(currentServer, ch, 1, 1);
+          channelCounts[ch] = total;
+        }
       })
     );
 
