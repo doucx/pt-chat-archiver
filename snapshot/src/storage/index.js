@@ -65,6 +65,12 @@ class StorageManager {
     return Promise.resolve([]);
   }
 
+  getChannelCount(server, channel) {
+    if (this.adapter?.getChannelCount) return this.adapter.getChannelCount(server, channel);
+    if (this.adapter?.getMessages) return this.adapter.getMessages(server, channel, 1, 1).then(r => r.total);
+    return Promise.resolve(0);
+  }
+
   getMessages(server, channel, page, pageSize) {
     if (this.adapter?.getMessages) return this.adapter.getMessages(server, channel, page, pageSize);
     return Promise.resolve({ messages: [], total: 0 });

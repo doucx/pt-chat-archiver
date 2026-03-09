@@ -64,16 +64,13 @@ export async function createUI(dataAdapter, appCallbacks) {
     // 获取当前服务器的频道列表和统计信息
     const channelList = await dataAdapter.getChannels(currentServer);
     const channelCounts = {};
-    for (const ch of channelList) {
-      // 临时：为了 Phase 1 快速实现，我们这里可能需要优化
-      // 现在的 getMessages 返回 total，我们或许需要一个独立的 getChannelStats
-      // 这里的实现依赖 getMessages 的开销，如果是全量内存没问题，如果是 DB 可能会慢
-      // 暂时先用 dummy 或者让 renderer 自己处理？
-      // Renderer 需要显示 "Global (500)"。
-      // 让我们假设 inMemoryState 依然很快。
-      const { total } = await dataAdapter.getMessages(currentServer, ch, 1, 1);
-      channelCounts[ch] = total;
-    }
+    
+    // 使用 Promise.all 并行获取各个频道的总数，极大提升刷新速度
+    await Promise.all(
+      channelList.map(async (ch) => {
+        channelCounts[ch] = await dataAdapter.getChannelCount(currentServer, ch);
+      })
+    );
 
     // 确定当前选中的 Channel
     let selectedChannel = stateChannel;
@@ -89,9 +86,10 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     // 获取消息数据
     let messages = [];
-    let totalCount = 0;
+    let totalCount = selectedChannel ? (channelCounts[selectedChannel] || 0) : 0;
 
-    if (currentServer && selectedChannel) {
+    // 当且仅当非 config 模式下才去抓取具体消息体
+    if (currentServer && selectedChannel && viewMode !== 'config') {
       // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
       const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
       const fetchPage = viewMode === 'stats' ? 1 : currentPage;
@@ -103,7 +101,7 @@ export async function createUI(dataAdapter, appCallbacks) {
         fetchSize,
       );
       messages = result.messages;
-      totalCount = result.total;
+      totalCount = result.total; // 确保一致性
     }
 
     // 更新分页状态

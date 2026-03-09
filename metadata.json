@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M CHANGELOG.md", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1773024208.9357517, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] perf: 优化大规模记录下的分页与视图切换性能", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1773024220.569047, "duration_ms": 0}}

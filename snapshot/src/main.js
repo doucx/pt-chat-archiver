@@ -311,6 +311,7 @@ import { debounce, getISOTimestamp } from './utils.js';
     const dataAdapter = {
       getServers: async () => await storageManager.getServers(),
       getChannels: async (server) => await storageManager.getChannels(server),
+      getChannelCount: async (server, channel) => await storageManager.getChannelCount(server, channel),
       getMessages: async (server, channel, page, pageSize) => {
         return await storageManager.getMessages(server, channel, page, pageSize);
       },
