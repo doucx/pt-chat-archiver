@@ -13,7 +13,7 @@ function getMessageSignature(msg) {
 
 /**
  * 智能合并消息数组，用于处理聊天记录不连续的情况。
- * 改进版：增加了子集检测和模糊匹配。
+ * 改进版：使用“拉链式”精准缝合，避免级联 ID 重写造成的 IndexedDB 冗余。
  */
 export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
   if (!oldMessages || oldMessages.length === 0) return newMessages;
@@ -28,9 +28,7 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
   const oldSigs = oldUserMessages.map(getMessageSignature);
   const newSigs = newUserMessages.map(getMessageSignature);
 
-  // 2. 子集检测 (Subset Check)
-  // 检查 newMessages 是否完全包含在 oldMessages 的末尾
-  // 例如: Old=[A, B, C, D], New=[C, D]. 这是一个常见的重新扫描场景。
+  // 2. 子集检测优化 (Subset Check)
   if (newSigs.length <= oldSigs.length) {
     let isSubset = true;
     for (let i = 0; i < newSigs.length; i++) {
@@ -40,20 +38,19 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
       }
     }
     if (isSubset) {
-      // console.log('[Archiver] 扫描到的消息是当前记录的子集，忽略。');
       return oldMessages;
     }
   }
 
-  // 3. 贪心对齐检测 (Greedy Alignment Detection)
-  // 从后向前比较，容忍旧数据中的缺失空洞
+  // 3. 贪心对齐检测 (Greedy Alignment) - 定位缺失记录的插入点
+  const insertions = []; // { afterOldUserIndex: number, msg: object }
   let i = oldSigs.length - 1;
   let j = newSigs.length - 1;
-  const missingIndices = [];
   let anyMatchFound = false;
+  const MAX_LOOKAHEAD = 50; // 扩大探查视野以防大量积压导致误判
 
-  while (j >= 0) {
-    if (i >= 0 && oldSigs[i] === newSigs[j]) {
+  while (i >= 0 || j >= 0) {
+    if (i >= 0 && j >= 0 && oldSigs[i] === newSigs[j]) {
       anyMatchFound = true;
       i--;
       j--;
@@ -61,45 +58,64 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
       let foundInOld = -1;
       let foundInNew = -1;
 
-      // 往前探查一小段，确认是哪一侧少了一截
-      for (let k = 1; k <= 5 && i - k >= 0; k++) {
-        if (oldSigs[i - k] === newSigs[j]) {
-          foundInOld = i - k;
-          break;
+      // 探查缺失情况
+      for (let k = 1; k <= MAX_LOOKAHEAD; k++) {
+        if (foundInOld === -1 && i - k >= 0 && j >= 0 && oldSigs[i - k] === newSigs[j]) {
+          foundInOld = k;
         }
-      }
-      for (let k = 1; k <= 5 && j - k >= 0; k++) {
-        if (i >= 0 && newSigs[j - k] === oldSigs[i]) {
-          foundInNew = j - k;
+        if (foundInNew === -1 && j - k >= 0 && i >= 0 && newSigs[j - k] === oldSigs[i]) {
+          foundInNew = k;
+        }
+        if (foundInOld !== -1 || foundInNew !== -1) {
           break;
         }
       }
 
       if (foundInOld !== -1 && foundInNew === -1) {
-        // DB 里有多余的东西（比如以前错误的重复插入），跳过它们
-        i = foundInOld;
+        // DB 中有多余元素，说明它们已经被安全归档，跳过匹配
+        i -= foundInOld;
+        anyMatchFound = true;
       } else if (foundInNew !== -1 && foundInOld === -1) {
-        // DOM 里有新的、DB 漏掉的消息
-        missingIndices.push(j);
-        j--;
+        // DOM 中有新元素缺失，将它们记录并安排插入到当前匹配节点(i)的后方
+        for (let step = 0; step < foundInNew; step++) {
+          insertions.unshift({ afterOldUserIndex: i, msg: newUserMessages[j - step] });
+        }
+        j -= foundInNew;
+        anyMatchFound = true;
+      } else if (foundInOld !== -1 && foundInNew !== -1) {
+        // 两边都找到了匹配（可能有重复字符），优先选用偏移较小的
+        if (foundInOld <= foundInNew) {
+          i -= foundInOld;
+        } else {
+          for (let step = 0; step < foundInNew; step++) {
+            insertions.unshift({ afterOldUserIndex: i, msg: newUserMessages[j - step] });
+          }
+          j -= foundInNew;
+        }
+        anyMatchFound = true;
       } else {
-        // 两边都没找到，默认 DOM 里的是新产生的未记录消息
-        missingIndices.push(j);
-        j--;
+        // 无法在视野内找到匹配，默认当前 j 属于缺失消息
+        if (j >= 0) {
+          insertions.unshift({ afterOldUserIndex: i, msg: newUserMessages[j] });
+          j--;
+        } else if (i >= 0) {
+          i--;
+        }
       }
     }
   }
 
-  // 恢复正向的时间顺序
-  missingIndices.reverse();
-  const messagesToAdd = missingIndices.map((idx) => newUserMessages[idx]);
+  // 4. 按插入点对缺失消息进行分组
+  const insertionsMap = new Map();
+  for (const item of insertions) {
+    if (!insertionsMap.has(item.afterOldUserIndex)) {
+      insertionsMap.set(item.afterOldUserIndex, []);
+    }
+    insertionsMap.get(item.afterOldUserIndex).push(item.msg);
+  }
 
-  if (messagesToAdd.length === 0) return oldMessages;
-
-  // 只有当两个数组没有任何交集时，才真正认定发生了不可恢复的断层
-  const discontinuityDetected = !anyMatchFound;
-
-  if (discontinuityDetected && oldSigs.length > 0) {
+  // 5. 插入断层警告标记 (如果有)
+  if (!anyMatchFound && oldSigs.length > 0 && newSigs.length > 0) {
     console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
     const markTime = getISOTimestamp();
     const discontinuityMark = {
@@ -111,59 +127,59 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
       content: '[警告 - 此处可能存在记录丢失]',
       is_archiver: true,
     };
-    return ensureIdMonotonicity(oldMessages.concat([discontinuityMark], messagesToAdd));
+    
+    // 将其放置在旧记录的最末尾，即全部新消息之前
+    const targetIdx = oldSigs.length - 1;
+    if (!insertionsMap.has(targetIdx)) {
+      insertionsMap.set(targetIdx, []);
+    }
+    insertionsMap.get(targetIdx).unshift(discontinuityMark);
   }
 
-  // 利用 ensureIdMonotonicity，所有新增历史记录的 ID 和 Time 将被安全地推挤
-  // 从而使得这些补漏记录会被安插在正确的时间线位置（最后一条有效记录之后）
-  return ensureIdMonotonicity(oldMessages.concat(messagesToAdd));
-}
-
-/**
- * 确保消息列表中的 ID 是单调递增的。
- * 如果发现后一条消息的 ID 小于前一条，则重写后一条的 ID。
- */
-function ensureIdMonotonicity(messages) {
-  if (!messages || messages.length === 0) return messages;
-
-  let lastId = null;
-  // let fixedCount = 0;
-
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-
-    // 防御：确保 time 存在且有效
-    if (!msg.time || Number.isNaN(new Date(msg.time).getTime())) {
-      msg.time = getISOTimestamp();
-    }
-
-    if (!msg.id) {
-      msg.id = generateULID(new Date(msg.time).getTime());
-    }
-
-    // 简单的字符串字典序比较
-    if (lastId && msg.id < lastId) {
-      const prevMsg = messages[i - 1];
-      const prevTime = new Date(prevMsg.time).getTime() || Date.now();
-      const currTime = new Date(msg.time).getTime() || Date.now();
-
-      // 新的时间戳必须至少比上一条大 1ms，同时也尽量贴近当前记录的时间
-      const newSeedTime = (Number.isNaN(prevTime) ? Date.now() : Math.max(prevTime, currTime)) + 1;
-
-      // 重写 ID
-      msg.id = generateULID(newSeedTime);
-      // 同步更新 time 以保持数据内部一致性 (尽管 UI 可能显示旧时间，但排序依据已变)
-      // 注意：这会改变内存中的 time 对象，可能会影响 UI 显示为 x.001 秒
-      // 但这是正确的，反映了它逻辑上发生在上一条之后。
-      msg.time = new Date(newSeedTime).toISOString();
-
-      // fixedCount++;
-    }
-    lastId = msg.id;
+  if (insertionsMap.size === 0) {
+    return oldMessages;
   }
 
-  // if (fixedCount > 0) console.log(`[Archiver] Fixed ${fixedCount} out-of-order IDs during merge.`);
-  return messages;
+  // 6. 构造最终的序列，精确织入新消息并进行局部时间插值
+  const finalMessages = [];
+
+  // 首先处理插在最开头的消息 (afterOldUserIndex === -1)
+  if (insertionsMap.has(-1)) {
+    const toInsert = insertionsMap.get(-1);
+    let baseTime = new Date(toInsert[0].time || getISOTimestamp()).getTime();
+    for (const newMsg of toInsert) {
+      if (!newMsg.is_archiver) {
+        newMsg.time = new Date(baseTime).toISOString();
+        newMsg.id = generateULID(baseTime);
+        baseTime += 1; // 保证微观单调性
+      }
+      finalMessages.push(newMsg);
+    }
+  }
+
+  let currentUserIndex = 0;
+  for (let idx = 0; idx < oldMessages.length; idx++) {
+    const msg = oldMessages[idx];
+    finalMessages.push(msg); // 已有的 DB 消息绝对不修改，避免引发冗余
+
+    if (!msg.is_archiver) {
+      if (insertionsMap.has(currentUserIndex)) {
+        const toInsert = insertionsMap.get(currentUserIndex);
+        let baseTime = new Date(msg.time).getTime();
+        for (const newMsg of toInsert) {
+          if (!newMsg.is_archiver) {
+             baseTime += 1; // 在基准消息的时间上加 1ms，确保 IndexedDB 正确向后排序
+             newMsg.time = new Date(baseTime).toISOString();
+             newMsg.id = generateULID(baseTime);
+          }
+          finalMessages.push(newMsg);
+        }
+      }
+      currentUserIndex++;
+    }
+  }
+
+  return finalMessages;
 }
 
 /**
