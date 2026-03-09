@@ -347,7 +347,7 @@ export class IndexedDBAdapter {
    * 获取配置
    */
   getConfig() {
-    const defaultCfg = { pageSize: 1000 };
+    const defaultCfg = { pageSize: 1000, initDebounceMs: 150 };
     return new Promise((resolve) => {
       const tx = this._tx([STORE_CONFIG], 'readonly');
       const store = tx.objectStore(STORE_CONFIG);

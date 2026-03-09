@@ -58,6 +58,7 @@ export function getDOMElements() {
     autoFollowInput: document.getElementById('log-archive-auto-follow-input'),
     selfNameInput: document.getElementById('log-archive-self-name-input'),
     pageSizeInput: document.getElementById('log-archive-page-size-input'),
+    initDebounceInput: document.getElementById('log-archive-init-debounce-input'),
     configStorageInfo: document.getElementById('log-archive-config-storage-info'),
     configMsgCount: document.getElementById('log-archive-config-msg-count'),
     legacyRecoveryGroup: document.getElementById('log-archive-legacy-recovery-group'),

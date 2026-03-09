@@ -332,6 +332,7 @@ export async function createUI(dataAdapter, appCallbacks) {
     },
     checkStorageUsage: async () => await renderer.checkStorageUsage(),
     isUIPaused: () => uiState.getState().isUIPaused,
+    getInitDebounceMs: () => uiState.getState().initDebounceMs,
     updateServerDisplay: (serverName) => {
       uiState.setActiveServer(serverName);
       refreshView();
