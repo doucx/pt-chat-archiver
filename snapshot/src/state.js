@@ -127,7 +127,7 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
       content: '[警告 - 此处可能存在记录丢失]',
       is_archiver: true,
     };
-    
+
     // 将其放置在旧记录的最末尾，即全部新消息之前
     const targetIdx = oldSigs.length - 1;
     if (!insertionsMap.has(targetIdx)) {
@@ -168,9 +168,9 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
         let baseTime = new Date(msg.time).getTime();
         for (const newMsg of toInsert) {
           if (!newMsg.is_archiver) {
-             baseTime += 1; // 在基准消息的时间上加 1ms，确保 IndexedDB 正确向后排序
-             newMsg.time = new Date(baseTime).toISOString();
-             newMsg.id = generateULID(baseTime);
+            baseTime += 1; // 在基准消息的时间上加 1ms，确保 IndexedDB 正确向后排序
+            newMsg.time = new Date(baseTime).toISOString();
+            newMsg.id = generateULID(baseTime);
           }
           finalMessages.push(newMsg);
         }
