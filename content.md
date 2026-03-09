@@ -4,6 +4,8 @@
 
 ### 📝 变更文件摘要:
 ```
-tests/storage.test.js | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+CHANGELOG.md      | 23 +++++++++++++++++++++++
+ package-lock.json |  4 ++--
+ package.json      |  2 +-
+ 3 files changed, 26 insertions(+), 3 deletions(-)
 ```
