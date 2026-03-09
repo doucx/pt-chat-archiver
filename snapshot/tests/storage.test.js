@@ -21,7 +21,7 @@ describe('Storage Module (Async Manager)', () => {
     const defaultConfig = await storageManager.getConfig();
     expect(defaultConfig.pageSize).toBe(1000);
 
-    const newConfig = { pageSize: 50, autoSaveInterval: 60 };
+    const newConfig = { pageSize: 50, autoSaveInterval: 60, initDebounceMs: 150 };
     await storageManager.saveConfig(newConfig);
     const loadedConfig = await storageManager.getConfig();
     expect(loadedConfig).toEqual(newConfig);
