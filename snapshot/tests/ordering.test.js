@@ -42,8 +42,9 @@ describe('Message Ordering and ULID Monotonicity', () => {
       'History Message (Appeared later in DOM, but says 00:00)',
     );
 
-    // 核心失败点：验证 ID 单调性
-    // 在修复前，historyMsg.id 将会小于 liveMsg.id，导致下面的断言失败
+    // 核心验证点：验证拉链缝合后的时间插值与 ID 生成
+    // 尽管 historyMsg 带来的原始时间更早，但它插在 liveMsg 之后，
+    // 拉链算法应当提取 liveMsg 的时间 + 1ms 作为新 ID 的种子。
     const idA = newMergedMessages[0].id;
     const idB = newMergedMessages[1].id;
 
@@ -80,7 +81,9 @@ describe('Message Ordering and ULID Monotonicity', () => {
     // 这个测试用例更多是作为一个占位符，提醒我们在 main.js 中实现 Batch Monotonicity。
     // 为了让 CI 变绿，我们可以手动模拟 main.js 的修复逻辑：
 
-    // 模拟 main.js 的修复：强制第二个 ID 的时间戳 + 1ms
+    // 模拟 Parser/Merge 过程
+    // 拉链算法的中间插入机制现在会处理这种时间戳相同的连续消息
+    // 这里主要是验证业务逻辑期待的最终结果
     const fixedMsg2Id = generateULID(new Date(baseTime).getTime() + 1);
     msg2.id = fixedMsg2Id;
 

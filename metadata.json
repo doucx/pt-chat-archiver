@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] 对合并算法进行重构，并废除危险的全局 ID 重写机制", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1773022566.8997598, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test: 增加拉链式合并算法的单元测试并验证 ID 稳定性", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1773022803.3765197, "duration_ms": 0}}
