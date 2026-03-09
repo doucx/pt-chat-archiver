@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] test: 增加拉链式合并算法的单元测试并验证 ID 稳定性", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1773022803.3765197, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M package.json", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1773022848.3884282, "duration_ms": 0}}
