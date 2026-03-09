@@ -68,6 +68,13 @@ export const getMainContainerHTML = (version) => `
                 <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
             </div>
             <div class="config-group">
+                <label for="log-archive-init-debounce-input">初始化防抖延迟 (毫秒)</label>
+                <input type="number" id="log-archive-init-debounce-input" min="50" max="5000" step="50">
+                <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
+                    如果在手机端加载历史记录时发生丢失或错乱，可尝试调高此值（例如 1000 或 1500）。
+                </div>
+            </div>
+            <div class="config-group">
                 <label>维护操作</label>
                 <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 2px;"></div>
                 <div id="log-archive-config-msg-count" class="info-text-dim" style="margin-bottom: 8px;"></div>

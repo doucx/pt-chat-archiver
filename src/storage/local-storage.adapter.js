@@ -36,7 +36,7 @@ export class LocalStorageAdapter {
   }
 
   getConfig() {
-    const defaultCfg = { pageSize: 1000 };
+    const defaultCfg = { pageSize: 1000, initDebounceMs: 150 };
     try {
       const stored = localStorage.getItem(CONFIG_KEY);
       return Promise.resolve(stored ? { ...defaultCfg, ...JSON.parse(stored) } : defaultCfg);

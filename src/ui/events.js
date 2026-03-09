@@ -131,6 +131,10 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
     triggerRefresh();
   });
 
+  dom.initDebounceInput.addEventListener('change', async () => {
+    await uiState.setInitDebounceMs(dom.initDebounceInput.value);
+  });
+
   dom.autoFollowInput.addEventListener('change', async () => {
     await uiState.setAutoFollowServer(dom.autoFollowInput.checked);
     triggerRefresh();
@@ -269,5 +273,6 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
   // --- Initial value setup ---
   dom.selfNameInput.value = await uiState.getSelfName();
   dom.pageSizeInput.value = uiState.getState().pageSize;
+  dom.initDebounceInput.value = uiState.getState().initDebounceMs;
   dom.autoFollowInput.checked = uiState.getState().autoFollowServer;
 }

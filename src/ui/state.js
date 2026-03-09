@@ -8,6 +8,7 @@ export async function createUIState() {
   const state = {
     currentPage: 1,
     pageSize: 1000,
+    initDebounceMs: 150,
     autoFollowServer: true,
     lastSavedTime: null,
     totalPages: 1,
@@ -22,11 +23,13 @@ export async function createUIState() {
   // Async load config
   const config = await storageManager.getConfig();
   state.pageSize = config.pageSize || 1000;
+  state.initDebounceMs = config.initDebounceMs || 150;
   state.autoFollowServer = config.autoFollowServer !== false; // 默认为 true
 
   const saveConfig = async () => {
     await storageManager.saveConfig({
       pageSize: state.pageSize,
+      initDebounceMs: state.initDebounceMs,
       autoFollowServer: state.autoFollowServer,
     });
   };
@@ -49,6 +52,13 @@ export async function createUIState() {
       const val = Number.parseInt(size, 10);
       if (!Number.isNaN(val) && val >= 10) {
         state.pageSize = val;
+        await saveConfig();
+      }
+    },
+    setInitDebounceMs: async (ms) => {
+      const val = Number.parseInt(ms, 10);
+      if (!Number.isNaN(val) && val >= 50) {
+        state.initDebounceMs = val;
         await saveConfig();
       }
     },

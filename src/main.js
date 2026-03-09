@@ -238,6 +238,9 @@ import { debounce, getISOTimestamp } from './utils.js';
 
     isInitializingChat = true;
 
+    // 动态获取防抖配置，允许用户在弱性能设备（如手机）上延长该值
+    const initDebounceMs = uiControls ? uiControls.getInitDebounceMs() : 150;
+
     const handleTabChange = () => {
       const newActiveTab = findActiveTabByClass(tabsContainer.innerHTML);
       if (newActiveTab && newActiveTab !== currentActiveChannel) {
@@ -259,26 +262,40 @@ import { debounce, getISOTimestamp } from './utils.js';
       attributeFilter: ['class'],
     });
 
+    let initNodesCount = 0;
+    const MAX_HISTORY_NODES = 110; // 历史记录渲染数量的安全阈值
+
     const finalizeInitialization = debounce(async () => {
       // 关键：在开始异步扫描前就解锁实时监听。
       // 通道 B 现在有了实时查重，它会自动处理与扫描快照重叠的消息。
       // 这彻底消除了之前在 await 期间的消息丢失盲区。
       isInitializingChat = false;
       await scanAndMergeHistory();
-    }, 150);
+    }, initDebounceMs);
 
     messageObserver = new MutationObserver((mutationsList) => {
       let hasNewNodes = false;
       for (const mutation of mutationsList) {
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
           hasNewNodes = true;
-          if (!isInitializingChat) {
+          if (isInitializingChat) {
+            for (const node of mutation.addedNodes) {
+              if (node.nodeType === Node.ELEMENT_NODE && node.matches('.chat-line')) {
+                initNodesCount++;
+              }
+            }
+          } else {
             mutation.addedNodes.forEach(handleNewChatMessage);
           }
         }
       }
       if (isInitializingChat && hasNewNodes) {
-        finalizeInitialization();
+        // 容量断路器：如果已经收到接近历史记录上限数量的消息，
+        // 说明其实际渲染已饱和，此时我们不再调用防抖函数重置定时器，
+        // 防止长防抖设置（如 1500ms）在遇到活跃频道时导致长时间锁死在初始化状态。
+        if (initNodesCount < MAX_HISTORY_NODES) {
+          finalizeInitialization();
+        }
       }
     });
 
