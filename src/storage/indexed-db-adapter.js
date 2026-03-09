@@ -162,6 +162,19 @@ export class IndexedDBAdapter {
     });
   }
 
+  getChannelCount(server, channel) {
+    if (!server || !channel) return Promise.resolve(0);
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_MESSAGES], 'readonly');
+      const store = tx.objectStore(STORE_MESSAGES);
+      const index = store.index('server_channel_time');
+      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
+      const countReq = index.count(range);
+      countReq.onsuccess = () => resolve(countReq.result);
+      countReq.onerror = () => reject(countReq.error);
+    });
+  }
+
   getMessages(server, channel, page, pageSize) {
     if (!server || !channel) return Promise.resolve({ messages: [], total: 0 });
     return new Promise((resolve, reject) => {
@@ -180,22 +193,36 @@ export class IndexedDBAdapter {
           return resolve({ messages, total });
         }
 
-        const cursorReq = index.openCursor(range, 'next');
+        // 核心优化：双向游标
+        // 当需要跳过的记录数超过总数的一半时，改为从末尾反向遍历，大幅减少光标 advance() 的性能损耗。
+        const reverse = start > total / 2;
+        let direction = 'next';
+        let advanceCount = start;
+
+        if (reverse) {
+          direction = 'prev';
+          const lastIndexWanted = Math.min(start + pageSize - 1, total - 1);
+          advanceCount = total - 1 - lastIndexWanted;
+        }
+
+        const cursorReq = index.openCursor(range, direction);
         let advanced = false;
 
         cursorReq.onsuccess = (event) => {
           const cursor = event.target.result;
           if (!cursor) {
+            if (reverse) messages.reverse();
             return resolve({ messages, total });
           }
-          if (start > 0 && !advanced) {
+          if (advanceCount > 0 && !advanced) {
             advanced = true;
-            cursor.advance(start);
+            cursor.advance(advanceCount);
           } else {
             messages.push(cursor.value);
             if (messages.length < pageSize) {
               cursor.continue();
             } else {
+              if (reverse) messages.reverse();
               resolve({ messages, total });
             }
           }
