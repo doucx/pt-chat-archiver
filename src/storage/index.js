@@ -102,6 +102,10 @@ class StorageManager {
     return this.adapter.saveAllV6(state);
   }
 
+  mergeAllV6(state) {
+    return this.adapter.mergeAllV6(state);
+  }
+
   getConfig() {
     return this.adapter.getConfig();
   }

@@ -345,6 +345,7 @@ import { debounce, getISOTimestamp } from './utils.js';
     uiControls = await createUI(dataAdapter, {
       scanAndMergeHistory,
       saveMessagesToStorage: async (state) => await storageManager.saveAllV6(state), // 仍提供给批量导入等特殊维护操作使用
+      mergeMessagesToStorage: async (state) => await storageManager.mergeAllV6(state),
       scanAllDuplicatesAsync,
       deleteMessages: async (ids) => await storageManager.deleteMessages(ids),
       deactivateLogger,

@@ -73,6 +73,7 @@ export function getDOMElements() {
     downloadJsonButton: document.getElementById('log-archive-download-json-button'),
     downloadTxtButton: document.getElementById('log-archive-download-txt-button'),
     importButton: document.getElementById('log-archive-import-button'),
+    importMergeButton: document.getElementById('log-archive-import-merge-button'),
     clearButton: document.getElementById('log-archive-clear-button'),
 
     // Pagination Controls

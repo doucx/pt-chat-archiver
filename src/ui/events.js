@@ -270,6 +270,10 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
     callbacks.importAllData();
   });
 
+  dom.importMergeButton.addEventListener('click', () => {
+    callbacks.importAndMergeData();
+  });
+
   // --- Initial value setup ---
   dom.selfNameInput.value = await uiState.getSelfName();
   dom.pageSizeInput.value = uiState.getState().pageSize;
