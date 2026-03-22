@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 增强频道探测鲁棒性并优化录制状态显示", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1774165128.458962, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix: 同步测试用例以适配 UI 接口变更", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1774165166.7495122, "duration_ms": 0}}
