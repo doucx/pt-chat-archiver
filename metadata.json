@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat: 添加“导入并合并”功能以支持无损合并聊天记录", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1774167817.2399523, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "fix Capture: M templates.js", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1774167914.5769677, "duration_ms": 0}}

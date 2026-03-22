@@ -87,9 +87,9 @@ export const getMainContainerHTML = (version) => `
                     </div>
 
                     <div class="config-actions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                        <button id="log-archive-clean-button" class="log-archive-ui-button">扫描重复</button>
-                        <button id="log-archive-import-button" class="log-archive-ui-button">导入(覆盖)</button>
-                        <button id="log-archive-import-merge-button" class="log-archive-ui-button" style="grid-column: span 2; background-color: var(--color-success);">导入并合并 JSON (推荐)</button>
+                        <button id="log-archive-clean-button" class="log-archive-ui-button">扫描重复记录</button>
+                        <button id="log-archive-import-button" class="log-archive-ui-button">导入 JSON (覆盖)</button>
+                        <button id="log-archive-import-merge-button" class="log-archive-ui-button" style="grid-column: span 2; background-color: var(--color-success);">导入 JSON (合并)</button>
                     </div>
                 </div>
             </div>
