@@ -52,8 +52,15 @@ export function createRenderer(dom, uiState) {
    * }
    */
   const render = (context, callbacks) => {
-    const { viewMode, currentPage, totalPages, viewingServer, activeServer, isLockedToBottom } =
-      uiState.getState();
+    const {
+      viewMode,
+      currentPage,
+      totalPages,
+      viewingServer,
+      activeServer,
+      recordedChannel,
+      isLockedToBottom,
+    } = uiState.getState();
     const { serverList, channelList, channelCounts, messages, selectedChannel } = context;
 
     // 1. 更新服务器选择器
@@ -88,7 +95,8 @@ export function createRenderer(dom, uiState) {
         dom.serverStatus.style.color = '';
         if (dom.resetServerButton) dom.resetServerButton.disabled = true;
       } else if (!isReadOnly) {
-        dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}`;
+        const channelSuffix = recordedChannel ? `::${recordedChannel}` : '';
+        dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}${channelSuffix}`;
         dom.serverStatus.style.color = 'var(--color-primary-hover)';
         if (dom.resetServerButton) dom.resetServerButton.disabled = true;
       } else {
