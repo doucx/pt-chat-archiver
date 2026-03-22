@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M CHANGELOG.md", "type": "capture", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1774165774.5283945, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] fix: 增强频道探测鲁棒性并优化录制状态显示", "type": "plan", "generator": {"id": "manual", "tool": "quipu-cli"}, "env": {"quipu": "unknown", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1774165775.0829191, "duration_ms": 0}}
