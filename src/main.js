@@ -245,6 +245,9 @@ import { debounce, getISOTimestamp } from './utils.js';
       const newActiveTab = findActiveTabByClass(tabsContainer.innerHTML);
       if (newActiveTab && newActiveTab !== currentActiveChannel) {
         currentActiveChannel = newActiveTab;
+        if (uiControls) {
+          uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
+        }
         isSwitchingTabs = true;
         setTimeout(async () => {
           await scanAndMergeHistory();
@@ -360,7 +363,7 @@ import { debounce, getISOTimestamp } from './utils.js';
         detectedServerName = server;
         console.log(`[Archiver] Detected server switch: ${server}`);
         if (uiControls) {
-          uiControls.updateServerDisplay(detectedServerName);
+          uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
         }
 
         // 3. 检查并触发交互式迁移 (如 v5 -> v6)

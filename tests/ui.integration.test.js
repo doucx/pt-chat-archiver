@@ -44,7 +44,7 @@ async function renderUI(initialState) {
   document.body.innerHTML = '';
   const adapter = createMockAdapter(initialState);
   const ui = await createUI(adapter, mockCallbacks);
-  ui.updateServerDisplay('Test Server');
+  ui.updateRecordingStatus('Test Server', 'Local');
   return ui;
 }
 

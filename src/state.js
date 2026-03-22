@@ -117,9 +117,10 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
   // 5. 插入断层警告标记 (如果有)
   if (!anyMatchFound && oldSigs.length > 0 && newSigs.length > 0) {
     console.warn('检测到聊天记录不连续，可能存在数据丢失。已插入警告标记。');
+    // 初始时间仅作为占位，后续在循环中会被插值修正以保证顺序
     const markTime = getISOTimestamp();
     const discontinuityMark = {
-      id: generateULID(new Date(markTime).getTime()),
+      id: '', // 留空，待插值分配
       time: markTime,
       type: 'system',
       sender: 'Archiver',
@@ -128,11 +129,12 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
       is_archiver: true,
     };
 
-    // 将其放置在旧记录的最末尾，即全部新消息之前
+    // 关键修正：确保将其放置在旧用户记录的最后一条之后，新消息之前
     const targetIdx = oldSigs.length - 1;
     if (!insertionsMap.has(targetIdx)) {
       insertionsMap.set(targetIdx, []);
     }
+    // unshift 保证它在 insertions 队列的最前面
     insertionsMap.get(targetIdx).unshift(discontinuityMark);
   }
 
@@ -148,11 +150,9 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
     const toInsert = insertionsMap.get(-1);
     let baseTime = new Date(toInsert[0].time || getISOTimestamp()).getTime();
     for (const newMsg of toInsert) {
-      if (!newMsg.is_archiver) {
-        newMsg.time = new Date(baseTime).toISOString();
-        newMsg.id = generateULID(baseTime);
-        baseTime += 1; // 保证微观单调性
-      }
+      newMsg.time = new Date(baseTime).toISOString();
+      newMsg.id = generateULID(baseTime);
+      baseTime += 1; // 保证微观单调性
       finalMessages.push(newMsg);
     }
   }
@@ -167,11 +167,11 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
         const toInsert = insertionsMap.get(currentUserIndex);
         let baseTime = new Date(msg.time).getTime();
         for (const newMsg of toInsert) {
-          if (!newMsg.is_archiver) {
-            baseTime += 1; // 在基准消息的时间上加 1ms，确保 IndexedDB 正确向后排序
-            newMsg.time = new Date(baseTime).toISOString();
-            newMsg.id = generateULID(baseTime);
-          }
+          // 关键修正：无论是否为 archiver 消息，只要是插入项，都必须重新分配单调递增的 ID
+          // 否则警告标记会因为原始时间戳太晚而跳到时间轴末尾
+          baseTime += 1;
+          newMsg.time = new Date(baseTime).toISOString();
+          newMsg.id = generateULID(baseTime);
           finalMessages.push(newMsg);
         }
       }

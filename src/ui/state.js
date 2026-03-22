@@ -16,6 +16,7 @@ export async function createUIState() {
     isLockedToBottom: false, // 是否锁定在最底端跟随新消息
     isUIPaused: false,
     activeServer: null, // 当前物理所在的服务器
+    recordedChannel: null, // 当前正在录制的频道
     viewingServer: null, // 当前正在查看的存档服务器
     selectedChannel: 'Local', // 默认为 Local 频道
   };
@@ -79,8 +80,9 @@ export async function createUIState() {
     forcePause: (paused) => {
       state.isUIPaused = paused;
     },
-    setActiveServer: (serverName) => {
+    setRecordingStatus: (serverName, channelName) => {
       state.activeServer = serverName;
+      state.recordedChannel = channelName;
       // 如果开启了自动跟随，或者这是第一次检测到服务器，则更新查看视图
       if (state.autoFollowServer || !state.viewingServer) {
         state.viewingServer = serverName;

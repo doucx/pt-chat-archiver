@@ -44,13 +44,13 @@ describe('ui/state.js: UI State Manager Logic', () => {
     const uiState = await createUIState();
 
     // 初始设置活动服务器
-    uiState.setActiveServer('Server-A');
+    uiState.setRecordingStatus('Server-A', 'Local');
     expect(uiState.getState().viewingServer).toBe('Server-A');
 
     // 关闭自动跟随，手动切换查看服务器后，不再随活动服务器改变
     await uiState.setAutoFollowServer(false);
     uiState.setViewingServer('Server-B');
-    uiState.setActiveServer('Server-C');
+    uiState.setRecordingStatus('Server-C', 'Local');
     expect(uiState.getState().viewingServer).toBe('Server-B');
     expect(uiState.getState().activeServer).toBe('Server-C');
   });
