@@ -344,6 +344,29 @@ export class IndexedDBAdapter {
   }
 
   /**
+   * 合并 V6 状态到当前数据库。
+   * 不执行清理，利用 ID 主键自动去重。
+   */
+  mergeAllV6(state) {
+    this.cache = { servers: null, channels: {} };
+    return new Promise((resolve, reject) => {
+      const flatMessages = flattenV6State(state);
+      const tx = this._tx([STORE_MESSAGES], 'readwrite');
+      const store = tx.objectStore(STORE_MESSAGES);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+
+      for (const msg of flatMessages) {
+        if (!msg.id) {
+          msg.id = generateULID(new Date(msg.time).getTime());
+        }
+        store.put(msg);
+      }
+    });
+  }
+
+  /**
    * 获取配置
    */
   getConfig() {

@@ -259,6 +259,57 @@ export async function createUI(dataAdapter, appCallbacks) {
     input.click();
   };
 
+  const importAndMergeData = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.style.display = 'none';
+
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const importedData = JSON.parse(event.target.result);
+
+          if (
+            typeof importedData !== 'object' ||
+            importedData === null ||
+            Array.isArray(importedData)
+          ) {
+            throw new Error('无效的存档格式。');
+          }
+
+          const serverCount = Object.keys(importedData).length;
+          const msg = `准备合并文件: ${file.name}\n包含 ${serverCount} 个服务器的数据。\n\n系统将自动跳过重复记录。是否继续？`;
+
+          if (confirm(msg)) {
+            dom.importMergeButton.disabled = true;
+            dom.importMergeButton.textContent = '正在合并...';
+
+            await appCallbacks.mergeMessagesToStorage(importedData);
+
+            dom.importMergeButton.textContent = '✅ 合并成功';
+            setTimeout(() => {
+              dom.importMergeButton.disabled = false;
+              dom.importMergeButton.textContent = '导入并合并 JSON (推荐)';
+            }, UI_FEEDBACK_DURATION);
+
+            refreshView();
+          }
+        } catch (err) {
+          console.error('[Archiver] Merge failed:', err);
+          alert(`合并失败: ${err.message}`);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    input.click();
+  };
+
   const clearAllData = async () => {
     if (
       confirm(
@@ -303,6 +354,7 @@ export async function createUI(dataAdapter, appCallbacks) {
     deleteV6Backup,
     recoverLegacyData,
     clearLegacyData,
+    importAndMergeData,
     downloadJSON,
     downloadTXT,
     copyJSON,
