@@ -130,7 +130,9 @@ export function extractUsefulData(chatLineElement, selfName, precomputedTime) {
 /** 定位页面上的关键聊天元素。*/
 export function locateChatElements() {
   return {
-    tabs: document.querySelector('.chat-log-tabs-container') || document.querySelector('.chat-log-tabs'),
+    tabs:
+      document.querySelector('.chat-log-tabs-container') ||
+      document.querySelector('.chat-log-tabs'),
     chatLog: document.querySelector('.chat-log-scroll-inner'),
     chatLine: document.querySelector('.chat-line'),
     chatLogContainer: document.querySelector('.chat-log'),
