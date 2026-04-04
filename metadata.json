@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] perf: 实现分页指示器的乐观更新 (Optimistic UI Update)", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775303872.1098702, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] perf: 引入预检防抖逻辑以彻底消除连续点击产生的 I/O 堆积", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775304213.7534642, "duration_ms": 0}}

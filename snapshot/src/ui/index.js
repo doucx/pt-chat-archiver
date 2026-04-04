@@ -44,7 +44,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       selectedChannel: stateChannel,
     } = uiState.getState();
 
-    // 乐观更新分页指示器：在进行任何异步操作前，立即反馈页码变化
+    // 1. 乐观更新分页指示器：立即反馈页码变化（无需等待 I/O）
     if (viewMode === 'log') {
       dom.pageInfoSpan.textContent = `${currentPage} / ${totalPages}`;
       const isFirst = currentPage === 1;
@@ -53,7 +53,14 @@ export async function createUI(dataAdapter, appCallbacks) {
       dom.pageNextBtn.disabled = isLast;
     }
 
+    // 2. 引入冷静期 (防抖)：让出主线程 100ms，等待用户可能的连续点击
+    // 这能有效防止快速操作时大量无效 I/O 请求塞满 IndexedDB 队列
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (renderId !== currentRenderId) return;
+
+    // 3. 开始执行异步数据获取（此时已确定这是最新的一次请求）
     const serverList = await dataAdapter.getServers();
+    if (renderId !== currentRenderId) return;
 
     // 确保 viewingServer 有效
     if (!viewingServer && serverList.length > 0) {
@@ -110,11 +117,13 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     // 当且仅当非 config 模式下才去抓取具体消息体
     if (currentServer && selectedChannel && viewMode !== 'config') {
-      // 渲染非阻塞化：显示加载骨架状态并让出主线程，允许浏览器重绘
-      dom.logDisplay.value = '⏳ 数据加载与处理中...';
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // 显示加载提示（仅针对需要长时间处理的大查询）
+      if (pageSize >= 1000 || viewMode === 'stats') {
+        dom.logDisplay.value = '⏳ 数据加载与处理中...';
+        // 此处不再需要额外的 setTimeout(10)，因为上方的 100ms 已完成重绘
+      }
 
-      if (renderId !== currentRenderId) return; // 竞态控制：丢弃过期的渲染请求
+      if (renderId !== currentRenderId) return;
 
       // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
       const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
