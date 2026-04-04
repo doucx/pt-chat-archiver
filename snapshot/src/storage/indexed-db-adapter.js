@@ -12,6 +12,7 @@ export class IndexedDBAdapter {
     this.cache = {
       servers: null,
       channels: {}, // { serverName: [channel1, channel2] }
+      counts: {}, // { serverName: { channelName: number } }
     };
   }
 
@@ -63,16 +64,24 @@ export class IndexedDBAdapter {
     });
   }
 
-  _updateCache(msg) {
+  _updateCache(msg, countDelta = 0) {
     if (this.cache.servers && !this.cache.servers.includes(msg.server)) {
       this.cache.servers.push(msg.server);
     }
     if (msg.server && msg.channel) {
+      // 1. 更新频道列表缓存
       if (!this.cache.channels[msg.server]) {
         this.cache.channels[msg.server] = [];
       }
       if (!this.cache.channels[msg.server].includes(msg.channel)) {
         this.cache.channels[msg.server].push(msg.channel);
+      }
+      // 2. 更新计数缓存 (增量)
+      if (!this.cache.counts[msg.server]) {
+        this.cache.counts[msg.server] = {};
+      }
+      if (this.cache.counts[msg.server][msg.channel] !== undefined) {
+        this.cache.counts[msg.server][msg.channel] += countDelta;
       }
     }
   }
@@ -80,7 +89,7 @@ export class IndexedDBAdapter {
   putMessage(msg) {
     return new Promise((resolve, reject) => {
       if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
-      this._updateCache(msg);
+      this._updateCache(msg, 1);
       const tx = this._tx([STORE_MESSAGES], 'readwrite');
       const store = tx.objectStore(STORE_MESSAGES);
       const request = store.put(msg);
@@ -97,7 +106,7 @@ export class IndexedDBAdapter {
       tx.onerror = () => reject(tx.error);
       for (const msg of msgs) {
         if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
-        this._updateCache(msg);
+        this._updateCache(msg, 1);
         store.put(msg);
       }
     });
@@ -105,6 +114,8 @@ export class IndexedDBAdapter {
 
   deleteMessages(ids) {
     if (!ids || ids.length === 0) return Promise.resolve();
+    // 删除后失效计数缓存，强制下次刷新时重算
+    this.cache.counts = {};
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES], 'readwrite');
       const store = tx.objectStore(STORE_MESSAGES);
@@ -164,13 +175,23 @@ export class IndexedDBAdapter {
 
   getChannelCount(server, channel) {
     if (!server || !channel) return Promise.resolve(0);
+    // 优先返回缓存
+    if (this.cache.counts[server] && this.cache.counts[server][channel] !== undefined) {
+      return Promise.resolve(this.cache.counts[server][channel]);
+    }
+
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES], 'readonly');
       const store = tx.objectStore(STORE_MESSAGES);
       const index = store.index('server_channel_time');
       const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
       const countReq = index.count(range);
-      countReq.onsuccess = () => resolve(countReq.result);
+      countReq.onsuccess = () => {
+        const count = countReq.result;
+        if (!this.cache.counts[server]) this.cache.counts[server] = {};
+        this.cache.counts[server][channel] = count;
+        resolve(count);
+      };
       countReq.onerror = () => reject(countReq.error);
     });
   }
@@ -317,7 +338,7 @@ export class IndexedDBAdapter {
    * 目前采用全量清理 + 全量写入的策略以保证一致性 (未来可优化为差异更新)。
    */
   saveAllV6(state) {
-    this.cache = { servers: null, channels: {} };
+    this.cache = { servers: null, channels: {}, counts: {} };
     return new Promise((resolve, reject) => {
       const flatMessages = flattenV6State(state);
       const tx = this._tx([STORE_MESSAGES], 'readwrite');
@@ -348,7 +369,7 @@ export class IndexedDBAdapter {
    * 不执行清理，利用 ID 主键自动去重。
    */
   mergeAllV6(state) {
-    this.cache = { servers: null, channels: {} };
+    this.cache = { servers: null, channels: {}, counts: {} };
     return new Promise((resolve, reject) => {
       const flatMessages = flattenV6State(state);
       const tx = this._tx([STORE_MESSAGES], 'readwrite');
@@ -425,7 +446,7 @@ export class IndexedDBAdapter {
    * 清除所有数据
    */
   clearAllData() {
-    this.cache = { servers: null, channels: {} };
+    this.cache = { servers: null, channels: {}, counts: {} };
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES, STORE_CONFIG], 'readwrite');
       tx.oncomplete = () => resolve();
