@@ -21,6 +21,8 @@ export async function createUI(dataAdapter, appCallbacks) {
   const uiState = await createUIState();
   const renderer = createRenderer(dom, uiState);
 
+  let currentRenderId = 0;
+
   // --- Async Controller Logic ---
 
   /**
@@ -31,14 +33,26 @@ export async function createUI(dataAdapter, appCallbacks) {
    * 4. 调用 Renderer 更新 DOM
    */
   const refreshView = async () => {
+    const renderId = ++currentRenderId;
     const {
       viewingServer,
       currentPage,
       pageSize,
+      totalPages,
       viewMode,
       isLockedToBottom,
       selectedChannel: stateChannel,
     } = uiState.getState();
+
+    // 乐观更新分页指示器：在进行任何异步操作前，立即反馈页码变化
+    if (viewMode === 'log') {
+      dom.pageInfoSpan.textContent = `${currentPage} / ${totalPages}`;
+      const isFirst = currentPage === 1;
+      const isLast = currentPage === totalPages;
+      dom.pageFirstBtn.disabled = dom.pagePrevBtn.disabled = isFirst;
+      dom.pageNextBtn.disabled = isLast;
+    }
+
     const serverList = await dataAdapter.getServers();
 
     // 确保 viewingServer 有效
@@ -96,6 +110,12 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     // 当且仅当非 config 模式下才去抓取具体消息体
     if (currentServer && selectedChannel && viewMode !== 'config') {
+      // 渲染非阻塞化：显示加载骨架状态并让出主线程，允许浏览器重绘
+      dom.logDisplay.value = '⏳ 数据加载与处理中...';
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      if (renderId !== currentRenderId) return; // 竞态控制：丢弃过期的渲染请求
+
       // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
       const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
       const fetchPage = viewMode === 'stats' ? 1 : currentPage;
@@ -106,6 +126,9 @@ export async function createUI(dataAdapter, appCallbacks) {
         fetchPage,
         fetchSize,
       );
+
+      if (renderId !== currentRenderId) return;
+
       messages = result.messages;
       totalCount = result.total; // 确保一致性
     }
@@ -124,8 +147,11 @@ export async function createUI(dataAdapter, appCallbacks) {
         newTotalPages,
         pageSize,
       );
+      if (renderId !== currentRenderId) return;
       messages = followResult.messages;
     }
+
+    if (renderId !== currentRenderId) return;
 
     const context = {
       serverList,
