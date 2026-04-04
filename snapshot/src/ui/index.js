@@ -38,10 +38,21 @@ export async function createUI(dataAdapter, appCallbacks) {
       viewingServer,
       currentPage,
       pageSize,
+      totalPages,
       viewMode,
       isLockedToBottom,
       selectedChannel: stateChannel,
     } = uiState.getState();
+
+    // 乐观更新分页指示器：在进行任何异步操作前，立即反馈页码变化
+    if (viewMode === 'log') {
+      dom.pageInfoSpan.textContent = `${currentPage} / ${totalPages}`;
+      const isFirst = currentPage === 1;
+      const isLast = currentPage === totalPages;
+      dom.pageFirstBtn.disabled = dom.pagePrevBtn.disabled = isFirst;
+      dom.pageNextBtn.disabled = isLast;
+    }
+
     const serverList = await dataAdapter.getServers();
 
     // 确保 viewingServer 有效

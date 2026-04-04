@@ -1,50 +1,29 @@
-## [WIP] perf: 实现非阻塞 UI 渲染与加载进度反馈
+## [WIP] perf: 实现分页指示器的乐观更新 (Optimistic UI Update)
 
 ### 用户需求
-消除在进行大页面翻页或切换到数据统计视图时，界面卡住、无响应的体验。
+在快速点击“下一页”或“上一页”时，顶部的页码（如 `15 / 27`）应当立即发生变化，而不是等待数据从数据库加载完成后才更新。
 
 ### 评论
-导致 UI 卡死的核心原因在于：获取大量数据（特别是统计模式下获取所有数据）以及后续的字符串拼接 (`join`) 和大量 DOM 更新是一个同步计算密集型过程。如果我们不主动让出主线程，浏览器就没有机会去重绘屏幕，从而导致冻结感。
-
-引入“主动让出机制 (`yield`)”结合“骨架状态提示”，加上防御快速点击的“竞态控制 (`Race Condition Control`)”，可以完美解决这个问题。
+这是提升用户感知速度的关键优化。即使用户因为数据量大而面临短暂的数据加载（⏳ 加载中...），UI 层面的状态反馈（页码变化、按钮禁用状态切换）也应当是即时的。这种“乐观更新”能让用户感觉到系统对点击做出了即时响应，消除了操作后的“凝固感”。
 
 ### 目标
-1.  在 `refreshView` 触发繁重的数据抓取之前，立即将文本框内容设置为“加载中...”。
-2.  使用 `setTimeout` 强制让出 JavaScript 主线程，使浏览器完成“加载中”文本的渲染。
-3.  引入 `currentRenderId`，如果在加载或计算期间用户疯狂点击了其他按钮（比如连点“下一页”），则主动丢弃那些已经过期的渲染请求，避免渲染队列积压和闪烁。
+1.  在 `refreshView` 的最开始，立即同步 UI 中的页码和翻页按钮状态。
+2.  确保该同步操作不阻塞后续的异步数据抓取。
+3.  在异步加载完成后，依然进行最终渲染以确保数据一致性（例如处理总页数变动）。
 
 ### 基本原理
-JavaScript 是单线程的。当我们执行 `await Promise` 时，如果底层的 IndexedDB 读取很快且接着执行复杂的同步数组映射，UI 依然会卡。我们在读取之前插入 `await new Promise((r) => setTimeout(r, 10))`，这会在宏任务队列中制造一个微小的断点。浏览器会利用这个断点去执行重绘（Paint），让用户立刻看到“加载中”的状态。接着配合 Request ID 机制，任何晚于当前 ID 的回调都会被终止执行。
+我们将 `ui/renderer.js` 中原本负责渲染分页逻辑的部分代码，“克隆”或“提前调用”到 `ui/index.js` 的 `refreshView` 入口处。由于 `refreshView` 能够通过 `uiState` 获取到用户点击后**最新**的页码，我们可以在进入异步等待之前，直接操作 DOM 更新文本。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/ui #concept/navigation #scope/ux #ai/delegate #task/domain/ui #task/object/render-pipeline #task/action/optimization #task/state/begin
+#intent/refine #flow/ready #priority/medium #comp/ui #concept/ui #scope/ux #ai/delegate #task/domain/ui #task/object/pagination-indicator #task/action/optimization #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 在 `ui/index.js` 中引入竞态控制和非阻塞加载反馈
+#### Acts 1: 在 `refreshView` 增加乐观更新逻辑
 
-我们将修改 `createUI` 闭包中的 `refreshView` 方法。
-
-~~~~~act
-patch_file
-src/ui/index.js
-~~~~~
-~~~~~javascript.old
-  const uiState = await createUIState();
-  const renderer = createRenderer(dom, uiState);
-
-  // --- Async Controller Logic ---
-~~~~~
-~~~~~javascript.new
-  const uiState = await createUIState();
-  const renderer = createRenderer(dom, uiState);
-
-  let currentRenderId = 0;
-
-  // --- Async Controller Logic ---
-~~~~~
+我们将修改 `src/ui/index.js` 中的 `refreshView` 函数。
 
 ~~~~~act
 patch_file
@@ -52,126 +31,42 @@ src/ui/index.js
 ~~~~~
 ~~~~~javascript.old
   const refreshView = async () => {
+    const renderId = ++currentRenderId;
     const {
       viewingServer,
+      currentPage,
+      pageSize,
+      viewMode,
+      isLockedToBottom,
+      selectedChannel: stateChannel,
+    } = uiState.getState();
+    const serverList = await dataAdapter.getServers();
 ~~~~~
 ~~~~~javascript.new
   const refreshView = async () => {
     const renderId = ++currentRenderId;
     const {
       viewingServer,
-~~~~~
+      currentPage,
+      pageSize,
+      totalPages,
+      viewMode,
+      isLockedToBottom,
+      selectedChannel: stateChannel,
+    } = uiState.getState();
 
-~~~~~act
-patch_file
-src/ui/index.js
-~~~~~
-~~~~~javascript.old
-    // 当且仅当非 config 模式下才去抓取具体消息体
-    if (currentServer && selectedChannel && viewMode !== 'config') {
-      // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
-      const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
-      const fetchPage = viewMode === 'stats' ? 1 : currentPage;
-
-      const result = await dataAdapter.getMessages(
-        currentServer,
-        selectedChannel,
-        fetchPage,
-        fetchSize,
-      );
-      messages = result.messages;
-      totalCount = result.total; // 确保一致性
+    // 乐观更新分页指示器：在进行任何异步操作前，立即反馈页码变化
+    if (viewMode === 'log') {
+      dom.pageInfoSpan.textContent = `${currentPage} / ${totalPages}`;
+      const isFirst = currentPage === 1;
+      const isLast = currentPage === totalPages;
+      dom.pageFirstBtn.disabled = dom.pagePrevBtn.disabled = isFirst;
+      dom.pageNextBtn.disabled = isLast;
     }
 
-    // 更新分页状态
-    const newTotalPages = Math.ceil(totalCount / pageSize);
-    uiState.setTotalPages(newTotalPages);
-
-    // 自动吸附逻辑: 如果处于锁定底部模式，且当前页面不是最后一页（说明产生了新数据导致翻页），
-    // 强制将状态更新为最后一页，并重新获取该页数据。
-    if (isLockedToBottom && viewMode === 'log' && newTotalPages > currentPage) {
-      uiState.setPage(newTotalPages);
-      const followResult = await dataAdapter.getMessages(
-        currentServer,
-        selectedChannel,
-        newTotalPages,
-        pageSize,
-      );
-      messages = followResult.messages;
-    }
-
-    const context = {
-      serverList,
-      channelList,
-      channelCounts,
-      messages,
-      totalCount,
-      selectedChannel, // 显式传递经过控制器校验的选中状态
-    };
-
-    renderer.render(context, uiCallbacks);
-  };
-~~~~~
-~~~~~javascript.new
-    // 当且仅当非 config 模式下才去抓取具体消息体
-    if (currentServer && selectedChannel && viewMode !== 'config') {
-      // 渲染非阻塞化：显示加载骨架状态并让出主线程，允许浏览器重绘
-      dom.logDisplay.value = '⏳ 数据加载与处理中...';
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      if (renderId !== currentRenderId) return; // 竞态控制：丢弃过期的渲染请求
-
-      // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
-      const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
-      const fetchPage = viewMode === 'stats' ? 1 : currentPage;
-
-      const result = await dataAdapter.getMessages(
-        currentServer,
-        selectedChannel,
-        fetchPage,
-        fetchSize,
-      );
-
-      if (renderId !== currentRenderId) return;
-
-      messages = result.messages;
-      totalCount = result.total; // 确保一致性
-    }
-
-    // 更新分页状态
-    const newTotalPages = Math.ceil(totalCount / pageSize);
-    uiState.setTotalPages(newTotalPages);
-
-    // 自动吸附逻辑: 如果处于锁定底部模式，且当前页面不是最后一页（说明产生了新数据导致翻页），
-    // 强制将状态更新为最后一页，并重新获取该页数据。
-    if (isLockedToBottom && viewMode === 'log' && newTotalPages > currentPage) {
-      uiState.setPage(newTotalPages);
-      const followResult = await dataAdapter.getMessages(
-        currentServer,
-        selectedChannel,
-        newTotalPages,
-        pageSize,
-      );
-      if (renderId !== currentRenderId) return;
-      messages = followResult.messages;
-    }
-
-    if (renderId !== currentRenderId) return;
-
-    const context = {
-      serverList,
-      channelList,
-      channelCounts,
-      messages,
-      totalCount,
-      selectedChannel, // 显式传递经过控制器校验的选中状态
-    };
-
-    renderer.render(context, uiCallbacks);
-  };
+    const serverList = await dataAdapter.getServers();
 ~~~~~
 
 ### 下一步建议
-我们已经实施了内存计数缓存以及非阻塞 UI，现在页面的切换体验应该会极大改善。由于我们引入了 `currentRenderId`，即使将 `pageSize` 调到一万然后疯狂点击“下一页”，UI 也能保持响应，并且只会渲染你最后停留的那一页。
-
-由于目前的功能代码已完善，你可以进行实际的测试运行。如果没有其他的问题，我建议你可以下发生成 Git Commit 记录的指令了。
+1.  **测试高频点击**：现在你可以尝试快速连点“下一页”。顶部的页码应当如丝般顺滑地连续跳动，而下方的文本框会显示“⏳ 加载中...”，直到你停止点击并等到最后一次请求的数据返回。
+2.  **代码清理 (COMMIT)**：我们已经完成了元数据缓存、非阻塞 UI 以及乐观更新。当前的系统性能应该已经达到了非常理想的状态。如果你满意这些改动，可以要求我生成最终的 `[COMMIT]` 计划来清理工作现场。
