@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] perf: implement metadata caching and non-blocking UI for smoother navigation", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775304369.0071099, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M CHANGELOG.md", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775562519.7050004, "duration_ms": 0}}
