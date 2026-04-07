@@ -122,6 +122,14 @@ class StorageManager {
     return this.adapter.setSelfName(name);
   }
 
+  getLastServer() {
+    return this.adapter.getLastServer();
+  }
+
+  setLastServer(name) {
+    return this.adapter.setLastServer(name);
+  }
+
   clearAllData() {
     return this.adapter.clearAllData();
   }

@@ -59,6 +59,15 @@ export class LocalStorageAdapter {
     return Promise.resolve();
   }
 
+  getLastServer() {
+    return Promise.resolve(localStorage.getItem('chatLogArchive_lastServer'));
+  }
+
+  setLastServer(name) {
+    localStorage.setItem('chatLogArchive_lastServer', name);
+    return Promise.resolve();
+  }
+
   clearAllData() {
     localStorage.removeItem(STORAGE_KEY_V6);
     localStorage.removeItem(STORAGE_KEY_V5);
