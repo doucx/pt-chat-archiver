@@ -442,6 +442,26 @@ export class IndexedDBAdapter {
     });
   }
 
+  getLastServer() {
+    return new Promise((resolve) => {
+      const tx = this._tx([STORE_CONFIG], 'readonly');
+      const store = tx.objectStore(STORE_CONFIG);
+      const request = store.get('last_server');
+      request.onsuccess = () => resolve(request.result ? request.result.value : null);
+      request.onerror = () => resolve(null);
+    });
+  }
+
+  setLastServer(name) {
+    return new Promise((resolve, reject) => {
+      const tx = this._tx([STORE_CONFIG], 'readwrite');
+      const store = tx.objectStore(STORE_CONFIG);
+      const request = store.put({ key: 'last_server', value: name });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   /**
    * 清除所有数据
    */

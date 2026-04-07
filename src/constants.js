@@ -4,6 +4,7 @@ export const STORAGE_KEY_V5 = 'chatLogArchive_v5';
 export const OLD_STORAGE_KEY_V4 = 'chatLogArchive_v4';
 export const SELF_NAME_KEY = 'chatLogArchiver_selfName';
 export const CONFIG_KEY = 'chatLogArchive_config';
+export const LAST_SERVER_KEY = 'chatLogArchive_lastServer';
 
 // IndexedDB 配置
 export const DB_NAME = 'pt-chat-archiver-v7';

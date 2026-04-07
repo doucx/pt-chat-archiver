@@ -327,7 +327,38 @@ import { debounce, getISOTimestamp } from './utils.js';
     // 开启 useIndexedDB = true
     await storageManager.init(true);
 
-    // 构建 DataAdapter：UI 层与数据层的隔离界面
+    // --- 立即恢复上下文与启动服务器监听 (最高优先级) ---
+    detectedServerName = await storageManager.getLastServer();
+
+    const updateServer = async () => {
+      const server = extractServerFromDOM();
+      if (server && server !== detectedServerName) {
+        detectedServerName = server;
+        console.log(`[Archiver] Detected server switch: ${server}`);
+        await storageManager.setLastServer(server); // 持久化缓存
+
+        if (uiControls) {
+          uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
+        }
+
+        // 检查并触发交互式迁移 (如 v5 -> v6)
+        const currentState = await storageManager.loadAllV6();
+        await MigrationManager.checkAndTriggerInteractiveMigrations(
+          storageManager,
+          server,
+          currentState,
+          (newState) => {
+            if (uiControls.setState) uiControls.setState(newState);
+          },
+        );
+      }
+    };
+
+    serverObserver = new MutationObserver(updateServer);
+    serverObserver.observe(document.body, { childList: true, subtree: true });
+    await updateServer(); // 立即同步执行一次
+
+    // 2. 初始化 UI 与数据适配器
     const dataAdapter = {
       getServers: async () => await storageManager.getServers(),
       getChannels: async (server) => await storageManager.getChannels(server),
@@ -356,33 +387,6 @@ import { debounce, getISOTimestamp } from './utils.js';
     });
 
     await uiControls.checkStorageUsage();
-
-    // --- 启动服务器检测观察者 ---
-    const updateServer = async () => {
-      const server = extractServerFromDOM();
-      if (server && server !== detectedServerName) {
-        detectedServerName = server;
-        console.log(`[Archiver] Detected server switch: ${server}`);
-        if (uiControls) {
-          uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
-        }
-
-        // 3. 检查并触发交互式迁移 (如 v5 -> v6)
-        const currentState = await storageManager.loadAllV6();
-        await MigrationManager.checkAndTriggerInteractiveMigrations(
-          storageManager,
-          server,
-          currentState,
-          (newState) => {
-            if (uiControls.setState) uiControls.setState(newState);
-          },
-        );
-      }
-    };
-
-    serverObserver = new MutationObserver(updateServer);
-    serverObserver.observe(document.body, { childList: true, subtree: true });
-    await updateServer(); // 立即执行一次
 
     const uiObserver = new MutationObserver(() => {
       const { chatLogContainer } = locateChatElements();
