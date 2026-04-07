@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] fix: 修复初始化状态卡死及首次进场频道显示缺失", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775563656.606515, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] 修复 BUG 并细化提示", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775564097.1251428, "duration_ms": 0}}

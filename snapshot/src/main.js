@@ -395,6 +395,11 @@ import { debounce, getISOTimestamp } from './utils.js';
       },
     });
 
+    // 将初始检测到的服务器状态同步给 UI，修复初始加载时状态未更新的 Bug
+    if (detectedServerName) {
+      uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
+    }
+
     await uiControls.checkStorageUsage();
 
     const uiObserver = new MutationObserver(() => {

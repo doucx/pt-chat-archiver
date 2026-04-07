@@ -96,8 +96,11 @@ export function createRenderer(dom, uiState) {
         dom.serverStatus.style.color = '';
         if (dom.resetServerButton) dom.resetServerButton.disabled = true;
       } else if (!isReadOnly) {
-        const channelSuffix = recordedChannel ? `::${recordedChannel}` : '';
-        dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}${channelSuffix}`;
+        if (recordedChannel) {
+          dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}::${recordedChannel}`;
+        } else {
+          dom.serverStatus.textContent = `✅ 已检测到: ${activeServer}`;
+        }
         dom.serverStatus.style.color = 'var(--color-primary-hover)';
         if (dom.resetServerButton) dom.resetServerButton.disabled = true;
       } else {

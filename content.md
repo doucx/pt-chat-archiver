@@ -1,51 +1,138 @@
-好的，初始化挂起以及首次进场频道显示缺失的问题已经全部修复。现在我们将这些改进作为一个完整的逻辑单元进行提交。
+分析得非常准确！确实存在一个 Bug 导致初始状态没有被正确传递给 UI。
 
-## [COMMIT] fix: 修复初始化状态卡死及首次进场频道显示缺失
+## [WIP] 修复 BUG 并细化提示
+
+### 错误分析
+
+**Bug 原因**：
+在 `src/main.js` 的 `main` 函数中，我们在初始化 UI (`createUI`) 之前，就立即调用了一次 `updateServer()`。
+```javascript
+// 1. 先监听并执行了 updateServer
+serverObserver = new MutationObserver(updateServer);
+serverObserver.observe(document.body, { childList: true, subtree: true });
+await updateServer(); // <-- 此时服务器已被解析 (detectedServerName 赋值)
+
+// 2. 然后才初始化 UI
+uiControls = await createUI(dataAdapter, { ... });
+```
+在 `updateServer` 内部，只有当 `uiControls` 存在时才会调用 `updateRecordingStatus` 同步状态。由于第一次执行时 UI 还没创建好，这个状态变更就被“吞掉”了。只有当玩家手动刷新页面导致 DOM 再次变化触发 MutationObserver 时，才会正常显示。
 
 ### 用户需求
-确保 UI 能够准确、即时地反映记录状态，特别是在重新进入同一个服务器或脚本首次激活的瞬间，不应出现状态滞后或信息缺失。
+1. 修复由于初始化时序导致的“检测到服务器但 UI 未更新”的 Bug。
+2. 细化 UI 状态提示：当提取到服务器名字但还没获取到聊天频道时（即在加载界面），显示 `"✅ 已检测到: [服务器名]"`；当正式进入游戏后（提取到频道名），显示 `"✅ 正在记录: [服务器名]::[频道名]"`。
 
 ### 评论
-这些细节修复显著提升了工具的响应性。通过分离 DOM 轮询状态与持久化状态，并强制在记录器激活时进行状态同步，我们消除了逻辑盲区，使 UI 表现更符合用户直觉。
+区分“检测到”和“正在记录”是一个很好的用户体验优化。这能让玩家明确知道脚本已经成功挂载并识别了当前服务器，正蓄势待发。结合修复初始化丢失状态的 Bug，整个启动流程的信息反馈将变得非常顺畅。
 
 ### 目标
-1. 提交 `main.js` 中关于状态同步和变量分离的修复。
-2. 提交 `ui/state.js` 和 `ui/renderer.js` 中关于“上一个服务器”提示的 UI 增强。
+1. 在 `main.js` 中，UI 实例创建完毕后，立即将现有的 `detectedServerName` 补发给 UI。
+2. 在 `renderer.js` 中，根据 `recordedChannel` 的有无，分别渲染“已检测到”和“正在记录”两种文案。
 
 ### 基本原理
-我们在 `main.js` 中引入了 `currentDOMServer` 来处理轮询去重，这使得 `detectedServerName` 可以独立承担“逻辑回退值”的角色，从而解决了同服进入时的 `if` 逻辑死锁。同时，在 `activateLogger` 激活的瞬间主动调用 `updateRecordingStatus`，确保了频道后缀（如 `::Local`）能够第一时间渲染。
+- **状态同步补救**：在 `uiControls = await createUI(...)` 的下一行，手动执行一次 `uiControls.updateRecordingStatus`，确保早于 UI 创建前被设置的全局变量能够被 UI 接收到。
+- **状态细化**：利用 `uiState` 中的 `recordedChannel` 作为判断依据。如果在加载界面，聊天框未出现，`recordedChannel` 必然为空。
 
 ### 标签
-#intent/fix #intent/tune #flow/ready #priority/high #comp/engine #comp/ui #scope/ux #ai/instruct #task/domain/ui #task/object/initialization-sync #task/action/robustness-fix #task/state/end #task/status/completed
+#intent/fix #intent/tune #flow/ready #priority/high #comp/ui #comp/runtime #scope/ux #ai/instruct
 
 ---
 
 ### Script
 
-#### Acts 1: 提交状态同步与 UI 增强变更
-
-我们将修改后的逻辑文件添加到 Git 暂存区并提交。
+#### Acts 1: 修复 main.js 中的初始化状态丢失问题
+在 UI 初始化完成后，立即补发当前检测到的服务器状态。
 
 ~~~~~act
-git_add
+patch_file
 src/main.js
-src/ui/state.js
+~~~~~
+~~~~~javascript.old
+    uiControls = await createUI(dataAdapter, {
+      scanAndMergeHistory,
+      saveMessagesToStorage: async (state) => await storageManager.saveAllV6(state), // 仍提供给批量导入等特殊维护操作使用
+      mergeMessagesToStorage: async (state) => await storageManager.mergeAllV6(state),
+      scanAllDuplicatesAsync,
+      deleteMessages: async (ids) => await storageManager.deleteMessages(ids),
+      deactivateLogger,
+      manualSave: async () => {}, // 增量写入模式下已无需手动保存
+      replaceState: async (newState) => {
+        // UI 会被通知刷新以自动请求新数据
+      },
+    });
+
+    await uiControls.checkStorageUsage();
+
+    const uiObserver = new MutationObserver(() => {
+~~~~~
+~~~~~javascript.new
+    uiControls = await createUI(dataAdapter, {
+      scanAndMergeHistory,
+      saveMessagesToStorage: async (state) => await storageManager.saveAllV6(state), // 仍提供给批量导入等特殊维护操作使用
+      mergeMessagesToStorage: async (state) => await storageManager.mergeAllV6(state),
+      scanAllDuplicatesAsync,
+      deleteMessages: async (ids) => await storageManager.deleteMessages(ids),
+      deactivateLogger,
+      manualSave: async () => {}, // 增量写入模式下已无需手动保存
+      replaceState: async (newState) => {
+        // UI 会被通知刷新以自动请求新数据
+      },
+    });
+
+    // 将初始检测到的服务器状态同步给 UI，修复初始加载时状态未更新的 Bug
+    if (detectedServerName) {
+      uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
+    }
+
+    await uiControls.checkStorageUsage();
+
+    const uiObserver = new MutationObserver(() => {
+~~~~~
+
+#### Acts 2: 细化 renderer.js 中的状态文案
+根据 `recordedChannel` 的有无，区分“加载中（已检测）”和“游戏中（记录中）”两种状态。
+
+~~~~~act
+patch_file
 src/ui/renderer.js
 ~~~~~
-
-~~~~~act
-git_commit
+~~~~~javascript.old
+    if (dom.serverStatus) {
+      if (!activeServer) {
+        const lastSrv = uiState.getState().lastServer;
+        dom.serverStatus.textContent = lastSrv ? `等待进入游戏... (上一个服务器: ${lastSrv})` : '等待进入游戏...';
+        dom.serverStatus.style.color = '';
+        if (dom.resetServerButton) dom.resetServerButton.disabled = true;
+      } else if (!isReadOnly) {
+        const channelSuffix = recordedChannel ? `::${recordedChannel}` : '';
+        dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}${channelSuffix}`;
+        dom.serverStatus.style.color = 'var(--color-primary-hover)';
+        if (dom.resetServerButton) dom.resetServerButton.disabled = true;
+      } else {
+        dom.serverStatus.textContent = `📖 浏览存档: ${viewingServer}`;
 ~~~~~
-~~~~~text
-fix(ui): resolve initialization hang and missing channel suffix
-
-- Decoupled DOM polling state from persisted server state in `main.js` to fix a bug where re-entering the same server would not trigger UI updates.
-- Added a "Last Server" hint in the UI during the "Waiting for game" state for better feedback.
-- Forced a UI status update immediately upon `activateLogger` to ensure the channel suffix (e.g., '::Local') is displayed correctly on the first entry.
-- Synced `lastServer` state in `UIState` to keep the waiting-state information accurate.
+~~~~~javascript.new
+    if (dom.serverStatus) {
+      if (!activeServer) {
+        const lastSrv = uiState.getState().lastServer;
+        dom.serverStatus.textContent = lastSrv ? `等待进入游戏... (上一个服务器: ${lastSrv})` : '等待进入游戏...';
+        dom.serverStatus.style.color = '';
+        if (dom.resetServerButton) dom.resetServerButton.disabled = true;
+      } else if (!isReadOnly) {
+        if (recordedChannel) {
+          dom.serverStatus.textContent = `✅ 正在记录: ${activeServer}::${recordedChannel}`;
+        } else {
+          dom.serverStatus.textContent = `✅ 已检测到: ${activeServer}`;
+        }
+        dom.serverStatus.style.color = 'var(--color-primary-hover)';
+        if (dom.resetServerButton) dom.resetServerButton.disabled = true;
+      } else {
+        dom.serverStatus.textContent = `📖 浏览存档: ${viewingServer}`;
 ~~~~~
 
 ### 下一步建议
-- **多场景测试**：建议在网络较差或频繁重连的情况下观察 UI 提示的稳定性。
-- **UI 细节优化**：如果觉得“上一个服务器”的括号显示太长，可以考虑将其缩减为较小的图标提示。
-- **文档更新**：在 README 中提及这一健壮性改进，告知用户脚本现在具备更强的状态恢复能力。
+修改完毕！现在的逻辑将会是：
+1. 刚打开网页，没检测到 "Play on..." 按钮时，显示：“等待进入游戏... (上一个服务器: XXX)”
+2. 解析到 "Play on..." 按钮时，立刻刷新为：“✅ 已检测到: Safe Chinese”
+3. 点击 Play 正式进入游戏并且聊天框出现后，刷新为：“✅ 正在记录: Safe Chinese::Local”
+
+你可以重新刷新页面测试一下这个启动反馈流是否自然。如果没问题，我们可以考虑生成一个提交。
