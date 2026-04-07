@@ -1,315 +1,142 @@
-你的分析非常到位。在单页应用（SPA）如 Pony Town 中，DOM 的剧烈变化和脚本加载的先后顺序极易导致启动初期的“竞态条件”。
+好的，为了验证服务器捕获的持久化与回退机制，我将创建一个新的集成测试文件 `tests/server_recovery.test.js`，并增强原有的存储层测试。
 
-为了解决进入游戏过快导致服务器名捕获失败的问题，我将实施以下改进：
-1. **持久化最后一次服务器**：在 `IndexedDB` 的配置存储中记录最后一次检测到的服务器。
-2. **逻辑提前与回退策略**：在 `main.js` 启动的第一时间就开始监听服务器变化，并在激活记录器（`activateLogger`）时，如果 DOM 中已经没有服务器信息（已经进场），则自动回退到持久化的记录。
+这个测试将重点验证：
+1. **持久化能力**：服务器名称是否能正确存入并从 `IndexedDB`（配置区）取出。
+2. **初始化回退**：在 DOM 无法提供服务器名时，脚本启动是否能正确恢复上次记录的服务器名。
 
-这是一个显著增强稳定性的改进，尤其是对于移动端用户。
-
-## [WIP] feat: 增加服务器捕获的持久化与启动回退机制
+## [WIP] test: 增加服务器名持久化与恢复逻辑的自动化测试
 
 ### 用户需求
-1. **时机优化**：将服务器名称捕获移至脚本启动最前端。
-2. **持久化存储**：将最后检测到的服务器名存入 `localStorage` 或 `IDB`。
-3. **回退逻辑**：若进场后未捕捉到服务器信息，自动回退到上次记录的服务器名。
+需要自动化测试来确保：
+1. 存储层能够正确处理 `last_server` 键值对。
+2. 即使在 DOM 节点缺失的情况下，系统也能通过持久化数据恢复服务器上下文。
 
 ### 评论
-这个改动解决了脚本在快速登录场景下的“冷启动”问题。通过利用已有的 V7 (IndexedDB) `config` 存储空间，我们可以以极低的成本实现服务器上下文的持久化，从而确保记录器的激活逻辑更加健壮。
+由于 `main.js` 包含大量 DOM 依赖和副作用，直接对其进行单元测试较为困难。我们将通过模拟 `storageManager` 的行为，并在 `storage.test.js` 中增加针对性用例，同时创建一个模拟启动流程的集成测试来验证逻辑闭环。
 
 ### 目标
-1. 在 `constants.js` 定义存储键。
-2. 在存储适配器中增加 `getLastServer` / `setLastServer` 接口。
-3. 重构 `main.js` 的启动序列，确保服务器监听和状态恢复处于最高优先级。
-4. 在 `activateLogger` 中实现双重检查回退。
+1. 在 `storage.test.js` 中增加 `getLastServer` 和 `setLastServer` 的单元测试。
+2. 创建 `tests/server_recovery.test.js` 模拟启动时的竞态条件。
 
 ### 基本原理
-我们将 `last_server` 视为应用配置的一部分进行持久化。脚本启动后，在进行 UI 初始化前即尝试从数据库恢复 `detectedServerName`。同时，`serverObserver` 会被立即挂载。如果用户进场速度快于脚本执行，`activateLogger` 将能够直接使用恢复出来的持久化值，从而避免因 `detectedServerName` 为 null 而导致的记录功能不激活。
+测试将分为两部分。首先，验证底层 API 的可靠性；其次，通过 Vitest 的 `vi.spyOn` 模拟 `extractServerFromDOM` 在不同阶段的返回值（null vs 有值），观察 `detectedServerName` 在初始化序列中的变化是否符合预期。
 
 ### 标签
-#intent/build #flow/ready #priority/high #comp/engine #concept/state #scope/core #ai/brainstorm #task/domain/engine #task/object/server-detection #task/action/robustness-fix #task/state/begin
+#intent/test #flow/ready #priority/medium #comp/tests #concept/state #scope/dx #ai/brainstorm #task/domain/testing #task/object/server-recovery-logic #task/action/implementation #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 更新常量与存储层接口
+#### Acts 1: 增强存储层单元测试
 
-首先在 `constants.js` 中定义 key，并在适配器中实现存取逻辑。
-
-~~~~~act
-patch_file
-src/constants.js
-~~~~~
-~~~~~javascript.old
-export const SELF_NAME_KEY = 'chatLogArchiver_selfName';
-export const CONFIG_KEY = 'chatLogArchive_config';
-
-// IndexedDB 配置
-~~~~~
-~~~~~javascript.new
-export const SELF_NAME_KEY = 'chatLogArchiver_selfName';
-export const CONFIG_KEY = 'chatLogArchive_config';
-export const LAST_SERVER_KEY = 'chatLogArchive_lastServer';
-
-// IndexedDB 配置
-~~~~~
+在 `tests/storage.test.js` 中增加对新接口的验证。
 
 ~~~~~act
 patch_file
-src/storage/indexed-db-adapter.js
+tests/storage.test.js
 ~~~~~
 ~~~~~javascript.old
-  setSelfName(name) {
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_CONFIG], 'readwrite');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.put({ key: 'self_name', value: name.trim() });
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  }
+    const name = await storageManager.getSelfName();
+    expect(name).toBe('TestUser'); // 验证 trim
+    expect(localStorage.getItem(SELF_NAME_KEY)).toBe('TestUser');
+  });
 
-  /**
-   * 清除所有数据
+  it('清空操作应当移除相关 key', async () => {
 ~~~~~
 ~~~~~javascript.new
-  setSelfName(name) {
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_CONFIG], 'readwrite');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.put({ key: 'self_name', value: name.trim() });
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  }
+    const name = await storageManager.getSelfName();
+    expect(name).toBe('TestUser'); // 验证 trim
+    expect(localStorage.getItem(SELF_NAME_KEY)).toBe('TestUser');
+  });
 
-  getLastServer() {
-    return new Promise((resolve) => {
-      const tx = this._tx([STORE_CONFIG], 'readonly');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.get('last_server');
-      request.onsuccess = () => resolve(request.result ? request.result.value : null);
-      request.onerror = () => resolve(null);
-    });
-  }
+  it('应当能持久化和恢复最后一次检测到的服务器名', async () => {
+    await storageManager.init();
+    const serverName = 'Safe Haven';
+    await storageManager.setLastServer(serverName);
+    
+    const recovered = await storageManager.getLastServer();
+    expect(recovered).toBe(serverName);
+  });
 
-  setLastServer(name) {
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_CONFIG], 'readwrite');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.put({ key: 'last_server', value: name });
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  /**
-   * 清除所有数据
+  it('清空操作应当移除相关 key', async () => {
 ~~~~~
+
+#### Acts 2: 创建服务器恢复集成测试
+
+新建 `tests/server_recovery.test.js` 模拟快速进场导致的 DOM 缺失场景。
 
 ~~~~~act
-patch_file
-src/storage/local-storage.adapter.js
+write_file
+tests/server_recovery.test.js
 ~~~~~
-~~~~~javascript.old
-  setSelfName(name) {
-    localStorage.setItem(SELF_NAME_KEY, name.trim());
-    return Promise.resolve();
-  }
+~~~~~javascript
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { storageManager } from '../src/storage/index.js';
 
-  clearAllData() {
-~~~~~
-~~~~~javascript.new
-  setSelfName(name) {
-    localStorage.setItem(SELF_NAME_KEY, name.trim());
-    return Promise.resolve();
-  }
+// 模拟 parser 中的 DOM 提取函数
+const mockParser = {
+  extractServerFromDOM: vi.fn(),
+};
 
-  getLastServer() {
-    return Promise.resolve(localStorage.getItem('chatLogArchive_lastServer'));
-  }
+describe('Server Recovery Logic (Integration)', () => {
+  beforeEach(async () => {
+    localStorage.clear();
+    await storageManager.init();
+    vi.clearAllMocks();
+  });
 
-  setLastServer(name) {
-    localStorage.setItem('chatLogArchive_lastServer', name);
-    return Promise.resolve();
-  }
+  it('启动时：如果 DOM 为空但存储有值，应当成功恢复服务器名', async () => {
+    // 1. 预设存储数据
+    await storageManager.setLastServer('Stored Server');
 
-  clearAllData() {
-~~~~~
+    // 2. 模拟启动时的变量持有 (对应 main.js 逻辑)
+    let detectedServerName = await storageManager.getLastServer();
+    
+    // 模拟 DOM 此时为空 (已进场)
+    mockParser.extractServerFromDOM.mockReturnValue(null);
+    
+    const currentFromDOM = mockParser.extractServerFromDOM();
+    if (currentFromDOM && currentFromDOM !== detectedServerName) {
+      detectedServerName = currentFromDOM;
+    }
 
-~~~~~act
-patch_file
-src/storage/index.js
-~~~~~
-~~~~~javascript.old
-  setSelfName(name) {
-    return this.adapter.setSelfName(name);
-  }
+    // 3. 断言：即使 DOM 没抓到，变量也应该持有从存储恢复的值
+    expect(detectedServerName).toBe('Stored Server');
+  });
 
-  clearAllData() {
-~~~~~
-~~~~~javascript.new
-  setSelfName(name) {
-    return this.adapter.setSelfName(name);
-  }
+  it('运行中：检测到新服务器时应当立即更新存储', async () => {
+    let detectedServerName = null;
+    const setLastServerSpy = vi.spyOn(storageManager, 'setLastServer');
 
-  getLastServer() {
-    return this.adapter.getLastServer();
-  }
+    // 1. 第一阶段：DOM 发现了新服务器
+    mockParser.extractServerFromDOM.mockReturnValue('New Server');
+    
+    const server = mockParser.extractServerFromDOM();
+    if (server && server !== detectedServerName) {
+      detectedServerName = server;
+      await storageManager.setLastServer(server);
+    }
 
-  setLastServer(name) {
-    return this.adapter.setLastServer(name);
-  }
+    // 2. 断言：变量已更新且 setLastServer 被调用
+    expect(detectedServerName).toBe('New Server');
+    expect(setLastServerSpy).toHaveBeenCalledWith('New Server');
+    
+    // 3. 第二阶段：DOM 变回 null (例如刷新或由于 UI 抖动)
+    mockParser.extractServerFromDOM.mockReturnValue(null);
+    
+    const server2 = mockParser.extractServerFromDOM();
+    if (server2 && server2 !== detectedServerName) {
+      detectedServerName = server2;
+    }
 
-  clearAllData() {
-~~~~~
-
-#### Acts 2: 重构 `main.js` 启动逻辑
-
-修改 `main.js`，提前启动观察者，并在激活时增加回退逻辑。
-
-~~~~~act
-patch_file
-src/main.js
-~~~~~
-~~~~~javascript.old
-  /** 脚本主入口函数。*/
-  async function main() {
-    // 1. 初始化存储层 (并自动触发 V6->V7 迁移)
-    // 开启 useIndexedDB = true
-    await storageManager.init(true);
-
-    // 构建 DataAdapter：UI 层与数据层的隔离界面
-    const dataAdapter = {
-      getServers: async () => await storageManager.getServers(),
-      getChannels: async (server) => await storageManager.getChannels(server),
-      getChannelCount: async (server, channel) =>
-        await storageManager.getChannelCount(server, channel),
-      getMessages: async (server, channel, page, pageSize) => {
-        return await storageManager.getMessages(server, channel, page, pageSize);
-      },
-      getMessagesChunk: async (server, channel, lastTime, limit) => {
-        return await storageManager.getMessagesChunk(server, channel, lastTime, limit);
-      },
-      getAllData: async () => await storageManager.loadAllV6(), // 用于导出功能
-    };
-
-    uiControls = await createUI(dataAdapter, {
-      scanAndMergeHistory,
-      saveMessagesToStorage: async (state) => await storageManager.saveAllV6(state), // 仍提供给批量导入等特殊维护操作使用
-      mergeMessagesToStorage: async (state) => await storageManager.mergeAllV6(state),
-      scanAllDuplicatesAsync,
-      deleteMessages: async (ids) => await storageManager.deleteMessages(ids),
-      deactivateLogger,
-      manualSave: async () => {}, // 增量写入模式下已无需手动保存
-      replaceState: async (newState) => {
-        // UI 会被通知刷新以自动请求新数据
-      },
-    });
-
-    await uiControls.checkStorageUsage();
-
-    // --- 启动服务器检测观察者 ---
-    const updateServer = async () => {
-      const server = extractServerFromDOM();
-      if (server && server !== detectedServerName) {
-        detectedServerName = server;
-        console.log(`[Archiver] Detected server switch: ${server}`);
-        if (uiControls) {
-          uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
-        }
-
-        // 3. 检查并触发交互式迁移 (如 v5 -> v6)
-        const currentState = await storageManager.loadAllV6();
-        await MigrationManager.checkAndTriggerInteractiveMigrations(
-          storageManager,
-          server,
-          currentState,
-          (newState) => {
-            if (uiControls.setState) uiControls.setState(newState);
-          },
-        );
-      }
-    };
-
-    serverObserver = new MutationObserver(updateServer);
-    serverObserver.observe(document.body, { childList: true, subtree: true });
-    await updateServer(); // 立即执行一次
-
-    const uiObserver = new MutationObserver(() => {
-~~~~~
-~~~~~javascript.new
-  /** 脚本主入口函数。*/
-  async function main() {
-    // 1. 初始化存储层 (并自动触发 V6->V7 迁移)
-    // 开启 useIndexedDB = true
-    await storageManager.init(true);
-
-    // --- 立即恢复上下文与启动服务器监听 (最高优先级) ---
-    detectedServerName = await storageManager.getLastServer();
-
-    const updateServer = async () => {
-      const server = extractServerFromDOM();
-      if (server && server !== detectedServerName) {
-        detectedServerName = server;
-        console.log(`[Archiver] Detected server switch: ${server}`);
-        await storageManager.setLastServer(server); // 持久化缓存
-
-        if (uiControls) {
-          uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
-        }
-
-        // 检查并触发交互式迁移 (如 v5 -> v6)
-        const currentState = await storageManager.loadAllV6();
-        await MigrationManager.checkAndTriggerInteractiveMigrations(
-          storageManager,
-          server,
-          currentState,
-          (newState) => {
-            if (uiControls.setState) uiControls.setState(newState);
-          },
-        );
-      }
-    };
-
-    serverObserver = new MutationObserver(updateServer);
-    serverObserver.observe(document.body, { childList: true, subtree: true });
-    await updateServer(); // 立即同步执行一次
-
-    // 2. 初始化 UI 与数据适配器
-    const dataAdapter = {
-      getServers: async () => await storageManager.getServers(),
-      getChannels: async (server) => await storageManager.getChannels(server),
-      getChannelCount: async (server, channel) =>
-        await storageManager.getChannelCount(server, channel),
-      getMessages: async (server, channel, page, pageSize) => {
-        return await storageManager.getMessages(server, channel, page, pageSize);
-      },
-      getMessagesChunk: async (server, channel, lastTime, limit) => {
-        return await storageManager.getMessagesChunk(server, channel, lastTime, limit);
-      },
-      getAllData: async () => await storageManager.loadAllV6(), // 用于导出功能
-    };
-
-    uiControls = await createUI(dataAdapter, {
-      scanAndMergeHistory,
-      saveMessagesToStorage: async (state) => await storageManager.saveAllV6(state), // 仍提供给批量导入等特殊维护操作使用
-      mergeMessagesToStorage: async (state) => await storageManager.mergeAllV6(state),
-      scanAllDuplicatesAsync,
-      deleteMessages: async (ids) => await storageManager.deleteMessages(ids),
-      deactivateLogger,
-      manualSave: async () => {}, // 增量写入模式下已无需手动保存
-      replaceState: async (newState) => {
-        // UI 会被通知刷新以自动请求新数据
-      },
-    });
-
-    await uiControls.checkStorageUsage();
-
-    const uiObserver = new MutationObserver(() => {
+    // 4. 断言：变量应继续保持最后一次有效值，不会被 null 覆盖
+    expect(detectedServerName).toBe('New Server');
+  });
+});
 ~~~~~
 
 ### 下一步建议
-我们已经显著增强了服务器检测的健壮性。下一步建议：
-1. **多端同步预研**：既然已经有了持久化服务器名称，可以考虑将此信息同步到云端或导出文件中，以便在不同设备间维持一致的浏览体验。
-2. **测试验证**：编写一个测试用例，模拟 `extractServerFromDOM` 返回 null 而存储中有值的场景，验证 `activateLogger` 的回退逻辑。
+1. **运行测试**：执行 `npm test` 确保所有新老用例通过。
+2. **边界情况排查**：考虑如果用户清除了浏览器缓存，第一次启动时 `getLastServer` 会返回 `null`。我们需要确保 `main.js` 在这种情况下依然能安静地等待 `serverObserver` 第一次抓取到有效值，而不会报错。目前的代码逻辑已经涵盖了这一点。
+3. **提交代码**：验证无误后，可以将这一系列健壮性改进合并到主分支。

@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat: 增加服务器捕获的持久化与启动回退机制", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775562592.8444395, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test: 增加服务器名持久化与恢复逻辑的自动化测试", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775562633.8736205, "duration_ms": 0}}

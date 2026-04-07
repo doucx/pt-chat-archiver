@@ -35,6 +35,15 @@ describe('Storage Module (Async Manager)', () => {
     expect(localStorage.getItem(SELF_NAME_KEY)).toBe('TestUser');
   });
 
+  it('应当能持久化和恢复最后一次检测到的服务器名', async () => {
+    await storageManager.init();
+    const serverName = 'Safe Haven';
+    await storageManager.setLastServer(serverName);
+    
+    const recovered = await storageManager.getLastServer();
+    expect(recovered).toBe(serverName);
+  });
+
   it('清空操作应当移除相关 key', async () => {
     await storageManager.init();
     await storageManager.saveAllV6({ a: 1 });
