@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] feat: 实现服务器名称的持久化与启动恢复机制", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775562697.647275, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M package-lock.json", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1775563270.9515343, "duration_ms": 0}}
