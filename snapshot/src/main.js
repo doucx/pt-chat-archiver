@@ -328,11 +328,14 @@ import { debounce, getISOTimestamp } from './utils.js';
     await storageManager.init(true);
 
     // --- 立即恢复上下文与启动服务器监听 (最高优先级) ---
-    detectedServerName = await storageManager.getLastServer();
+    let lastPersistedServer = await storageManager.getLastServer();
+    detectedServerName = lastPersistedServer; // 作为回退值
+    let currentDOMServer = null; // 专门用于避免 DOM 轮询重复触发
 
     const updateServer = async () => {
       const server = extractServerFromDOM();
-      if (server && server !== detectedServerName) {
+      if (server && server !== currentDOMServer) {
+        currentDOMServer = server;
         detectedServerName = server;
         console.log(`[Archiver] Detected server switch: ${server}`);
         await storageManager.setLastServer(server); // 持久化缓存
