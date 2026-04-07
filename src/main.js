@@ -257,6 +257,10 @@ import { debounce, getISOTimestamp } from './utils.js';
     };
 
     currentActiveChannel = findActiveTabByClass(tabsContainer.innerHTML);
+    // 核心修复：在激活瞬间，如果 UI 已就绪，立即推送最新的频道名
+    if (uiControls) {
+      uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
+    }
     tabObserver = new MutationObserver(handleTabChange);
     tabObserver.observe(tabsContainer, {
       childList: true,
@@ -328,11 +332,16 @@ import { debounce, getISOTimestamp } from './utils.js';
     await storageManager.init(true);
 
     // --- 立即恢复上下文与启动服务器监听 (最高优先级) ---
-    detectedServerName = await storageManager.getLastServer();
+    let lastPersistedServer = await storageManager.getLastServer();
+    detectedServerName = lastPersistedServer; // 初始设为持久化值作为回退
+    let currentDOMServer = null; // 专门用于 DOM 轮询去重
 
     const updateServer = async () => {
       const server = extractServerFromDOM();
-      if (server && server !== detectedServerName) {
+      // 核心修复：即使 server 等于 detectedServerName (持久化值)，
+      // 只要它不同于 currentDOMServer (本次生命周期未处理过)，就应当触发更新。
+      if (server && server !== currentDOMServer) {
+        currentDOMServer = server;
         detectedServerName = server;
         console.log(`[Archiver] Detected server switch: ${server}`);
         await storageManager.setLastServer(server); // 持久化缓存

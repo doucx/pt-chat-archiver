@@ -19,9 +19,11 @@ export async function createUIState() {
     recordedChannel: null, // 当前正在录制的频道
     viewingServer: null, // 当前正在查看的存档服务器
     selectedChannel: 'Local', // 默认为 Local 频道
+    lastServer: null,
   };
 
   // Async load config
+  state.lastServer = await storageManager.getLastServer();
   const config = await storageManager.getConfig();
   state.pageSize = config.pageSize || 1000;
   state.initDebounceMs = config.initDebounceMs || 150;
@@ -83,6 +85,7 @@ export async function createUIState() {
     setRecordingStatus: (serverName, channelName) => {
       state.activeServer = serverName;
       state.recordedChannel = channelName;
+      if (serverName) state.lastServer = serverName;
       // 如果开启了自动跟随，或者这是第一次检测到服务器，则更新查看视图
       if (state.autoFollowServer || !state.viewingServer) {
         state.viewingServer = serverName;

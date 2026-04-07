@@ -91,7 +91,8 @@ export function createRenderer(dom, uiState) {
 
     if (dom.serverStatus) {
       if (!activeServer) {
-        dom.serverStatus.textContent = '等待进入游戏...';
+        const lastSrv = uiState.getState().lastServer;
+        dom.serverStatus.textContent = lastSrv ? `等待进入游戏... (上一个服务器: ${lastSrv})` : '等待进入游戏...';
         dom.serverStatus.style.color = '';
         if (dom.resetServerButton) dom.resetServerButton.disabled = true;
       } else if (!isReadOnly) {
