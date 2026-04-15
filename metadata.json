@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M main.js, M renderer.js, M server_recovery.test.js ... and 1 more files", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776236919.1938722, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix: 修复点击 \"最后一页\" 后无法通过向上滚动脱离锁定的 bug", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776236919.828586, "duration_ms": 0}}
