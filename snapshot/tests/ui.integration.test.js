@@ -140,7 +140,8 @@ describe('UI Integration Smoke Tests', () => {
 
     // 1. 点击末页进入锁定模式
     fireEvent.click(lastBtn);
-    expect(lastBtn).toHaveClass('active');
+    // 使用 waitFor 确保即使渲染循环有微小延迟也能通过
+    await waitFor(() => expect(lastBtn).toHaveClass('active'));
 
     // 2. 模拟加载中状态（refreshView 异步流启动）
     // 直接操作 value 模拟 renderer 的中间态

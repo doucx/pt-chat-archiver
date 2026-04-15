@@ -110,21 +110,30 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
   dom.pageFirstBtn.addEventListener('click', () => {
     uiState.setLockedToBottom(false);
     uiState.setPage(1);
+    dom.pageLastBtn.classList.remove('active');
+    dom.pageLastBtn.disabled = false;
     triggerRefresh();
   });
   dom.pagePrevBtn.addEventListener('click', () => {
     uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage - 1);
+    dom.pageLastBtn.classList.remove('active');
+    dom.pageLastBtn.disabled = false;
     triggerRefresh();
   });
   dom.pageNextBtn.addEventListener('click', () => {
     uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage + 1);
+    dom.pageLastBtn.classList.remove('active');
+    dom.pageLastBtn.disabled = false;
     triggerRefresh();
   });
   dom.pageLastBtn.addEventListener('click', () => {
     uiState.setPage(uiState.getState().totalPages);
     uiState.setLockedToBottom(true);
+    // 乐观更新：立即反馈锁定状态
+    dom.pageLastBtn.classList.add('active');
+    dom.pageLastBtn.disabled = true;
     triggerRefresh();
   });
 
