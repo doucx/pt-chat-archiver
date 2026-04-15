@@ -1,137 +1,71 @@
-测试失败的原因在于 `events.js` 中的分页点击处理函数仅修改了状态并触发了异步的 `triggerRefresh()`。由于 `refreshView` 内部包含对数据库的 `await` 调用，DOM 的更新（包括 `active` 类的添加）被推迟到了下一个事件循环。
+好的，我们已经完成了锁定逻辑的修复和相关的测试覆盖。现在我将版本号更新为 `7.5.7` 并创建一个完整的 Git 提交。
 
-为了修复这个问题并提升用户体验，我将采用“乐观 UI (Optimistic UI)”策略：在点击按钮时立即同步修改 DOM 状态，而不仅仅是等待异步渲染循环。同时，我将修正测试用例，使用 `waitFor` 来更健壮地处理异步渲染周期。
-
-## [WIP] fix: 增加分页控制的乐观 UI 更新以修复测试失败
-
-### 错误分析
-
-测试 `tests/ui.integration.test.js` 失败的原因是：
-1.  用户点击 `>>` 按钮。
-2.  点击监听器调用 `uiState.setLockedToBottom(true)` 和 `triggerRefresh()`。
-3.  由于 `triggerRefresh` 是异步的（涉及 `await dataAdapter`），`renderer.render()` 尚未执行。
-4.  测试脚本立即执行 `expect(lastBtn).toHaveClass('active')`，此时 DOM 尚未更新，导致断言失败。
+## [COMMIT] fix(ui): 修复滚动锁定失效 bug 并引入乐观 UI 更新
 
 ### 用户需求
-确保 UI 响应是瞬时的，并修复集成测试中的同步/异步竞态问题。
+更新项目版本号并提交所有修复代码。
 
 ### 评论
-在复杂的 Web 应用中，将状态变更与视觉反馈解耦是正确的，但关键的交互（如锁定/解锁）如果能提供同步反馈，会使应用显得更加灵敏（Snappy）。
+此次修复解决了由于异步加载导致的 UI 竞态问题，并通过乐观更新显著提升了分页操作的响应感。
 
 ### 目标
-1.  在 `events.js` 中，为所有影响锁定状态的分页按钮添加同步的 DOM 操作。
-2.  修正测试用例，使用 `waitFor` 以适应异步渲染流程。
+1.  将 `package.json` 中的版本号提升至 `7.5.7`。
+2.  将 `src/ui/events.js`、`tests/ui.integration.test.js` 和 `package.json` 的更改提交到 Git。
 
 ### 基本原理
-点击按钮时立即更新 `active` 类。这样即使后台正在加载数据，用户也能立即看到按钮状态的变化。同时，测试用例增加 `await waitFor` 是对异步系统进行测试的最佳实践。
+遵循语义化版本控制，由于这是一个 Bug 修复，我们提升修订号。通过 Git 提交将这些逻辑变更持久化。
 
 ### 标签
-#intent/fix #flow/ready #priority/high #comp/ui #comp/tests #scope/ux #dx #task/domain/ui #task/object/pagination-feedback #task/action/refactor #task/state/continue
+#intent/build #flow/ready #priority/medium #comp/ui #comp/build #scope/dx #ai/instruct #task/domain/ui #task/object/version-bump #task/action/commit #task/state/end #task/status/completed
 
 ---
 
 ### Script
 
-#### Acts 1: 为分页按钮增加乐观 UI 更新
+#### Acts 1: 更新版本号
 
-我们将修改 `src/ui/events.js`，在分页按钮的点击处理函数中直接操作 DOM 样式。
+我们将 `package.json` 中的版本号从 `7.5.6` 修改为 `7.5.7`。
 
 ~~~~~act
 patch_file
+package.json
+~~~~~
+~~~~~json.old
+  "name": "pt-chat-archiver",
+  "private": true,
+  "version": "7.5.6",
+  "type": "module",
+~~~~~
+~~~~~json.new
+  "name": "pt-chat-archiver",
+  "private": true,
+  "version": "7.5.7",
+  "type": "module",
+~~~~~
+
+#### Acts 2: 提交代码变更
+
+我们将所有相关修改添加到暂存区并生成提交记录。
+
+~~~~~act
+git_add
 src/ui/events.js
+tests/ui.integration.test.js
+package.json
 ~~~~~
-~~~~~javascript.old
-  // --- Pagination ---
-  dom.pageFirstBtn.addEventListener('click', () => {
-    uiState.setLockedToBottom(false);
-    uiState.setPage(1);
-    triggerRefresh();
-  });
-  dom.pagePrevBtn.addEventListener('click', () => {
-    uiState.setLockedToBottom(false);
-    uiState.setPage(uiState.getState().currentPage - 1);
-    triggerRefresh();
-  });
-  dom.pageNextBtn.addEventListener('click', () => {
-    uiState.setLockedToBottom(false);
-    uiState.setPage(uiState.getState().currentPage + 1);
-    triggerRefresh();
-  });
-  dom.pageLastBtn.addEventListener('click', () => {
-    uiState.setPage(uiState.getState().totalPages);
-    uiState.setLockedToBottom(true);
-    triggerRefresh();
-  });
-~~~~~
-~~~~~javascript.new
-  // --- Pagination ---
-  dom.pageFirstBtn.addEventListener('click', () => {
-    uiState.setLockedToBottom(false);
-    uiState.setPage(1);
-    dom.pageLastBtn.classList.remove('active');
-    dom.pageLastBtn.disabled = false;
-    triggerRefresh();
-  });
-  dom.pagePrevBtn.addEventListener('click', () => {
-    uiState.setLockedToBottom(false);
-    uiState.setPage(uiState.getState().currentPage - 1);
-    dom.pageLastBtn.classList.remove('active');
-    dom.pageLastBtn.disabled = false;
-    triggerRefresh();
-  });
-  dom.pageNextBtn.addEventListener('click', () => {
-    uiState.setLockedToBottom(false);
-    uiState.setPage(uiState.getState().currentPage + 1);
-    dom.pageLastBtn.classList.remove('active');
-    dom.pageLastBtn.disabled = false;
-    triggerRefresh();
-  });
-  dom.pageLastBtn.addEventListener('click', () => {
-    uiState.setPage(uiState.getState().totalPages);
-    uiState.setLockedToBottom(true);
-    // 乐观更新：立即反馈锁定状态
-    dom.pageLastBtn.classList.add('active');
-    dom.pageLastBtn.disabled = true;
-    triggerRefresh();
-  });
-~~~~~
-
-#### Acts 2: 修正集成测试用例
-
-修改 `tests/ui.integration.test.js`，使用 `waitFor` 来增强测试的健壮性。
 
 ~~~~~act
-patch_file
-tests/ui.integration.test.js
+git_commit
 ~~~~~
-~~~~~javascript.old
-  it('在加载过程中发生的滚动不应触发错误解锁', async () => {
-    await renderUI(mockAppState);
-    const lastBtn = screen.getByText('»');
-    const logDisplay = screen.getByRole('textbox');
+~~~~~text
+fix(ui): prevent accidental scroll-lock release during loading
 
-    // 1. 点击末页进入锁定模式
-    fireEvent.click(lastBtn);
-    expect(lastBtn).toHaveClass('active');
-
-    // 2. 模拟加载中状态（refreshView 异步流启动）
-~~~~~
-~~~~~javascript.new
-  it('在加载过程中发生的滚动不应触发错误解锁', async () => {
-    await renderUI(mockAppState);
-    const lastBtn = screen.getByText('»');
-    const logDisplay = screen.getByRole('textbox');
-
-    // 1. 点击末页进入锁定模式
-    fireEvent.click(lastBtn);
-    // 使用 waitFor 确保即使渲染循环有微小延迟也能通过
-    await waitFor(() => expect(lastBtn).toHaveClass('active'));
-
-    // 2. 模拟加载中状态（refreshView 异步流启动）
+- Added a guard in the scroll event listener to ignore scroll events triggered by the "loading" placeholder (⏳), preventing race conditions during asynchronous data fetching.
+- Implemented Optimistic UI for pagination buttons: the lock state (active class) is now toggled synchronously upon click for better responsiveness.
+- Updated integration tests to cover the loading-state scroll protection.
+- Bumped version to 7.5.7.
 ~~~~~
 
 ### 下一步建议
-
--   **重新执行测试**: 再次运行 `npm test tests/ui.integration.test.js` 确保测试通过。
--   **全链路验证**: 验证从“首页”点击到“末页”的往返交互，确保 `active` 类在所有路径下都能正确切换。
--   **性能观察**: 乐观更新是否消除了在慢速 IndexedDB 场景下的按钮点击“粘滞感”。
+- **构建发布**: 现在可以运行 `npm run build` 生成生产环境的脚本文件。
+- **用户反馈**: 在新版本发布后，关注移动端用户（特别是那些开启了高“初始化防抖延迟”的用户）对滚动锁定的反馈。
