@@ -332,7 +332,7 @@ import { debounce, getISOTimestamp } from './utils.js';
     await storageManager.init(true);
 
     // --- 立即恢复上下文与启动服务器监听 (最高优先级) ---
-    let lastPersistedServer = await storageManager.getLastServer();
+    const lastPersistedServer = await storageManager.getLastServer();
     detectedServerName = lastPersistedServer; // 初始设为持久化值作为回退
     let currentDOMServer = null; // 专门用于 DOM 轮询去重
 
