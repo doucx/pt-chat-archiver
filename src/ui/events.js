@@ -79,6 +79,9 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
 
   // 处理滚动时的自动吸附与解锁逻辑
   dom.logDisplay.addEventListener('scroll', () => {
+    // 关键修复：如果正在加载数据（显示加载提示），忽略由此引起的滚动变化
+    if (dom.logDisplay.value.startsWith('⏳')) return;
+
     const { isLockedToBottom, currentPage, totalPages } = uiState.getState();
     const threshold = 10; // 容差像素
     const isAtBottom =
@@ -89,13 +92,16 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
       // 1. 已锁定状态下，向上滑动则解锁
       if (!isAtBottom) {
         uiState.setLockedToBottom(false);
-        triggerRefresh();
+        // 实时更新按钮状态，无需触发完整的刷新流（防止加载状态循环）
+        dom.pageLastBtn.classList.remove('active');
+        dom.pageLastBtn.disabled = false;
       }
     } else {
       // 2. 未锁定状态下，如果在最后一页手动滑到底部，则自动加锁
       if (isAtBottom && currentPage === totalPages) {
         uiState.setLockedToBottom(true);
-        triggerRefresh();
+        dom.pageLastBtn.classList.add('active');
+        dom.pageLastBtn.disabled = true;
       }
     }
   });
@@ -104,21 +110,30 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
   dom.pageFirstBtn.addEventListener('click', () => {
     uiState.setLockedToBottom(false);
     uiState.setPage(1);
+    dom.pageLastBtn.classList.remove('active');
+    dom.pageLastBtn.disabled = false;
     triggerRefresh();
   });
   dom.pagePrevBtn.addEventListener('click', () => {
     uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage - 1);
+    dom.pageLastBtn.classList.remove('active');
+    dom.pageLastBtn.disabled = false;
     triggerRefresh();
   });
   dom.pageNextBtn.addEventListener('click', () => {
     uiState.setLockedToBottom(false);
     uiState.setPage(uiState.getState().currentPage + 1);
+    dom.pageLastBtn.classList.remove('active');
+    dom.pageLastBtn.disabled = false;
     triggerRefresh();
   });
   dom.pageLastBtn.addEventListener('click', () => {
     uiState.setPage(uiState.getState().totalPages);
     uiState.setLockedToBottom(true);
+    // 乐观更新：立即反馈锁定状态
+    dom.pageLastBtn.classList.add('active');
+    dom.pageLastBtn.disabled = true;
     triggerRefresh();
   });
 

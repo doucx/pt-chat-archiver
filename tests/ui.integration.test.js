@@ -132,4 +132,38 @@ describe('UI Integration Smoke Tests', () => {
     expect(logDisplay.value).toContain('Message 50');
     expect(logDisplay.value).not.toContain('Message 51');
   });
+
+  it('在加载过程中发生的滚动不应触发错误解锁', async () => {
+    await renderUI(mockAppState);
+    const lastBtn = screen.getByText('»');
+    const logDisplay = screen.getByRole('textbox');
+
+    // 1. 点击末页进入锁定模式
+    fireEvent.click(lastBtn);
+    // 使用 waitFor 确保即使渲染循环有微小延迟也能通过
+    await waitFor(() => expect(lastBtn).toHaveClass('active'));
+
+    // 2. 模拟加载中状态（refreshView 异步流启动）
+    // 直接操作 value 模拟 renderer 的中间态
+    logDisplay.value = '⏳ 数据加载与处理中...';
+
+    // 模拟由内容变短引起的滚动事件
+    // 在锁定状态下，如果 isAtBottom 为假（此时内容只有一行，自然为假），且没有加载保护，会触发解锁
+    fireEvent.scroll(logDisplay);
+
+    // 3. 验证：由于加载保护存在，锁定状态不应被移除
+    expect(lastBtn).toHaveClass('active');
+
+    // 4. 模拟加载完成
+    logDisplay.value = 'Line 1\nLine 2\nLine 3';
+    // 模拟向上滚动：手动 mock DOM 属性
+    Object.defineProperty(logDisplay, 'scrollHeight', { value: 1000, configurable: true });
+    Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true });
+    Object.defineProperty(logDisplay, 'clientHeight', { value: 500, configurable: true });
+
+    fireEvent.scroll(logDisplay);
+
+    // 5. 验证：此时向上滚动可以正常解锁
+    expect(lastBtn).not.toHaveClass('active');
+  });
 });
