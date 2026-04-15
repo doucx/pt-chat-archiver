@@ -39,7 +39,7 @@ describe('Storage Module (Async Manager)', () => {
     await storageManager.init();
     const serverName = 'Safe Haven';
     await storageManager.setLastServer(serverName);
-    
+
     const recovered = await storageManager.getLastServer();
     expect(recovered).toBe(serverName);
   });

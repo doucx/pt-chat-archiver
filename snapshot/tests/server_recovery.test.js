@@ -19,10 +19,10 @@ describe('Server Recovery Logic (Integration)', () => {
 
     // 2. 模拟启动时的变量持有 (对应 main.js 逻辑)
     let detectedServerName = await storageManager.getLastServer();
-    
+
     // 模拟 DOM 此时为空 (已进场)
     mockParser.extractServerFromDOM.mockReturnValue(null);
-    
+
     const currentFromDOM = mockParser.extractServerFromDOM();
     if (currentFromDOM && currentFromDOM !== detectedServerName) {
       detectedServerName = currentFromDOM;
@@ -38,7 +38,7 @@ describe('Server Recovery Logic (Integration)', () => {
 
     // 1. 第一阶段：DOM 发现了新服务器
     mockParser.extractServerFromDOM.mockReturnValue('New Server');
-    
+
     const server = mockParser.extractServerFromDOM();
     if (server && server !== detectedServerName) {
       detectedServerName = server;
@@ -48,10 +48,10 @@ describe('Server Recovery Logic (Integration)', () => {
     // 2. 断言：变量已更新且 setLastServer 被调用
     expect(detectedServerName).toBe('New Server');
     expect(setLastServerSpy).toHaveBeenCalledWith('New Server');
-    
+
     // 3. 第二阶段：DOM 变回 null (例如刷新或由于 UI 抖动)
     mockParser.extractServerFromDOM.mockReturnValue(null);
-    
+
     const server2 = mockParser.extractServerFromDOM();
     if (server2 && server2 !== detectedServerName) {
       detectedServerName = server2;
