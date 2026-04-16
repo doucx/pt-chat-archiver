@@ -196,61 +196,107 @@ export class IndexedDBAdapter {
     });
   }
 
-  getMessages(server, channel, page, pageSize) {
-    if (!server || !channel) return Promise.resolve({ messages: [], total: 0 });
+  async getMessages(server, channel, page, pageSize, onProgress) {
+    if (!server || !channel) return { messages: [], total: 0 };
+    const total = await this.getChannelCount(server, channel);
+    const messages = [];
+    const start = (page - 1) * pageSize;
+
+    if (start >= total || total === 0) {
+      return { messages, total };
+    }
+
+    // 核心优化：双向游标
+    const reverse = start > total / 2;
+    let direction = 'next';
+    let advanceCount = start;
+
+    if (reverse) {
+      direction = 'prev';
+      const lastIndexWanted = Math.min(start + pageSize - 1, total - 1);
+      advanceCount = total - 1 - lastIndexWanted;
+    }
+
+    // 如果没有进度汇报需求，执行单次优化读取
+    if (!onProgress) {
+      const result = await this._getMessagesSingleTx(
+        server,
+        channel,
+        advanceCount,
+        pageSize,
+        direction,
+        total,
+        reverse,
+      );
+      return result;
+    }
+
+    // 分块读取以支持进度汇报，避免长时间阻塞主线程
+    const chunkSize = 250;
+    const totalToFetch = Math.min(pageSize, total - start);
+    let currentSkip = advanceCount;
+
+    while (messages.length < totalToFetch) {
+      const limit = Math.min(chunkSize, totalToFetch - messages.length);
+      const chunkResult = await this._getMessagesSingleTx(
+        server,
+        channel,
+        currentSkip,
+        limit,
+        direction,
+        total,
+        false,
+      );
+
+      if (chunkResult.messages.length === 0) break;
+
+      messages.push(...chunkResult.messages);
+      currentSkip += chunkResult.messages.length;
+
+      if (onProgress) {
+        onProgress(messages.length, totalToFetch);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+
+    if (reverse) {
+      messages.reverse();
+    }
+
+    return { messages, total };
+  }
+
+  _getMessagesSingleTx(server, channel, advanceCount, limit, direction, total, reverseResult) {
     return new Promise((resolve, reject) => {
       const tx = this._tx([STORE_MESSAGES], 'readonly');
       const store = tx.objectStore(STORE_MESSAGES);
       const index = store.index('server_channel_time');
       const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
 
-      const countReq = index.count(range);
-      countReq.onsuccess = () => {
-        const total = countReq.result;
-        const messages = [];
-        const start = (page - 1) * pageSize;
+      const cursorReq = index.openCursor(range, direction);
+      let advanced = false;
+      const messages = [];
 
-        if (start >= total || total === 0) {
+      cursorReq.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (!cursor) {
+          if (reverseResult) messages.reverse();
           return resolve({ messages, total });
         }
-
-        // 核心优化：双向游标
-        // 当需要跳过的记录数超过总数的一半时，改为从末尾反向遍历，大幅减少光标 advance() 的性能损耗。
-        const reverse = start > total / 2;
-        let direction = 'next';
-        let advanceCount = start;
-
-        if (reverse) {
-          direction = 'prev';
-          const lastIndexWanted = Math.min(start + pageSize - 1, total - 1);
-          advanceCount = total - 1 - lastIndexWanted;
-        }
-
-        const cursorReq = index.openCursor(range, direction);
-        let advanced = false;
-
-        cursorReq.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (!cursor) {
-            if (reverse) messages.reverse();
-            return resolve({ messages, total });
-          }
-          if (advanceCount > 0 && !advanced) {
-            advanced = true;
-            cursor.advance(advanceCount);
+        if (advanceCount > 0 && !advanced) {
+          advanced = true;
+          cursor.advance(advanceCount);
+        } else {
+          messages.push(cursor.value);
+          if (messages.length < limit) {
+            cursor.continue();
           } else {
-            messages.push(cursor.value);
-            if (messages.length < pageSize) {
-              cursor.continue();
-            } else {
-              if (reverse) messages.reverse();
-              resolve({ messages, total });
-            }
+            if (reverseResult) messages.reverse();
+            resolve({ messages, total });
           }
-        };
-        cursorReq.onerror = () => reject(cursorReq.error);
+        }
       };
-      countReq.onerror = () => reject(countReq.error);
+      cursorReq.onerror = () => reject(cursorReq.error);
     });
   }
 
