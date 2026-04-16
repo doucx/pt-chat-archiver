@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] feat: 实现加载进度条并重构引擎生命周期状态机", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776382445.706871, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M machine.js, M main.js, M index.js ... and 2 more files", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776382666.4364853, "duration_ms": 0}}

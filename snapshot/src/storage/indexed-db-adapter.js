@@ -221,7 +221,15 @@ export class IndexedDBAdapter {
 
         // 如果没有进度汇报需求，执行单次优化读取
         if (!onProgress) {
-          const result = await this._getMessagesSingleTx(server, channel, advanceCount, pageSize, direction, total, reverse);
+          const result = await this._getMessagesSingleTx(
+            server,
+            channel,
+            advanceCount,
+            pageSize,
+            direction,
+            total,
+            reverse,
+          );
           return resolve(result);
         }
 
@@ -232,13 +240,21 @@ export class IndexedDBAdapter {
 
         while (messages.length < totalToFetch) {
           const limit = Math.min(chunkSize, totalToFetch - messages.length);
-          const chunkResult = await this._getMessagesSingleTx(server, channel, currentSkip, limit, direction, total, false);
-          
+          const chunkResult = await this._getMessagesSingleTx(
+            server,
+            channel,
+            currentSkip,
+            limit,
+            direction,
+            total,
+            false,
+          );
+
           if (chunkResult.messages.length === 0) break;
-          
+
           messages.push(...chunkResult.messages);
           currentSkip += chunkResult.messages.length;
-          
+
           if (onProgress) {
             onProgress(messages.length, totalToFetch);
             await new Promise((r) => setTimeout(r, 0));
@@ -262,11 +278,11 @@ export class IndexedDBAdapter {
       const store = tx.objectStore(STORE_MESSAGES);
       const index = store.index('server_channel_time');
       const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-      
+
       const cursorReq = index.openCursor(range, direction);
       let advanced = false;
       const messages = [];
-      
+
       cursorReq.onsuccess = (event) => {
         const cursor = event.target.result;
         if (!cursor) {

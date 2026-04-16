@@ -133,14 +133,14 @@ export async function createUI(dataAdapter, appCallbacks) {
           const empty = width - filled;
           const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
           dom.logDisplay.value = `⏳ 正在读取历史记录...\n\n    ${bar} ${Math.round(percentage * 100)}%\n    已读取: ${current} / ${total} 条`;
-        }
+        },
       );
 
       if (renderId !== currentRenderId) return;
 
       messages = result.messages;
       totalCount = result.total; // 确保一致性
-      
+
       // 过渡状态：渲染文本往往也很耗时
       dom.logDisplay.value = '⏳ 数据读取完毕，正在构建文本视图...';
       await new Promise((resolve) => setTimeout(resolve, 10));

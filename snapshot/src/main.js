@@ -1,6 +1,7 @@
 import './ui/style.css';
 import { scanAllDuplicatesAsync } from './analysis.js';
 import { SELF_NAME_KEY } from './constants.js';
+import { EngineStates, engineMachine } from './machine.js';
 import { MigrationManager } from './migrations.js';
 import {
   extractServerFromDOM,
@@ -13,7 +14,6 @@ import { storageManager } from './storage/index.js';
 import { createUI } from './ui/index.js';
 import { generateULID } from './utils.js';
 import { debounce, getISOTimestamp } from './utils.js';
-import { EngineStates, engineMachine } from './machine.js';
 
 (async () => {
   // --- 全局状态 ---
@@ -241,10 +241,10 @@ import { EngineStates, engineMachine } from './machine.js';
         if (uiControls) {
           uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
         }
-        
+
         engineMachine.transition(EngineStates.TAB_SWITCHING);
         clearTimeout(tabSwitchTimeout);
-        
+
         tabSwitchTimeout = setTimeout(async () => {
           // 确保只有在仍然处于切换状态时才恢复录制（防止由于频繁切换导致的竞态条件）
           if (engineMachine.state === EngineStates.TAB_SWITCHING) {
@@ -311,7 +311,7 @@ import { EngineStates, engineMachine } from './machine.js';
   function deactivateLogger() {
     engineMachine.reset();
     clearTimeout(tabSwitchTimeout);
-    
+
     if (messageObserver) {
       messageObserver.disconnect();
       messageObserver = null;

@@ -5,16 +5,16 @@
  */
 
 export const EngineStates = {
-  STOPPED: 'STOPPED',             // 引擎停止，尚未激活监听
-  STARTING: 'STARTING',           // 进入服务器或初始化阶段，防抖收集 DOM 节点
+  STOPPED: 'STOPPED', // 引擎停止，尚未激活监听
+  STARTING: 'STARTING', // 进入服务器或初始化阶段，防抖收集 DOM 节点
   TAB_SWITCHING: 'TAB_SWITCHING', // 正在切换频道，等待防抖结算
-  RECORDING: 'RECORDING'          // 正常运行，实时监听 DOM 增量更新
+  RECORDING: 'RECORDING', // 正常运行，实时监听 DOM 增量更新
 };
 
 export class ArchiverMachine {
   constructor() {
     this.state = EngineStates.STOPPED;
-    
+
     // 异步并发锁 (用于 scanAndMergeHistory)
     this.isScanning = false;
     this.scanPending = false;
