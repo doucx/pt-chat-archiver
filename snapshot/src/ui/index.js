@@ -116,9 +116,17 @@ export async function createUI(dataAdapter, appCallbacks) {
 
       if (renderId !== currentRenderId) return; // 竞态控制：丢弃过期的渲染请求
 
-      // 如果是 stats 模式，可能需要全量数据 (Phase 1 临时兼容)
-      const fetchSize = viewMode === 'stats' ? 999999 : pageSize;
-      const fetchPage = viewMode === 'stats' ? 1 : currentPage;
+      let fetchSize = pageSize;
+      let fetchPage = currentPage;
+      let offset = undefined;
+
+      if (viewMode === 'stats') {
+        const { statsLimit } = uiState.getState();
+        fetchSize = statsLimit;
+        // 核心优化：只拉取最后 N 条消息进行统计
+        offset = Math.max(0, totalCount - statsLimit);
+        fetchPage = 1; // 在指定 offset 时 page 仅作为占位
+      }
 
       const result = await dataAdapter.getMessages(
         currentServer,
@@ -126,6 +134,16 @@ export async function createUI(dataAdapter, appCallbacks) {
         fetchPage,
         fetchSize,
         (current, total) => {
+          if (renderId !== currentRenderId) return;
+          const width = 20;
+          const percentage = current / total;
+          const filled = Math.round(width * percentage);
+          const empty = width - filled;
+          const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
+          dom.logDisplay.value = `⏳ 正在读取历史记录...\n\n    ${bar} ${Math.round(percentage * 100)}%\n    已读取: ${current} / ${total} 条`;
+        },
+        offset,
+      );
           if (renderId !== currentRenderId) return;
           const width = 20;
           const percentage = current / total;

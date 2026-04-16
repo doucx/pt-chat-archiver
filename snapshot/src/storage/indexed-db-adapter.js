@@ -196,11 +196,11 @@ export class IndexedDBAdapter {
     });
   }
 
-  async getMessages(server, channel, page, pageSize, onProgress) {
+  async getMessages(server, channel, page, pageSize, onProgress, offsetOverride) {
     if (!server || !channel) return { messages: [], total: 0 };
     const total = await this.getChannelCount(server, channel);
     const messages = [];
-    const start = (page - 1) * pageSize;
+    const start = offsetOverride !== undefined ? offsetOverride : (page - 1) * pageSize;
 
     if (start >= total || total === 0) {
       return { messages, total };
@@ -232,7 +232,8 @@ export class IndexedDBAdapter {
     }
 
     // 分块读取以支持进度汇报，避免长时间阻塞主线程
-    const chunkSize = 250;
+    const config = await this.getConfig();
+    const chunkSize = config.readChunkSize || 250;
     const totalToFetch = Math.min(pageSize, total - start);
     let currentSkip = advanceCount;
 
@@ -437,7 +438,12 @@ export class IndexedDBAdapter {
    * 获取配置
    */
   getConfig() {
-    const defaultCfg = { pageSize: 1000, initDebounceMs: 150 };
+    const defaultCfg = {
+      pageSize: 1000,
+      statsLimit: 5000,
+      readChunkSize: 250,
+      initDebounceMs: 150,
+    };
     return new Promise((resolve) => {
       const tx = this._tx([STORE_CONFIG], 'readonly');
       const store = tx.objectStore(STORE_CONFIG);

@@ -146,6 +146,14 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
     triggerRefresh();
   });
 
+  dom.statsLimitInput.addEventListener('change', async () => {
+    await uiState.setStatsLimit(dom.statsLimitInput.value);
+  });
+
+  dom.readChunkInput.addEventListener('change', async () => {
+    await uiState.setReadChunkSize(dom.readChunkInput.value);
+  });
+
   dom.initDebounceInput.addEventListener('change', async () => {
     await uiState.setInitDebounceMs(dom.initDebounceInput.value);
   });
@@ -292,6 +300,8 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
   // --- Initial value setup ---
   dom.selfNameInput.value = await uiState.getSelfName();
   dom.pageSizeInput.value = uiState.getState().pageSize;
+  dom.statsLimitInput.value = uiState.getState().statsLimit;
+  dom.readChunkInput.value = uiState.getState().readChunkSize;
   dom.initDebounceInput.value = uiState.getState().initDebounceMs;
   dom.autoFollowInput.checked = uiState.getState().autoFollowServer;
 }
