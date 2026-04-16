@@ -13,6 +13,7 @@ import { storageManager } from './storage/index.js';
 import { createUI } from './ui/index.js';
 import { generateULID } from './utils.js';
 import { debounce, getISOTimestamp } from './utils.js';
+import { EngineStates, engineMachine } from './machine.js';
 
 (async () => {
   // --- 全局状态 ---
@@ -21,13 +22,12 @@ import { debounce, getISOTimestamp } from './utils.js';
   let serverObserver = null;
   let currentActiveChannel = null;
   let detectedServerName = null;
-  let isInitializingChat = false;
-  let isSwitchingTabs = false;
   // UI 控制句柄
   let uiControls = null;
 
   // 用于保证实时消息绝对单调递增的全局时钟状态
   let lastRealtimeTimestamp = 0;
+  let tabSwitchTimeout = null;
 
   /*
    * =================================================================
@@ -104,9 +104,6 @@ import { debounce, getISOTimestamp } from './utils.js';
   /**
    * 扫描当前聊天框中的可见消息，并将其与内存状态智能合并。
    */
-  let isScanningHistory = false;
-  let pendingScan = false;
-
   async function performScanAndMerge() {
     if (!detectedServerName) return;
     const historicalState = await extractHistoricalChatState();
@@ -153,18 +150,14 @@ import { debounce, getISOTimestamp } from './utils.js';
   }
 
   async function scanAndMergeHistory() {
-    if (isScanningHistory) {
-      pendingScan = true;
-      return;
-    }
-    isScanningHistory = true;
+    if (!engineMachine.tryAcquireScanLock()) return;
     try {
       do {
-        pendingScan = false;
+        engineMachine.clearScanPending();
         await performScanAndMerge();
-      } while (pendingScan);
+      } while (engineMachine.hasPendingScan());
     } finally {
-      isScanningHistory = false;
+      engineMachine.releaseScanLock();
     }
   }
 
@@ -176,7 +169,7 @@ import { debounce, getISOTimestamp } from './utils.js';
 
   /** 处理 MutationObserver 捕获到的新消息节点。*/
   async function handleNewChatMessage(node) {
-    if (isInitializingChat || isSwitchingTabs || !detectedServerName) return;
+    if (!engineMachine.canProcessLiveMessage() || !detectedServerName) return;
     if (node.nodeType !== Node.ELEMENT_NODE || !node.matches('.chat-line')) return;
     if (!currentActiveChannel) return;
 
@@ -236,7 +229,7 @@ import { debounce, getISOTimestamp } from './utils.js';
     const { chatLog, tabs: tabsContainer } = locateChatElements();
     if (!chatLog || !tabsContainer || messageObserver) return;
 
-    isInitializingChat = true;
+    engineMachine.transition(EngineStates.STARTING);
 
     // 动态获取防抖配置，允许用户在弱性能设备（如手机）上延长该值
     const initDebounceMs = uiControls ? uiControls.getInitDebounceMs() : 150;
@@ -248,10 +241,16 @@ import { debounce, getISOTimestamp } from './utils.js';
         if (uiControls) {
           uiControls.updateRecordingStatus(detectedServerName, currentActiveChannel);
         }
-        isSwitchingTabs = true;
-        setTimeout(async () => {
-          await scanAndMergeHistory();
-          isSwitchingTabs = false;
+        
+        engineMachine.transition(EngineStates.TAB_SWITCHING);
+        clearTimeout(tabSwitchTimeout);
+        
+        tabSwitchTimeout = setTimeout(async () => {
+          // 确保只有在仍然处于切换状态时才恢复录制（防止由于频繁切换导致的竞态条件）
+          if (engineMachine.state === EngineStates.TAB_SWITCHING) {
+            engineMachine.transition(EngineStates.RECORDING);
+            await scanAndMergeHistory();
+          }
         }, 250);
       }
     };
@@ -274,10 +273,10 @@ import { debounce, getISOTimestamp } from './utils.js';
 
     const finalizeInitialization = debounce(async () => {
       // 关键：在开始异步扫描前就解锁实时监听。
-      // 通道 B 现在有了实时查重，它会自动处理与扫描快照重叠的消息。
-      // 这彻底消除了之前在 await 期间的消息丢失盲区。
-      isInitializingChat = false;
-      await scanAndMergeHistory();
+      if (engineMachine.isStarting()) {
+        engineMachine.transition(EngineStates.RECORDING);
+        await scanAndMergeHistory();
+      }
     }, initDebounceMs);
 
     messageObserver = new MutationObserver((mutationsList) => {
@@ -285,7 +284,7 @@ import { debounce, getISOTimestamp } from './utils.js';
       for (const mutation of mutationsList) {
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
           hasNewNodes = true;
-          if (isInitializingChat) {
+          if (engineMachine.isStarting()) {
             for (const node of mutation.addedNodes) {
               if (node.nodeType === Node.ELEMENT_NODE && node.matches('.chat-line')) {
                 initNodesCount++;
@@ -296,10 +295,8 @@ import { debounce, getISOTimestamp } from './utils.js';
           }
         }
       }
-      if (isInitializingChat && hasNewNodes) {
-        // 容量断路器：如果已经收到接近历史记录上限数量的消息，
-        // 说明其实际渲染已饱和，此时我们不再调用防抖函数重置定时器，
-        // 防止长防抖设置（如 1500ms）在遇到活跃频道时导致长时间锁死在初始化状态。
+      if (engineMachine.isStarting() && hasNewNodes) {
+        // 容量断路器：如果已经收到接近历史记录上限数量的消息，说明其实际渲染已饱和
         if (initNodesCount < MAX_HISTORY_NODES) {
           finalizeInitialization();
         }
@@ -312,6 +309,9 @@ import { debounce, getISOTimestamp } from './utils.js';
 
   /** 停用并清理聊天记录器。*/
   function deactivateLogger() {
+    engineMachine.reset();
+    clearTimeout(tabSwitchTimeout);
+    
     if (messageObserver) {
       messageObserver.disconnect();
       messageObserver = null;
@@ -320,8 +320,6 @@ import { debounce, getISOTimestamp } from './utils.js';
       tabObserver.disconnect();
       tabObserver = null;
     }
-    isInitializingChat = false;
-    isSwitchingTabs = false;
     currentActiveChannel = null;
   }
 
