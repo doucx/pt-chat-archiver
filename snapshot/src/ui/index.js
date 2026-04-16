@@ -144,15 +144,6 @@ export async function createUI(dataAdapter, appCallbacks) {
         },
         offset,
       );
-          if (renderId !== currentRenderId) return;
-          const width = 20;
-          const percentage = current / total;
-          const filled = Math.round(width * percentage);
-          const empty = width - filled;
-          const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
-          dom.logDisplay.value = `⏳ 正在读取历史记录...\n\n    ${bar} ${Math.round(percentage * 100)}%\n    已读取: ${current} / ${total} 条`;
-        },
-      );
 
       if (renderId !== currentRenderId) return;
 
