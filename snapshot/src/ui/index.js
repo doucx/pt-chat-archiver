@@ -408,6 +408,11 @@ export async function createUI(dataAdapter, appCallbacks) {
     setState: (newState) => {
       refreshView();
     },
+    setLoadingText: (text) => {
+      if (dom.logDisplay) {
+        dom.logDisplay.value = text;
+      }
+    },
     checkStorageUsage: async () => await renderer.checkStorageUsage(),
     isUIPaused: () => uiState.getState().isUIPaused,
     getInitDebounceMs: () => uiState.getState().initDebounceMs,

@@ -36,13 +36,14 @@ import { debounce, getISOTimestamp } from './utils.js';
    */
 
   /** 扫描聊天框中已存在的消息，时间戳根据UI显示的 `HH:MM` 进行估算。*/
-  async function extractHistoricalChatState() {
+  async function extractHistoricalChatState(onProgress) {
     const elements = locateChatElements();
     if (!elements.tabs || !elements.chatLog) return { current_tab: null, messages: [] };
 
     const current_tab = findActiveTabByClass(elements.tabs.innerHTML);
     const selfName = (await storageManager.getSelfName()) || '';
     const chatLines = Array.from(elements.chatLog.children);
+    const total = chatLines.length;
     const currentDate = new Date();
     let lastTimeParts = null;
 
@@ -70,13 +71,20 @@ import { debounce, getISOTimestamp } from './utils.js';
       const isoTimeApproximation = new Date(localDateString.replace(/-/g, '/')).toISOString();
 
       tempItems.unshift({ element, isoTime: isoTimeApproximation });
+
+      if (onProgress && (total - i) % 20 === 0) {
+        onProgress(`⏳ 读取历史记录结构... [${total - i}/${total}]`);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
     }
 
     // 2. 正序遍历：生成消息并确保批次内 ID 单调递增
     const messages = [];
     let lastCalculatedTimestamp = 0;
+    const tempTotal = tempItems.length;
 
-    for (const item of tempItems) {
+    for (let i = 0; i < tempTotal; i++) {
+      const item = tempItems[i];
       let timestamp = new Date(item.isoTime).getTime();
 
       // [核心修复] 批次内单调性保证
@@ -96,6 +104,11 @@ import { debounce, getISOTimestamp } from './utils.js';
         // 这对于排序是必要的，且不会影响 UI 显示（格式化函数会忽略毫秒）。
         messages.push(messageData);
       }
+
+      if (onProgress && (i + 1) % 20 === 0) {
+        onProgress(`⏳ 解析历史记录内容... [${i + 1}/${tempTotal}]`);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
     }
 
     return { current_tab, messages };
@@ -109,7 +122,11 @@ import { debounce, getISOTimestamp } from './utils.js';
 
   async function performScanAndMerge() {
     if (!detectedServerName) return;
-    const historicalState = await extractHistoricalChatState();
+    const historicalState = await extractHistoricalChatState((progressText) => {
+      if (uiControls && !uiControls.isUIPaused()) {
+        uiControls.setLoadingText(progressText);
+      }
+    });
     let dataChanged = false;
 
     if (historicalState.current_tab && historicalState.messages.length > 0) {

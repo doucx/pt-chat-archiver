@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M CHANGELOG.md", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776237109.9595027, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] feat: 在历史记录解析阶段引入纯文本 TUI 加载进度条", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776381652.379188, "duration_ms": 0}}
