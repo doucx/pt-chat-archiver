@@ -72,8 +72,8 @@ class StorageManager {
     return Promise.resolve(0);
   }
 
-  getMessages(server, channel, page, pageSize) {
-    if (this.adapter?.getMessages) return this.adapter.getMessages(server, channel, page, pageSize);
+  getMessages(server, channel, page, pageSize, onProgress) {
+    if (this.adapter?.getMessages) return this.adapter.getMessages(server, channel, page, pageSize, onProgress);
     return Promise.resolve({ messages: [], total: 0 });
   }
 

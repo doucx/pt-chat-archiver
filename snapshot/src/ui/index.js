@@ -110,8 +110,8 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     // 当且仅当非 config 模式下才去抓取具体消息体
     if (currentServer && selectedChannel && viewMode !== 'config') {
-      // 渲染非阻塞化：显示加载骨架状态并让出主线程，允许浏览器重绘
-      dom.logDisplay.value = '⏳ 数据加载与处理中...';
+      // 渲染非阻塞化：显示准备读取的状态并让出主线程
+      dom.logDisplay.value = '⏳ 正在准备读取数据...';
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       if (renderId !== currentRenderId) return; // 竞态控制：丢弃过期的渲染请求
@@ -125,12 +125,25 @@ export async function createUI(dataAdapter, appCallbacks) {
         selectedChannel,
         fetchPage,
         fetchSize,
+        (current, total) => {
+          if (renderId !== currentRenderId) return;
+          const width = 20;
+          const percentage = current / total;
+          const filled = Math.round(width * percentage);
+          const empty = width - filled;
+          const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
+          dom.logDisplay.value = `⏳ 正在读取历史记录...\n\n    ${bar} ${Math.round(percentage * 100)}%\n    已读取: ${current} / ${total} 条`;
+        }
       );
 
       if (renderId !== currentRenderId) return;
 
       messages = result.messages;
       totalCount = result.total; // 确保一致性
+      
+      // 过渡状态：渲染文本往往也很耗时
+      dom.logDisplay.value = '⏳ 数据读取完毕，正在构建文本视图...';
+      await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
     // 更新分页状态
