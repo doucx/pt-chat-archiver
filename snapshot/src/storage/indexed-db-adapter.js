@@ -196,80 +196,78 @@ export class IndexedDBAdapter {
     });
   }
 
-  getMessages(server, channel, page, pageSize, onProgress) {
-    if (!server || !channel) return Promise.resolve({ messages: [], total: 0 });
-    return new Promise(async (resolve, reject) => {
-      try {
-        const total = await this.getChannelCount(server, channel);
-        const messages = [];
-        const start = (page - 1) * pageSize;
+  async getMessages(server, channel, page, pageSize, onProgress) {
+    if (!server || !channel) return { messages: [], total: 0 };
+    try {
+      const total = await this.getChannelCount(server, channel);
+      const messages = [];
+      const start = (page - 1) * pageSize;
 
-        if (start >= total || total === 0) {
-          return resolve({ messages, total });
-        }
-
-        // 核心优化：双向游标
-        const reverse = start > total / 2;
-        let direction = 'next';
-        let advanceCount = start;
-
-        if (reverse) {
-          direction = 'prev';
-          const lastIndexWanted = Math.min(start + pageSize - 1, total - 1);
-          advanceCount = total - 1 - lastIndexWanted;
-        }
-
-        // 如果没有进度汇报需求，执行单次优化读取
-        if (!onProgress) {
-          const result = await this._getMessagesSingleTx(
-            server,
-            channel,
-            advanceCount,
-            pageSize,
-            direction,
-            total,
-            reverse,
-          );
-          return resolve(result);
-        }
-
-        // 分块读取以支持进度汇报，避免长时间阻塞主线程
-        const chunkSize = 250;
-        const totalToFetch = Math.min(pageSize, total - start);
-        let currentSkip = advanceCount;
-
-        while (messages.length < totalToFetch) {
-          const limit = Math.min(chunkSize, totalToFetch - messages.length);
-          const chunkResult = await this._getMessagesSingleTx(
-            server,
-            channel,
-            currentSkip,
-            limit,
-            direction,
-            total,
-            false,
-          );
-
-          if (chunkResult.messages.length === 0) break;
-
-          messages.push(...chunkResult.messages);
-          currentSkip += chunkResult.messages.length;
-
-          if (onProgress) {
-            onProgress(messages.length, totalToFetch);
-            await new Promise((r) => setTimeout(r, 0));
-          }
-        }
-
-        if (reverse) {
-          messages.reverse();
-        }
-
-        resolve({ messages, total });
-      } catch (err) {
-        reject(err);
+      if (start >= total || total === 0) {
+        return { messages, total };
       }
-    });
+
+      // 核心优化：双向游标
+      const reverse = start > total / 2;
+      let direction = 'next';
+      let advanceCount = start;
+
+      if (reverse) {
+        direction = 'prev';
+        const lastIndexWanted = Math.min(start + pageSize - 1, total - 1);
+        advanceCount = total - 1 - lastIndexWanted;
+      }
+
+      // 如果没有进度汇报需求，执行单次优化读取
+      if (!onProgress) {
+        const result = await this._getMessagesSingleTx(
+          server,
+          channel,
+          advanceCount,
+          pageSize,
+          direction,
+          total,
+          reverse,
+        );
+        return result;
+      }
+
+      // 分块读取以支持进度汇报，避免长时间阻塞主线程
+      const chunkSize = 250;
+      const totalToFetch = Math.min(pageSize, total - start);
+      let currentSkip = advanceCount;
+
+      while (messages.length < totalToFetch) {
+        const limit = Math.min(chunkSize, totalToFetch - messages.length);
+        const chunkResult = await this._getMessagesSingleTx(
+          server,
+          channel,
+          currentSkip,
+          limit,
+          direction,
+          total,
+          false,
+        );
+
+        if (chunkResult.messages.length === 0) break;
+
+        messages.push(...chunkResult.messages);
+        currentSkip += chunkResult.messages.length;
+
+        if (onProgress) {
+          onProgress(messages.length, totalToFetch);
+          await new Promise((r) => setTimeout(r, 0));
+        }
+      }
+
+      if (reverse) {
+        messages.reverse();
+      }
+
+      return { messages, total };
+    } catch (err) {
+      throw err;
+    }
   }
 
   _getMessagesSingleTx(server, channel, advanceCount, limit, direction, total, reverseResult) {
