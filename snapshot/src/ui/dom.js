@@ -58,6 +58,8 @@ export function getDOMElements() {
     autoFollowInput: document.getElementById('log-archive-auto-follow-input'),
     selfNameInput: document.getElementById('log-archive-self-name-input'),
     pageSizeInput: document.getElementById('log-archive-page-size-input'),
+    statsLimitInput: document.getElementById('log-archive-stats-limit-input'),
+    chunkSizeInput: document.getElementById('log-archive-chunk-size-input'),
     initDebounceInput: document.getElementById('log-archive-init-debounce-input'),
     configStorageInfo: document.getElementById('log-archive-config-storage-info'),
     configMsgCount: document.getElementById('log-archive-config-msg-count'),

@@ -8,6 +8,8 @@ export async function createUIState() {
   const state = {
     currentPage: 1,
     pageSize: 1000,
+    statsLimit: 5000,
+    readChunkSize: 250,
     initDebounceMs: 150,
     autoFollowServer: true,
     lastSavedTime: null,

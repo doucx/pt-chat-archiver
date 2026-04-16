@@ -68,6 +68,20 @@ export const getMainContainerHTML = (version) => `
                 <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
             </div>
             <div class="config-group">
+                <label for="log-archive-stats-limit-input">统计分析上限 (最近消息数)</label>
+                <input type="number" id="log-archive-stats-limit-input" min="100" max="100000" step="500">
+                <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
+                    限制统计报告分析的最近消息数量。值越大分析越准，但生成越慢。
+                </div>
+            </div>
+            <div class="config-group">
+                <label for="log-archive-chunk-size-input">数据读取分块大小 (Chunk Size)</label>
+                <input type="number" id="log-archive-chunk-size-input" min="50" max="5000" step="50">
+                <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
+                    控制读取数据库时的每块大小。较小的值能提供更平滑的进度条。
+                </div>
+            </div>
+            <div class="config-group">
                 <label for="log-archive-init-debounce-input">初始化防抖延迟 (毫秒)</label>
                 <input type="number" id="log-archive-init-debounce-input" min="50" max="5000" step="50">
                 <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">

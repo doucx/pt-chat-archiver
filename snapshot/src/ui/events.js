@@ -146,6 +146,15 @@ export async function bindUIEvents({ dom, uiState, refreshView, callbacks }) {
     triggerRefresh();
   });
 
+  dom.statsLimitInput.addEventListener('change', async () => {
+    await uiState.setStatsLimit(dom.statsLimitInput.value);
+    triggerRefresh();
+  });
+
+  dom.chunkSizeInput.addEventListener('change', async () => {
+    await uiState.setReadChunkSize(dom.chunkSizeInput.value);
+  });
+
   dom.initDebounceInput.addEventListener('change', async () => {
     await uiState.setInitDebounceMs(dom.initDebounceInput.value);
   });
