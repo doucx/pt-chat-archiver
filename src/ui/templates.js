@@ -68,6 +68,20 @@ export const getMainContainerHTML = (version) => `
                 <input type="number" id="log-archive-page-size-input" min="10" max="10000" step="100">
             </div>
             <div class="config-group">
+                <label for="log-archive-stats-limit-input">统计分析上限 (最后 N 条)</label>
+                <input type="number" id="log-archive-stats-limit-input" min="100" max="50000" step="500">
+                <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
+                    生成统计报告时分析的消息数量。设置过大可能导致低端设备短暂卡死。
+                </div>
+            </div>
+            <div class="config-group">
+                <label for="log-archive-read-chunk-input">数据库读取分片大小</label>
+                <input type="number" id="log-archive-read-chunk-input" min="50" max="2000" step="50">
+                <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
+                    内部读取数据时的分片步长。默认 250，若设备性能强劲可调高至 500-1000 以提升加载速度。
+                </div>
+            </div>
+            <div class="config-group">
                 <label for="log-archive-init-debounce-input">初始化防抖延迟 (毫秒)</label>
                 <input type="number" id="log-archive-init-debounce-input" min="50" max="5000" step="50">
                 <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">

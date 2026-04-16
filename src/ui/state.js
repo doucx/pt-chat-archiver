@@ -8,6 +8,8 @@ export async function createUIState() {
   const state = {
     currentPage: 1,
     pageSize: 1000,
+    statsLimit: 5000,
+    readChunkSize: 250,
     initDebounceMs: 150,
     autoFollowServer: true,
     lastSavedTime: null,
@@ -26,12 +28,16 @@ export async function createUIState() {
   state.lastServer = await storageManager.getLastServer();
   const config = await storageManager.getConfig();
   state.pageSize = config.pageSize || 1000;
+  state.statsLimit = config.statsLimit || 5000;
+  state.readChunkSize = config.readChunkSize || 250;
   state.initDebounceMs = config.initDebounceMs || 150;
   state.autoFollowServer = config.autoFollowServer !== false; // 默认为 true
 
   const saveConfig = async () => {
     await storageManager.saveConfig({
       pageSize: state.pageSize,
+      statsLimit: state.statsLimit,
+      readChunkSize: state.readChunkSize,
       initDebounceMs: state.initDebounceMs,
       autoFollowServer: state.autoFollowServer,
     });
@@ -55,6 +61,20 @@ export async function createUIState() {
       const val = Number.parseInt(size, 10);
       if (!Number.isNaN(val) && val >= 10) {
         state.pageSize = val;
+        await saveConfig();
+      }
+    },
+    setStatsLimit: async (limit) => {
+      const val = Number.parseInt(limit, 10);
+      if (!Number.isNaN(val) && val >= 100) {
+        state.statsLimit = val;
+        await saveConfig();
+      }
+    },
+    setReadChunkSize: async (size) => {
+      const val = Number.parseInt(size, 10);
+      if (!Number.isNaN(val) && val >= 50) {
+        state.readChunkSize = val;
         await saveConfig();
       }
     },
