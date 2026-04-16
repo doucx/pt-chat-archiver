@@ -18,7 +18,18 @@ export const getMainContainerHTML = (version) => `
         </div>
     </div>
     
-    <div id="log-archive-view-container" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
+    <div id="log-archive-view-container" style="position: relative; flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <!-- 进度条覆盖层 -->
+        <div id="log-archive-progress-overlay" style="display: none;">
+            <div class="progress-card">
+                <div id="log-archive-progress-label">处理中...</div>
+                <div class="progress-track">
+                    <div id="log-archive-progress-bar"></div>
+                </div>
+                <div id="log-archive-progress-stats">0 / 0</div>
+            </div>
+        </div>
+
         <!-- 记录查看视图 -->
         <div id="log-archive-log-view" style="display: flex; flex-direction: column; height: 100%;">
             <div id="log-archive-readonly-indicator" class="readonly-pill">只读存档模式</div>

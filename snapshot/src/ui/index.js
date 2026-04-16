@@ -415,5 +415,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       uiState.setRecordingStatus(serverName, channelName);
       refreshView();
     },
+    showProgress: (current, total, label) => renderer.updateProgress(current, total, label),
+    hideProgress: () => renderer.hideProgress(),
   };
 }

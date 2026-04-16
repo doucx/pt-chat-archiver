@@ -35,6 +35,10 @@ export function getDOMElements() {
   domElements = {
     // Containers
     uiContainer: document.getElementById('log-archive-ui-container'),
+    progressOverlay: document.getElementById('log-archive-progress-overlay'),
+    progressBar: document.getElementById('log-archive-progress-bar'),
+    progressLabel: document.getElementById('log-archive-progress-label'),
+    progressStats: document.getElementById('log-archive-progress-stats'),
     logView: document.getElementById('log-archive-log-view'),
     configView: document.getElementById('log-archive-config-view'),
     header: document.getElementById('log-archive-ui-header'),

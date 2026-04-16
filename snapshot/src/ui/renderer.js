@@ -214,6 +214,23 @@ export function createRenderer(dom, uiState) {
 
   return {
     render,
+    /**
+     * 更新并显示进度条
+     */
+    updateProgress: (current, total, label) => {
+      dom.progressOverlay.style.display = 'flex';
+      const percent = total > 0 ? Math.min(100, (current / total) * 100) : 0;
+      dom.progressBar.style.width = `${percent}%`;
+      dom.progressStats.textContent = `${current} / ${total}`;
+      if (label) dom.progressLabel.textContent = label;
+    },
+    /**
+     * 隐藏进度条
+     */
+    hideProgress: () => {
+      dom.progressOverlay.style.display = 'none';
+      dom.progressBar.style.width = '0%';
+    },
     checkStorageUsage: async () => {
       // IndexedDB 时代不再需要硬性的容量警告，此处改为静默。
       // 将来如果需要，可以实现基于浏览器 Quota 的警告。

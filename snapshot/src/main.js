@@ -50,7 +50,11 @@ import { debounce, getISOTimestamp } from './utils.js';
     // 我们将结果存入临时数组，因为我们需要正序来生成单调递增的 ID
     const tempItems = [];
 
+    const totalLines = chatLines.length;
     for (let i = chatLines.length - 1; i >= 0; i--) {
+      if (uiControls && i % 20 === 0) {
+        uiControls.showProgress(totalLines - i, totalLines, '正在解析历史记录...');
+      }
       const element = chatLines[i];
       const timeNode = element.querySelector('.chat-line-timestamp');
       if (!timeNode || !timeNode.textContent.includes(':')) continue;
@@ -165,6 +169,7 @@ import { debounce, getISOTimestamp } from './utils.js';
       } while (pendingScan);
     } finally {
       isScanningHistory = false;
+      if (uiControls) uiControls.hideProgress();
     }
   }
 
