@@ -61,6 +61,7 @@ export function getDOMElements() {
     statsLimitInput: document.getElementById('log-archive-stats-limit-input'),
     readChunkInput: document.getElementById('log-archive-read-chunk-input'),
     initDebounceInput: document.getElementById('log-archive-init-debounce-input'),
+    cachePagesInput: document.getElementById('log-archive-cache-pages-input'),
     configStorageInfo: document.getElementById('log-archive-config-storage-info'),
     configMsgCount: document.getElementById('log-archive-config-msg-count'),
     legacyRecoveryGroup: document.getElementById('log-archive-legacy-recovery-group'),

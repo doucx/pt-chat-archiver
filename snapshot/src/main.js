@@ -144,8 +144,11 @@ import { debounce, getISOTimestamp } from './utils.js';
         dataChanged = true;
       }
     }
-    if (dataChanged && uiControls && !uiControls.isUIPaused()) {
-      uiControls.updateUI();
+    if (dataChanged && uiControls) {
+      uiControls.invalidateCache();
+      if (!uiControls.isUIPaused()) {
+        uiControls.updateUI();
+      }
     }
   }
 
@@ -208,12 +211,19 @@ import { debounce, getISOTimestamp } from './utils.js';
       }
 
       await storageManager.putMessage(messageData);
+      
+      if (uiControls) {
+        uiControls.onNewMessage(messageData);
+      }
 
       const synthChannel = getSyntheticChannelName(messageData, currentActiveChannel);
       if (synthChannel) {
         const synthMsg = { ...messageData, channel: synthChannel };
         synthMsg.id = undefined;
         await storageManager.putMessage(synthMsg);
+        if (uiControls) {
+          uiControls.onNewMessage(synthMsg);
+        }
       }
 
       if (uiControls && !uiControls.isUIPaused()) {

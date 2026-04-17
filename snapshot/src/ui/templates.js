@@ -89,6 +89,13 @@ export const getMainContainerHTML = (version) => `
                 </div>
             </div>
             <div class="config-group">
+                <label for="log-archive-cache-pages-input">内存缓存容量 (页数)</label>
+                <input type="number" id="log-archive-cache-pages-input" min="1" max="50" step="1">
+                <div class="info-text-dim" style="margin-top: 4px; font-size: 0.8em;">
+                    缓存最近访问的消息页，取消暂停时可瞬间从内存拉取以避免界面卡顿闪烁。默认 5 页。
+                </div>
+            </div>
+            <div class="config-group">
                 <label>维护操作</label>
                 <div id="log-archive-config-storage-info" class="info-text-dim" style="margin-bottom: 2px;"></div>
                 <div id="log-archive-config-msg-count" class="info-text-dim" style="margin-bottom: 8px;"></div>
