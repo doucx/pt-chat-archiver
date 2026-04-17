@@ -23,6 +23,83 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   let currentRenderId = 0;
 
+  // --- View Cache System ---
+  class ViewCache {
+    constructor() {
+      this.server = null;
+      this.channel = null;
+      this.pageSize = 1000;
+      this.maxPages = 5;
+      this.pages = new Map();
+      this.totalCount = 0;
+    }
+
+    init(server, channel, pageSize, maxPages) {
+      if (this.server !== server || this.channel !== channel || this.pageSize !== pageSize) {
+        this.clear();
+        this.server = server;
+        this.channel = channel;
+        this.pageSize = pageSize;
+      }
+      this.maxPages = maxPages;
+    }
+
+    setTotalCount(count) {
+      this.totalCount = count;
+    }
+
+    clear() {
+      this.pages.clear();
+    }
+
+    has(page) {
+      if (!this.pages.has(page)) return false;
+      const msgs = this.pages.get(page);
+      const isLastPage = page === Math.ceil(this.totalCount / this.pageSize) || 1;
+      return msgs.length === this.pageSize || isLastPage;
+    }
+
+    get(page) {
+      const msgs = this.pages.get(page);
+      if (msgs) {
+        // LRU bump
+        this.pages.delete(page);
+        this.pages.set(page, msgs);
+      }
+      return msgs;
+    }
+
+    set(page, messages) {
+      this.pages.set(page, [...messages]);
+      this.enforceLimit();
+    }
+
+    pushNewMessage(msg) {
+      if (msg.server !== this.server || msg.channel !== this.channel) return;
+      this.totalCount++;
+      const targetPage = Math.ceil(this.totalCount / this.pageSize) || 1;
+
+      if (this.pages.has(targetPage)) {
+        this.pages.get(targetPage).push(msg);
+      } else {
+        const isNewPage = (this.totalCount - 1) % this.pageSize === 0;
+        if (isNewPage) {
+          this.pages.set(targetPage, [msg]);
+        }
+      }
+      this.enforceLimit();
+    }
+
+    enforceLimit() {
+      while (this.pages.size > this.maxPages) {
+        const firstKey = this.pages.keys().next().value;
+        this.pages.delete(firstKey);
+      }
+    }
+  }
+
+  const viewCache = new ViewCache();
+
   // --- Async Controller Logic ---
 
   /**
@@ -108,14 +185,13 @@ export async function createUI(dataAdapter, appCallbacks) {
     let messages = [];
     let totalCount = selectedChannel ? channelCounts[selectedChannel] || 0 : 0;
 
+    // 初始化并同步缓存上下文
+    const maxCachePages = uiState.getState().cachePages || 5;
+    viewCache.init(currentServer, selectedChannel, pageSize, maxCachePages);
+    viewCache.setTotalCount(totalCount);
+
     // 当且仅当非 config 模式下才去抓取具体消息体
     if (currentServer && selectedChannel && viewMode !== 'config') {
-      // 渲染非阻塞化：显示准备读取的状态并让出主线程
-      dom.logDisplay.value = '⏳ 正在准备读取数据...';
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      if (renderId !== currentRenderId) return; // 竞态控制：丢弃过期的渲染请求
-
       let fetchSize = pageSize;
       let fetchPage = currentPage;
       let offset = undefined;
@@ -123,54 +199,78 @@ export async function createUI(dataAdapter, appCallbacks) {
       if (viewMode === 'stats') {
         const { statsLimit } = uiState.getState();
         fetchSize = statsLimit;
-        // 核心优化：只拉取最后 N 条消息进行统计
         offset = Math.max(0, totalCount - statsLimit);
-        fetchPage = 1; // 在指定 offset 时 page 仅作为占位
-      }
+        fetchPage = 1;
 
-      const result = await dataAdapter.getMessages(
-        currentServer,
-        selectedChannel,
-        fetchPage,
-        fetchSize,
-        (current, total) => {
+        // stats 模式特殊，绕过分页缓存，全量拉取
+        dom.logDisplay.value = '⏳ 正在准备读取数据...';
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        if (renderId !== currentRenderId) return;
+
+        const result = await dataAdapter.getMessages(currentServer, selectedChannel, fetchPage, fetchSize, null, offset);
+        if (renderId !== currentRenderId) return;
+        messages = result.messages;
+      } else {
+        // 核心渲染路径：检查 LRU 缓存
+        if (viewCache.has(fetchPage)) {
+          messages = viewCache.get(fetchPage); // 零延迟命中！
+        } else {
+          // 缓存未命中，执行完整 DB 提取生命周期
+          dom.logDisplay.value = '⏳ 正在准备读取数据...';
+          await new Promise((resolve) => setTimeout(resolve, 10));
           if (renderId !== currentRenderId) return;
-          const width = 20;
-          const percentage = current / total;
-          const filled = Math.round(width * percentage);
-          const empty = width - filled;
-          const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
-          dom.logDisplay.value = `⏳ 正在读取历史记录...\n\n    ${bar} ${Math.round(percentage * 100)}%\n    已读取: ${current} / ${total} 条`;
-        },
-        offset,
-      );
 
-      if (renderId !== currentRenderId) return;
+          const result = await dataAdapter.getMessages(
+            currentServer,
+            selectedChannel,
+            fetchPage,
+            fetchSize,
+            (current, total) => {
+              if (renderId !== currentRenderId) return;
+              const width = 20;
+              const percentage = current / total;
+              const filled = Math.round(width * percentage);
+              const empty = width - filled;
+              const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
+              dom.logDisplay.value = `⏳ 正在读取历史记录...\n\n    ${bar} ${Math.round(percentage * 100)}%\n    已读取: ${current} / ${total} 条`;
+            },
+          );
 
-      messages = result.messages;
-      totalCount = result.total; // 确保一致性
+          if (renderId !== currentRenderId) return;
 
-      // 过渡状态：渲染文本往往也很耗时
-      dom.logDisplay.value = '⏳ 数据读取完毕，正在构建文本视图...';
-      await new Promise((resolve) => setTimeout(resolve, 10));
+          messages = result.messages;
+          totalCount = result.total; // 确保一致性
+          
+          viewCache.setTotalCount(totalCount);
+          viewCache.set(fetchPage, messages); // 存入缓存
+
+          // 过渡状态
+          dom.logDisplay.value = '⏳ 数据读取完毕，正在构建文本视图...';
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      }
     }
 
     // 更新分页状态
-    const newTotalPages = Math.ceil(totalCount / pageSize);
+    const newTotalPages = Math.ceil(totalCount / pageSize) || 1;
     uiState.setTotalPages(newTotalPages);
 
-    // 自动吸附逻辑: 如果处于锁定底部模式，且当前页面不是最后一页（说明产生了新数据导致翻页），
-    // 强制将状态更新为最后一页，并重新获取该页数据。
+    // 自动吸附逻辑
     if (isLockedToBottom && viewMode === 'log' && newTotalPages > currentPage) {
       uiState.setPage(newTotalPages);
-      const followResult = await dataAdapter.getMessages(
-        currentServer,
-        selectedChannel,
-        newTotalPages,
-        pageSize,
-      );
-      if (renderId !== currentRenderId) return;
-      messages = followResult.messages;
+      if (viewCache.has(newTotalPages)) {
+        messages = viewCache.get(newTotalPages);
+      } else {
+        const followResult = await dataAdapter.getMessages(
+          currentServer,
+          selectedChannel,
+          newTotalPages,
+          pageSize,
+        );
+        if (renderId !== currentRenderId) return;
+        messages = followResult.messages;
+        viewCache.set(newTotalPages, messages);
+      }
     }
 
     if (renderId !== currentRenderId) return;
@@ -366,6 +466,7 @@ export async function createUI(dataAdapter, appCallbacks) {
     ) {
       appCallbacks.deactivateLogger();
       await storageManager.clearAllData();
+      viewCache.clear();
       await appCallbacks.scanAndMergeHistory();
       refreshView();
     }
@@ -426,6 +527,12 @@ export async function createUI(dataAdapter, appCallbacks) {
       if (!uiState.getState().isUIPaused) {
         refreshView();
       }
+    },
+    onNewMessage: (msg) => {
+      viewCache.pushNewMessage(msg);
+    },
+    invalidateCache: () => {
+      viewCache.clear();
     },
     setState: (newState) => {
       refreshView();

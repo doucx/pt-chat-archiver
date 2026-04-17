@@ -443,6 +443,7 @@ export class IndexedDBAdapter {
       statsLimit: 5000,
       readChunkSize: 250,
       initDebounceMs: 150,
+      cachePages: 5,
     };
     return new Promise((resolve) => {
       const tx = this._tx([STORE_CONFIG], 'readonly');

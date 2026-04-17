@@ -11,6 +11,7 @@ export async function createUIState() {
     statsLimit: 5000,
     readChunkSize: 250,
     initDebounceMs: 150,
+    cachePages: 5,
     autoFollowServer: true,
     lastSavedTime: null,
     totalPages: 1,
@@ -31,6 +32,7 @@ export async function createUIState() {
   state.statsLimit = config.statsLimit || 5000;
   state.readChunkSize = config.readChunkSize || 250;
   state.initDebounceMs = config.initDebounceMs || 150;
+  state.cachePages = config.cachePages || 5;
   state.autoFollowServer = config.autoFollowServer !== false; // 默认为 true
 
   const saveConfig = async () => {
@@ -39,6 +41,7 @@ export async function createUIState() {
       statsLimit: state.statsLimit,
       readChunkSize: state.readChunkSize,
       initDebounceMs: state.initDebounceMs,
+      cachePages: state.cachePages,
       autoFollowServer: state.autoFollowServer,
     });
   };
@@ -82,6 +85,13 @@ export async function createUIState() {
       const val = Number.parseInt(ms, 10);
       if (!Number.isNaN(val) && val >= 50) {
         state.initDebounceMs = val;
+        await saveConfig();
+      }
+    },
+    setCachePages: async (pages) => {
+      const val = Number.parseInt(pages, 10);
+      if (!Number.isNaN(val) && val >= 1) {
+        state.cachePages = val;
         await saveConfig();
       }
     },
