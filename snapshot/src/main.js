@@ -211,7 +211,7 @@ import { debounce, getISOTimestamp } from './utils.js';
       }
 
       await storageManager.putMessage(messageData);
-      
+
       if (uiControls) {
         uiControls.onNewMessage(messageData);
       }

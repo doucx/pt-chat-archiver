@@ -106,9 +106,7 @@ export async function createUI(dataAdapter, appCallbacks) {
    */
   const preloadAdjacentPages = async (page, total, server, channel, size) => {
     // 仅预加载 1 页半径内的未命中页面
-    const targets = [page - 1, page + 1].filter(
-      (p) => p >= 1 && p <= total && !viewCache.has(p),
-    );
+    const targets = [page - 1, page + 1].filter((p) => p >= 1 && p <= total && !viewCache.has(p));
 
     for (const p of targets) {
       // 异步抓取，不使用 await 以免阻塞
@@ -278,7 +276,7 @@ export async function createUI(dataAdapter, appCallbacks) {
 
           messages = result.messages;
           totalCount = result.total; // 确保一致性
-          
+
           viewCache.setTotalCount(totalCount);
           viewCache.set(fetchPage, messages); // 存入缓存
 

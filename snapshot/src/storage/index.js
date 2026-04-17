@@ -74,14 +74,7 @@ class StorageManager {
 
   getMessages(server, channel, page, pageSize, onProgress, offsetOverride) {
     if (this.adapter?.getMessages)
-      return this.adapter.getMessages(
-        server,
-        channel,
-        page,
-        pageSize,
-        onProgress,
-        offsetOverride,
-      );
+      return this.adapter.getMessages(server, channel, page, pageSize, onProgress, offsetOverride);
     return Promise.resolve({ messages: [], total: 0 });
   }
 

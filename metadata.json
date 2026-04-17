@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat(ui): 为历史记录查看器引入相邻页面预加载机制", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776412216.4333794, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "biome Capture: M main.js, M index.js, M index.js ... and 1 more files", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776412238.1916282, "duration_ms": 0}}
