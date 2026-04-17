@@ -381,8 +381,15 @@ import { debounce, getISOTimestamp } from './utils.js';
       getChannels: async (server) => await storageManager.getChannels(server),
       getChannelCount: async (server, channel) =>
         await storageManager.getChannelCount(server, channel),
-      getMessages: async (server, channel, page, pageSize, onProgress) => {
-        return await storageManager.getMessages(server, channel, page, pageSize, onProgress);
+      getMessages: async (server, channel, page, pageSize, onProgress, offsetOverride) => {
+        return await storageManager.getMessages(
+          server,
+          channel,
+          page,
+          pageSize,
+          onProgress,
+          offsetOverride,
+        );
       },
       getMessagesChunk: async (server, channel, lastTime, limit) => {
         return await storageManager.getMessagesChunk(server, channel, lastTime, limit);

@@ -207,7 +207,24 @@ export async function createUI(dataAdapter, appCallbacks) {
         await new Promise((resolve) => setTimeout(resolve, 10));
         if (renderId !== currentRenderId) return;
 
-        const result = await dataAdapter.getMessages(currentServer, selectedChannel, fetchPage, fetchSize, null, offset);
+        const result = await dataAdapter.getMessages(
+          currentServer,
+          selectedChannel,
+          fetchPage,
+          fetchSize,
+          (current, total) => {
+            if (renderId !== currentRenderId) return;
+            const width = 20;
+            const percentage = current / total;
+            const filled = Math.round(width * percentage);
+            const empty = width - filled;
+            const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
+            dom.logDisplay.value = `⏳ 正在读取统计数据...\n\n    ${bar} ${Math.round(
+              percentage * 100,
+            )}%\n    已读取: ${current} / ${total} 条`;
+          },
+          offset,
+        );
         if (renderId !== currentRenderId) return;
         messages = result.messages;
       } else {
