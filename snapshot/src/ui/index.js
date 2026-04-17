@@ -100,6 +100,27 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const viewCache = new ViewCache();
 
+  /**
+   * 预加载当前页的相邻页面。
+   * 采用静默加载模式，不触发 UI 状态更新。
+   */
+  const preloadAdjacentPages = async (page, total, server, channel, size) => {
+    // 仅预加载 1 页半径内的未命中页面
+    const targets = [page - 1, page + 1].filter(
+      (p) => p >= 1 && p <= total && !viewCache.has(p),
+    );
+
+    for (const p of targets) {
+      // 异步抓取，不使用 await 以免阻塞
+      dataAdapter.getMessages(server, channel, p, size).then((result) => {
+        // 校验上下文，确保在异步返回时用户没有切换频道
+        if (viewCache.server === server && viewCache.channel === channel) {
+          viewCache.set(p, result.messages);
+        }
+      });
+    }
+  };
+
   // --- Async Controller Logic ---
 
   /**
@@ -302,6 +323,11 @@ export async function createUI(dataAdapter, appCallbacks) {
     };
 
     renderer.render(context, uiCallbacks);
+
+    // [性能优化] 启动后台预加载
+    if (viewMode === 'log' && currentServer && selectedChannel) {
+      preloadAdjacentPages(currentPage, newTotalPages, currentServer, selectedChannel, pageSize);
+    }
   };
 
   // --- Export Helper Functions ---
