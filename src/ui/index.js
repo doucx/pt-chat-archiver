@@ -100,6 +100,25 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const viewCache = new ViewCache();
 
+  /**
+   * 预加载当前页的相邻页面。
+   * 采用静默加载模式，不触发 UI 状态更新。
+   */
+  const preloadAdjacentPages = async (page, total, server, channel, size) => {
+    // 仅预加载 1 页半径内的未命中页面
+    const targets = [page - 1, page + 1].filter((p) => p >= 1 && p <= total && !viewCache.has(p));
+
+    for (const p of targets) {
+      // 异步抓取，不使用 await 以免阻塞
+      dataAdapter.getMessages(server, channel, p, size).then((result) => {
+        // 校验上下文，确保在异步返回时用户没有切换频道
+        if (viewCache.server === server && viewCache.channel === channel) {
+          viewCache.set(p, result.messages);
+        }
+      });
+    }
+  };
+
   // --- Async Controller Logic ---
 
   /**
@@ -207,7 +226,24 @@ export async function createUI(dataAdapter, appCallbacks) {
         await new Promise((resolve) => setTimeout(resolve, 10));
         if (renderId !== currentRenderId) return;
 
-        const result = await dataAdapter.getMessages(currentServer, selectedChannel, fetchPage, fetchSize, null, offset);
+        const result = await dataAdapter.getMessages(
+          currentServer,
+          selectedChannel,
+          fetchPage,
+          fetchSize,
+          (current, total) => {
+            if (renderId !== currentRenderId) return;
+            const width = 20;
+            const percentage = current / total;
+            const filled = Math.round(width * percentage);
+            const empty = width - filled;
+            const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
+            dom.logDisplay.value = `⏳ 正在读取统计数据...\n\n    ${bar} ${Math.round(
+              percentage * 100,
+            )}%\n    已读取: ${current} / ${total} 条`;
+          },
+          offset,
+        );
         if (renderId !== currentRenderId) return;
         messages = result.messages;
       } else {
@@ -240,7 +276,7 @@ export async function createUI(dataAdapter, appCallbacks) {
 
           messages = result.messages;
           totalCount = result.total; // 确保一致性
-          
+
           viewCache.setTotalCount(totalCount);
           viewCache.set(fetchPage, messages); // 存入缓存
 
@@ -285,6 +321,11 @@ export async function createUI(dataAdapter, appCallbacks) {
     };
 
     renderer.render(context, uiCallbacks);
+
+    // [性能优化] 启动后台预加载
+    if (viewMode === 'log' && currentServer && selectedChannel) {
+      preloadAdjacentPages(currentPage, newTotalPages, currentServer, selectedChannel, pageSize);
+    }
   };
 
   // --- Export Helper Functions ---
