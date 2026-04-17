@@ -4,6 +4,6 @@
 
 ### 📝 变更文件摘要:
 ```
-CHANGELOG.md | 19 +++++++++++++++++++
- 1 file changed, 19 insertions(+)
+README.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
 ```
