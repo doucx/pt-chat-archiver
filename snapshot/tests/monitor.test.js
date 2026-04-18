@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { EngineStates, engineMachine } from '../src/machine.js';
 import { ChatMonitor } from '../src/monitor.js';
-import { engineMachine, EngineStates } from '../src/machine.js';
 import * as parser from '../src/parser.js';
 
 // Mock Parser 模块的所有导出
@@ -25,10 +25,10 @@ describe('ChatMonitor (DOM Monitoring Logic)', () => {
     tabsContainer = document.createElement('div');
     tabsContainer.className = 'chat-log-tabs-container';
     tabsContainer.innerHTML = '<a class="active">Local</a><a>Party</a>';
-    
+
     chatLog = document.createElement('div');
     chatLog.className = 'chat-log-scroll-inner';
-    
+
     document.body.appendChild(tabsContainer);
     document.body.appendChild(chatLog);
 
@@ -57,7 +57,7 @@ describe('ChatMonitor (DOM Monitoring Logic)', () => {
       expect(mockCallbacks.onTabChange).toHaveBeenCalledWith('Local');
 
       // 等待防抖结束
-      await new Promise(r => setTimeout(r, 20));
+      await new Promise((r) => setTimeout(r, 20));
       expect(engineMachine.isRecording()).toBe(true);
     });
 
@@ -80,7 +80,7 @@ describe('ChatMonitor (DOM Monitoring Logic)', () => {
 
       parser.extractUsefulData.mockImplementation((el, name, time) => ({
         content: 'msg',
-        time
+        time,
       }));
 
       const { current_tab, messages } = await monitor.getHistory();
@@ -95,7 +95,7 @@ describe('ChatMonitor (DOM Monitoring Logic)', () => {
     it('监听到新节点时应当触发 onMessage 回调', async () => {
       monitor.start();
       // 等待进入 RECORDING 状态
-      await new Promise(r => setTimeout(r, 20));
+      await new Promise((r) => setTimeout(r, 20));
 
       parser.extractUsefulData.mockReturnValue({ content: 'New Live Message' });
 
@@ -122,7 +122,7 @@ describe('ChatMonitor (DOM Monitoring Logic)', () => {
       chatLog.appendChild(newNode);
 
       // 给一点时间，确保 MutationObserver 运行了但被拦截
-      await new Promise(r => setTimeout(r, 5));
+      await new Promise((r) => setTimeout(r, 5));
       expect(mockCallbacks.onMessage).not.toHaveBeenCalled();
     });
   });
@@ -130,11 +130,11 @@ describe('ChatMonitor (DOM Monitoring Logic)', () => {
   describe('Tab Switching', () => {
     it('检测到频道切换时应当进入 TAB_SWITCHING 状态并触发回调', async () => {
       monitor.start();
-      await new Promise(r => setTimeout(r, 20)); // 进入 RECORDING
+      await new Promise((r) => setTimeout(r, 20)); // 进入 RECORDING
 
       // 模拟频道切换：修改 tabsContainer 内部并改变 Parser 返回值
       parser.findActiveTabByClass.mockReturnValue('Party');
-      
+
       // 触发 MutationObserver (属性变更)
       tabsContainer.querySelector('.active').classList.remove('active');
       tabsContainer.querySelectorAll('a')[1].classList.add('active');
@@ -145,7 +145,7 @@ describe('ChatMonitor (DOM Monitoring Logic)', () => {
       });
 
       // 等待 250ms 的切换防抖结算
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 300));
       expect(engineMachine.isRecording()).toBe(true);
     });
   });

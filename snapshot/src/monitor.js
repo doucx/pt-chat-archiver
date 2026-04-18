@@ -1,9 +1,5 @@
 import { EngineStates, engineMachine } from './machine.js';
-import {
-  findActiveTabByClass,
-  locateChatElements,
-  extractUsefulData,
-} from './parser.js';
+import { extractUsefulData, findActiveTabByClass, locateChatElements } from './parser.js';
 import { debounce } from './utils.js';
 
 /**
@@ -145,7 +141,7 @@ export class ChatMonitor {
               }
             }
           } else {
-            mutation.addedNodes.forEach(node => this._handleLiveNode(node));
+            mutation.addedNodes.forEach((node) => this._handleLiveNode(node));
           }
         }
       }
