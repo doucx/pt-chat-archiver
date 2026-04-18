@@ -1,44 +1,57 @@
-### 错误分析
+好的，模块化重构已经完成且修复了回归 Bug。现在我将这些变更作为一个完整的逻辑单元提交到 Git 仓库。
 
-在之前的重构中，我提取了 `ViewCache` 类。但不小心在这个过程中将紧挨在 `ViewCache` 类定义上方的一个局部状态变量 `let currentRenderId = 0;` 给删除了。
+## [COMMIT] refactor(ui): 模块化拆分 ViewCache 与 IOManager
 
-这个变量在 `refreshView` 方法中被用于检测和取消过期的异步渲染操作（一种防抖机制）。它的缺失导致了 ReferenceError。
+### 用户需求
+将最近对 UI 模块进行的模块化重构（拆分 `ViewCache` 和 `IOManager`）以及相关的 Bug 修复进行 Git 提交。
 
-### 解决方案
+### 评论
+这是一次重要的架构改进。通过消除 `src/ui/index.js` 中的“上帝对象”倾向，我们显著提升了代码的可读性和可维护性，也为后续对缓存算法进行针对性优化打下了基础。
 
-我将在 `src/ui/index.js` 中把 `let currentRenderId = 0;` 重新加回去。
+### 目标
+1.  将新创建的 `src/ui/view-cache.js` 和 `src/ui/io-manager.js` 添加到暂存区。
+2.  将修改后的 `src/ui/index.js` 添加到暂存区。
+3.  创建一个描述详尽的提交记录。
+
+### 基本原理
+遵循“一个小步，一个提交”的原则。我们将这次关于“UI 职责分离”的改动封装在一起。在提交前，我们已经通过测试确认了逻辑的正确性（包括对 `currentRenderId` 回归问题的修复）。
+
+### 标签
+#intent/refine #flow/ready #priority/medium #comp/ui #scope/core #ai/instruct #task/domain/ui #task/object/module-separation #task/action/refactor #task/state/end #task/status/completed
 
 ---
 
 ### Script
 
-#### Acts 1: 修复 `currentRenderId` 丢失的问题
+#### Acts 1: 提交 UI 模块化重构变更
+
+我们将相关的三个文件添加到 Git 并提交。
 
 ~~~~~act
-patch_file
+git_add
+src/ui/view-cache.js
+src/ui/io-manager.js
 src/ui/index.js
 ~~~~~
-~~~~~javascript.old
-  // 2. Create state and renderer instances
-  const uiState = await createUIState();
-  const renderer = createRenderer(dom, uiState);
-  const viewCache = new ViewCache();
 
-  /**
-   * 预加载当前页的相邻页面。
+~~~~~act
+git_commit
 ~~~~~
-~~~~~javascript.new
-  // 2. Create state and renderer instances
-  const uiState = await createUIState();
-  const renderer = createRenderer(dom, uiState);
-  const viewCache = new ViewCache();
+~~~~~text
+refactor(ui): modularize ViewCache and IOManager
 
-  let currentRenderId = 0;
+Splits the monolithic `src/ui/index.js` by extracting:
+- `ViewCache`: A standalone class for memory-based LRU paging cache.
+- `IOManager`: A specialized module for JSON/TXT export, downloads, and data imports.
 
-  /**
-   * 预加载当前页的相邻页面。
+This refactoring reduces the complexity of the UI entry point, improves
+separation of concerns, and enables independent unit testing of the
+caching and I/O logic.
+
+Also includes a fix for a ReferenceError caused by the accidental
+deletion of `currentRenderId` during the initial refactor.
 ~~~~~
 
 ### 下一步建议
-
-重新执行测试用例，确认这次修复是否解决了 `ReferenceError`，使得之前的解耦工作正常通过所有测试。
+- **重构 `main.js`**: 现在的 UI 已经变得干净了，但 `main.js` 仍然非常臃肿。下一步可以按照计划，提取 `ChatMonitor` 类来封装底层的 `MutationObserver` 和 DOM 轮询逻辑。
+- **完善测试**: 为新提取出的 `ViewCache` 编写专门的单元测试，确保其 LRU 策略和边界情况处理（如页面大小变动时的处理）是健壮的。
