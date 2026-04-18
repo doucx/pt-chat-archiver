@@ -1,7 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { extractUsefulData, findActiveTabByClass } from '../src/parser.js';
+import { extractServerFromDOM, extractUsefulData, findActiveTabByClass } from '../src/parser.js';
 
 describe('Parser Module', () => {
+  describe('extractServerFromDOM', () => {
+    it('应当能从带有 span 的按钮中提取服务器名', () => {
+      document.body.innerHTML = '<button class="btn-success"><span> Safe Chinese </span></button>';
+      expect(extractServerFromDOM()).toBe('Safe Chinese');
+    });
+
+    it('应当能通过 fallback 提取没有 span 的 Play on 按钮', () => {
+      document.body.innerHTML = '<button class="btn-success">Play on Safe Chinese </button>';
+      expect(extractServerFromDOM()).toBe('Safe Chinese');
+    });
+
+    it('如果没有目标按钮或匹配失败应返回 null', () => {
+      document.body.innerHTML = '<button class="btn-primary">Other</button>';
+      expect(extractServerFromDOM()).toBeNull();
+
+      document.body.innerHTML = '<button class="btn-success">Invalid Text</button>';
+      expect(extractServerFromDOM()).toBeNull();
+    });
+  });
+
   // 模拟窗口环境
   global.window = { location: { hostname: 'pony.town' } };
 
