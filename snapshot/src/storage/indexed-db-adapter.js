@@ -115,14 +115,14 @@ export class IndexedDBAdapter {
     return this._txDone(tx);
   }
 
-  getServers() {
-    if (this.cache.servers) return Promise.resolve([...this.cache.servers]);
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server');
+  async getServers() {
+    if (this.cache.servers) return [...this.cache.servers];
+    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+    const index = store.index('server');
+    const servers = [];
+
+    await new Promise((resolve, reject) => {
       const req = index.openKeyCursor(null, 'nextunique');
-      const servers = [];
       req.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
@@ -130,23 +130,24 @@ export class IndexedDBAdapter {
           cursor.continue();
         } else {
           this.cache.servers = servers;
-          resolve([...servers]);
+          resolve();
         }
       };
       req.onerror = () => reject(req.error);
     });
+    return [...servers];
   }
 
-  getChannels(server) {
-    if (!server) return Promise.resolve([]);
-    if (this.cache.channels[server]) return Promise.resolve([...this.cache.channels[server]]);
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel');
-      const range = IDBKeyRange.bound([server, ''], [server, '\uffff']);
+  async getChannels(server) {
+    if (!server) return [];
+    if (this.cache.channels[server]) return [...this.cache.channels[server]];
+    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+    const index = store.index('server_channel');
+    const range = IDBKeyRange.bound([server, ''], [server, '\uffff']);
+    const channels = [];
+
+    await new Promise((resolve, reject) => {
       const req = index.openKeyCursor(range, 'nextunique');
-      const channels = [];
       req.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
@@ -154,11 +155,12 @@ export class IndexedDBAdapter {
           cursor.continue();
         } else {
           this.cache.channels[server] = channels;
-          resolve([...channels]);
+          resolve();
         }
       };
       req.onerror = () => reject(req.error);
     });
+    return [...channels];
   }
 
   async getChannelCount(server, channel) {
@@ -297,21 +299,19 @@ export class IndexedDBAdapter {
     return this._req(index.getAll(range, limit));
   }
 
-  getLatestMessages(server, channel, limit) {
-    if (!server || !channel) return Promise.resolve([]);
+  async getLatestMessages(server, channel, limit) {
+    if (!server || !channel) return [];
+    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+    const index = store.index('server_channel_time');
+    const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
+    const messages = [];
+
     return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel_time');
-      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-
       const cursorReq = index.openCursor(range, 'prev');
-      const messages = [];
-
       cursorReq.onsuccess = (event) => {
         const cursor = event.target.result;
         if (cursor) {
-          messages.unshift(cursor.value); // 加入队首以保持升序
+          messages.unshift(cursor.value);
           if (messages.length < limit) {
             cursor.continue();
           } else {

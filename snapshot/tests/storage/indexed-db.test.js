@@ -50,15 +50,20 @@ describe('IndexedDBAdapter Logic Tests', () => {
   describe('基础增删改查逻辑', () => {
     it('putMessage 应当调用 store.put 并更新缓存', async () => {
       const msg = { server: 'S1', channel: 'C1', content: 'hello', time: new Date().toISOString() };
-      const mockReq = { onsuccess: null, onerror: null };
+      const mockReq = { onsuccess: null, onerror: null, result: null };
       mockStore.put.mockReturnValue(mockReq);
 
+      // 预设 getServers 会用到的游标 Mock，防止 TypeError
+      mockIndex.openKeyCursor.mockReturnValue({ onsuccess: null });
+
       const promise = adapter.putMessage(msg);
-      mockReq.onsuccess({ target: { result: 'ok' } });
+      mockReq.result = 'ok';
+      mockReq.onsuccess({ target: mockReq });
       await promise;
 
       expect(mockDb.transaction).toHaveBeenCalledWith([STORE_MESSAGES], 'readwrite');
       expect(mockStore.put).toHaveBeenCalledWith(expect.objectContaining({ content: 'hello' }));
+      
       // 验证缓存是否更新
       const servers = await adapter.getServers();
       expect(servers).toContain('S1');
@@ -83,11 +88,12 @@ describe('IndexedDBAdapter Logic Tests', () => {
     });
 
     it('getTotalMessageCount 应当返回 count 请求的结果', async () => {
-      const mockReq = { onsuccess: null };
+      const mockReq = { onsuccess: null, result: null };
       mockStore.count.mockReturnValue(mockReq);
 
       const promise = adapter.getTotalMessageCount();
-      mockReq.onsuccess({ target: { result: 42 } });
+      mockReq.result = 42;
+      mockReq.onsuccess({ target: mockReq });
       const count = await promise;
 
       expect(count).toBe(42);
