@@ -41,7 +41,7 @@ describe('ArchiverMachine (State Machine)', () => {
     it('在已加锁时尝试获取锁，应当标记为 pending', () => {
       machine.tryAcquireScanLock();
       const secondAttempt = machine.tryAcquireScanLock();
-      
+
       expect(secondAttempt).toBe(false);
       expect(machine.isScanning).toBe(true);
       expect(machine.scanPending).toBe(true);
@@ -66,9 +66,9 @@ describe('ArchiverMachine (State Machine)', () => {
     machine.transition(EngineStates.RECORDING);
     machine.tryAcquireScanLock();
     machine.tryAcquireScanLock();
-    
+
     machine.reset();
-    
+
     expect(machine.state).toBe(EngineStates.STOPPED);
     expect(machine.isScanning).toBe(false);
     expect(machine.scanPending).toBe(false);

@@ -25,13 +25,13 @@ export const UI_MESSAGES = {
   NO_RECORDS_IN_CHANNEL: '--- 在频道 [%s] 中没有记录 ---',
   NO_STATS_IN_CHANNEL: '--- 在频道 [%s] 中没有记录可供统计 ---',
   NO_USER_MSGS_FOR_STATS: '--- 在频道 [%s] 中没有可供精细统计的用户消息 ---',
-  
+
   // 加载状态
   LOADING_PREPARE: '⏳ 正在准备读取数据...',
   LOADING_STATS: '⏳ 正在读取统计数据...',
   LOADING_HISTORY: '⏳ 正在读取历史记录...',
   LOADING_BUILDING: '⏳ 数据读取完毕，正在构建文本视图...',
-  
+
   // 报告标题
   STATS_REPORT_HEADER: '--- [%s] 频道统计报告 (分析 %d 条消息) ---',
   TOP_TALKERS_TITLE: '\n\n===== 最活跃用户 (TOP 10) =====\n\n',

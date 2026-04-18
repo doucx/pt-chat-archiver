@@ -5,16 +5,21 @@ describe('Data Transformer (V6 <-> V7)', () => {
   describe('flattenV6State', () => {
     it('处理正常嵌套数据', () => {
       const v6 = {
-        'Server1': {
-          'ChannelA': [
+        Server1: {
+          ChannelA: [
             { content: 'hello', time: 't1' },
-            { content: 'world', time: 't2' }
-          ]
-        }
+            { content: 'world', time: 't2' },
+          ],
+        },
       };
       const flat = flattenV6State(v6);
       expect(flat).toHaveLength(2);
-      expect(flat[0]).toEqual({ content: 'hello', time: 't1', server: 'Server1', channel: 'ChannelA' });
+      expect(flat[0]).toEqual({
+        content: 'hello',
+        time: 't1',
+        server: 'Server1',
+        channel: 'ChannelA',
+      });
       expect(flat[1].server).toBe('Server1');
     });
 
@@ -25,7 +30,7 @@ describe('Data Transformer (V6 <-> V7)', () => {
     });
 
     it('跳过非数组的消息容器', () => {
-      const v6 = { 'S': { 'C': 'not-an-array' } };
+      const v6 = { S: { C: 'not-an-array' } };
       expect(flattenV6State(v6)).toEqual([]);
     });
   });
@@ -35,10 +40,10 @@ describe('Data Transformer (V6 <-> V7)', () => {
       const flat = [
         { content: 'msg1', server: 'S1', channel: 'C1', extra: 'foo' },
         { content: 'msg2', server: 'S1', channel: 'C1' },
-        { content: 'msg3', server: 'S2', channel: 'C2' }
+        { content: 'msg3', server: 'S2', channel: 'C2' },
       ];
       const nested = nestV7Messages(flat);
-      
+
       expect(nested.S1.C1).toHaveLength(2);
       expect(nested.S2.C2).toHaveLength(1);
       // 检查字段剥离：嵌套结果中不应包含冗余的 server/channel 字段
@@ -55,7 +60,7 @@ describe('Data Transformer (V6 <-> V7)', () => {
       const flat = [
         { content: 'good', server: 'S1', channel: 'C1' },
         { content: 'bad', server: 'S1' }, // 缺少 channel
-        { content: 'ugly', channel: 'C1' } // 缺少 server
+        { content: 'ugly', channel: 'C1' }, // 缺少 server
       ];
       const nested = nestV7Messages(flat);
       expect(nested.S1.C1).toHaveLength(1);

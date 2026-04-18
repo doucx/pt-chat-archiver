@@ -291,7 +291,12 @@ export class IndexedDBAdapter {
 
     let range;
     if (lastTime) {
-      range = IDBKeyRange.bound([server, channel, lastTime], [server, channel, '\uffff'], true, false);
+      range = IDBKeyRange.bound(
+        [server, channel, lastTime],
+        [server, channel, '\uffff'],
+        true,
+        false,
+      );
     } else {
       range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
     }

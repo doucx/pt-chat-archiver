@@ -1,5 +1,5 @@
-import { UI_MESSAGES } from '../constants.js';
 import { generateStatisticsText } from '../analysis.js';
+import { UI_MESSAGES } from '../constants.js';
 import { MigrationManager } from '../migrations.js';
 import { getStorageUsageInMB, storageManager } from '../storage/index.js';
 import { formatISOTimeForDisplay } from '../utils.js';
