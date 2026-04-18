@@ -141,7 +141,9 @@ export class ChatMonitor {
               }
             }
           } else {
-            mutation.addedNodes.forEach((node) => this._handleLiveNode(node));
+            for (const node of mutation.addedNodes) {
+              this._handleLiveNode(node);
+            }
           }
         }
       }
