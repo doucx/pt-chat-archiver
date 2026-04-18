@@ -87,10 +87,11 @@ export function generateStatisticsText(messages, channelName) {
   if (filteredMessages.length === 0)
     return UI_MESSAGES.NO_USER_MSGS_FOR_STATS.replace('%s', channelName);
 
-  let output = UI_MESSAGES.STATS_REPORT_HEADER
-    .replace('%s', channelName)
-    .replace('%d', filteredMessages.length) + '\n';
-    
+  let output = `${UI_MESSAGES.STATS_REPORT_HEADER.replace('%s', channelName).replace(
+    '%d',
+    filteredMessages.length,
+  )}\n`;
+
   output += formatTopTalkers(calculateTopTalkers(filteredMessages));
   output += formatHourlyActivity(calculateHourlyActivity(filteredMessages));
   return output;

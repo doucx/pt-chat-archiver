@@ -87,54 +87,42 @@ export class IndexedDBAdapter {
   }
 
   putMessage(msg) {
-    return new Promise((resolve, reject) => {
-      if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
-      this._updateCache(msg, 1);
-      const tx = this._tx([STORE_MESSAGES], 'readwrite');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const request = store.put(msg);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
+    this._updateCache(msg, 1);
+    const store = this._tx([STORE_MESSAGES], 'readwrite').objectStore(STORE_MESSAGES);
+    return this._req(store.put(msg));
   }
 
   putMessages(msgs) {
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readwrite');
-      const store = tx.objectStore(STORE_MESSAGES);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      for (const msg of msgs) {
-        if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
-        this._updateCache(msg, 1);
-        store.put(msg);
-      }
-    });
+    const tx = this._tx([STORE_MESSAGES], 'readwrite');
+    const store = tx.objectStore(STORE_MESSAGES);
+    for (const msg of msgs) {
+      if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
+      this._updateCache(msg, 1);
+      store.put(msg);
+    }
+    return this._txDone(tx);
   }
 
   deleteMessages(ids) {
     if (!ids || ids.length === 0) return Promise.resolve();
-    // 删除后失效计数缓存，强制下次刷新时重算
     this.cache.counts = {};
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readwrite');
-      const store = tx.objectStore(STORE_MESSAGES);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      for (const id of ids) {
-        store.delete(id);
-      }
-    });
+    const tx = this._tx([STORE_MESSAGES], 'readwrite');
+    const store = tx.objectStore(STORE_MESSAGES);
+    for (const id of ids) {
+      store.delete(id);
+    }
+    return this._txDone(tx);
   }
 
-  getServers() {
-    if (this.cache.servers) return Promise.resolve([...this.cache.servers]);
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server');
+  async getServers() {
+    if (this.cache.servers) return [...this.cache.servers];
+    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+    const index = store.index('server');
+    const servers = [];
+
+    await new Promise((resolve, reject) => {
       const req = index.openKeyCursor(null, 'nextunique');
-      const servers = [];
       req.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
@@ -142,23 +130,24 @@ export class IndexedDBAdapter {
           cursor.continue();
         } else {
           this.cache.servers = servers;
-          resolve([...servers]);
+          resolve();
         }
       };
       req.onerror = () => reject(req.error);
     });
+    return [...servers];
   }
 
-  getChannels(server) {
-    if (!server) return Promise.resolve([]);
-    if (this.cache.channels[server]) return Promise.resolve([...this.cache.channels[server]]);
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel');
-      const range = IDBKeyRange.bound([server, ''], [server, '\uffff']);
+  async getChannels(server) {
+    if (!server) return [];
+    if (this.cache.channels[server]) return [...this.cache.channels[server]];
+    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+    const index = store.index('server_channel');
+    const range = IDBKeyRange.bound([server, ''], [server, '\uffff']);
+    const channels = [];
+
+    await new Promise((resolve, reject) => {
       const req = index.openKeyCursor(range, 'nextunique');
-      const channels = [];
       req.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
@@ -166,34 +155,28 @@ export class IndexedDBAdapter {
           cursor.continue();
         } else {
           this.cache.channels[server] = channels;
-          resolve([...channels]);
+          resolve();
         }
       };
       req.onerror = () => reject(req.error);
     });
+    return [...channels];
   }
 
-  getChannelCount(server, channel) {
-    if (!server || !channel) return Promise.resolve(0);
-    // 优先返回缓存
+  async getChannelCount(server, channel) {
+    if (!server || !channel) return 0;
     if (this.cache.counts[server] && this.cache.counts[server][channel] !== undefined) {
-      return Promise.resolve(this.cache.counts[server][channel]);
+      return this.cache.counts[server][channel];
     }
 
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel_time');
-      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-      const countReq = index.count(range);
-      countReq.onsuccess = () => {
-        const count = countReq.result;
-        if (!this.cache.counts[server]) this.cache.counts[server] = {};
-        this.cache.counts[server][channel] = count;
-        resolve(count);
-      };
-      countReq.onerror = () => reject(countReq.error);
-    });
+    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+    const index = store.index('server_channel_time');
+    const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
+    const count = await this._req(index.count(range));
+
+    if (!this.cache.counts[server]) this.cache.counts[server] = {};
+    this.cache.counts[server][channel] = count;
+    return count;
   }
 
   async getMessages(server, channel, page, pageSize, onProgress, offsetOverride) {
@@ -303,44 +286,37 @@ export class IndexedDBAdapter {
 
   getMessagesChunk(server, channel, lastTime, limit = 2000) {
     if (!server || !channel) return Promise.resolve([]);
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel_time');
+    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+    const index = store.index('server_channel_time');
 
-      let range;
-      if (lastTime) {
-        range = IDBKeyRange.bound(
-          [server, channel, lastTime],
-          [server, channel, '\uffff'],
-          true,
-          false,
-        );
-      } else {
-        range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-      }
+    let range;
+    if (lastTime) {
+      range = IDBKeyRange.bound(
+        [server, channel, lastTime],
+        [server, channel, '\uffff'],
+        true,
+        false,
+      );
+    } else {
+      range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
+    }
 
-      const request = index.getAll(range, limit);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    return this._req(index.getAll(range, limit));
   }
 
-  getLatestMessages(server, channel, limit) {
-    if (!server || !channel) return Promise.resolve([]);
+  async getLatestMessages(server, channel, limit) {
+    if (!server || !channel) return [];
+    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+    const index = store.index('server_channel_time');
+    const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
+    const messages = [];
+
     return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const index = store.index('server_channel_time');
-      const range = IDBKeyRange.bound([server, channel, ''], [server, channel, '\uffff']);
-
       const cursorReq = index.openCursor(range, 'prev');
-      const messages = [];
-
       cursorReq.onsuccess = (event) => {
         const cursor = event.target.result;
         if (cursor) {
-          messages.unshift(cursor.value); // 加入队首以保持升序
+          messages.unshift(cursor.value);
           if (messages.length < limit) {
             cursor.continue();
           } else {
@@ -363,52 +339,51 @@ export class IndexedDBAdapter {
   }
 
   /**
-   * 读取所有消息并组装为 V6 嵌套结构。
+   * 包装 IDBRequest 为 Promise
    */
-  loadAllV6() {
+  _req(request) {
     return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const request = store.getAll();
-
-      request.onsuccess = () => {
-        const flatMessages = request.result;
-        const v6State = nestV7Messages(flatMessages);
-        resolve(v6State);
-      };
+      request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
+  }
+
+  /**
+   * 监听事务完成
+   */
+  _txDone(tx) {
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
+  /**
+   * 读取所有消息并组装为 V6 嵌套结构。
+   */
+  async loadAllV6() {
+    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+    const flatMessages = await this._req(store.getAll());
+    return nestV7Messages(flatMessages);
   }
 
   /**
    * 保存完整的 V6 状态。
    * 目前采用全量清理 + 全量写入的策略以保证一致性 (未来可优化为差异更新)。
    */
-  saveAllV6(state) {
+  async saveAllV6(state) {
     this.cache = { servers: null, channels: {}, counts: {} };
-    return new Promise((resolve, reject) => {
-      const flatMessages = flattenV6State(state);
-      const tx = this._tx([STORE_MESSAGES], 'readwrite');
-      const store = tx.objectStore(STORE_MESSAGES);
+    const flatMessages = flattenV6State(state);
+    const tx = this._tx([STORE_MESSAGES], 'readwrite');
+    const store = tx.objectStore(STORE_MESSAGES);
 
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-
-      // 1. 清空当前存储 (简单粗暴但安全的一致性策略)
-      const clearReq = store.clear();
-
-      clearReq.onsuccess = () => {
-        // 2. 批量写入
-        for (const msg of flatMessages) {
-          // 确保每条消息都有 ID
-          if (!msg.id) {
-            msg.id = generateULID(new Date(msg.time).getTime());
-          }
-          store.put(msg);
-        }
-      };
-    });
+    await this._req(store.clear());
+    for (const msg of flatMessages) {
+      if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
+      store.put(msg);
+    }
+    return this._txDone(tx);
   }
 
   /**
@@ -417,27 +392,21 @@ export class IndexedDBAdapter {
    */
   mergeAllV6(state) {
     this.cache = { servers: null, channels: {}, counts: {} };
-    return new Promise((resolve, reject) => {
-      const flatMessages = flattenV6State(state);
-      const tx = this._tx([STORE_MESSAGES], 'readwrite');
-      const store = tx.objectStore(STORE_MESSAGES);
+    const flatMessages = flattenV6State(state);
+    const tx = this._tx([STORE_MESSAGES], 'readwrite');
+    const store = tx.objectStore(STORE_MESSAGES);
 
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-
-      for (const msg of flatMessages) {
-        if (!msg.id) {
-          msg.id = generateULID(new Date(msg.time).getTime());
-        }
-        store.put(msg);
-      }
-    });
+    for (const msg of flatMessages) {
+      if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
+      store.put(msg);
+    }
+    return this._txDone(tx);
   }
 
   /**
    * 获取配置
    */
-  getConfig() {
+  async getConfig() {
     const defaultCfg = {
       pageSize: 1000,
       statsLimit: 5000,
@@ -445,74 +414,54 @@ export class IndexedDBAdapter {
       initDebounceMs: 150,
       cachePages: 5,
     };
-    return new Promise((resolve) => {
-      const tx = this._tx([STORE_CONFIG], 'readonly');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.get('main_config');
-
-      request.onsuccess = () => {
-        resolve(request.result ? { ...defaultCfg, ...request.result.value } : defaultCfg);
-      };
-      request.onerror = () => {
-        resolve(defaultCfg); // 出错降级使用默认值
-      };
-    });
+    try {
+      const store = this._tx([STORE_CONFIG], 'readonly').objectStore(STORE_CONFIG);
+      const result = await this._req(store.get('main_config'));
+      return result ? { ...defaultCfg, ...result.value } : defaultCfg;
+    } catch (e) {
+      return defaultCfg;
+    }
   }
 
   /**
    * 保存配置
    */
   saveConfig(config) {
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_CONFIG], 'readwrite');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.put({ key: 'main_config', value: config });
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    const store = this._tx([STORE_CONFIG], 'readwrite').objectStore(STORE_CONFIG);
+    return this._req(store.put({ key: 'main_config', value: config }));
   }
 
   /**
    * 获取自身昵称 (存储在 config store 的特殊 key 中)
    */
-  getSelfName() {
-    return new Promise((resolve) => {
-      const tx = this._tx([STORE_CONFIG], 'readonly');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.get('self_name');
-      request.onsuccess = () => resolve(request.result ? request.result.value : '');
-      request.onerror = () => resolve('');
-    });
+  async getSelfName() {
+    try {
+      const store = this._tx([STORE_CONFIG], 'readonly').objectStore(STORE_CONFIG);
+      const result = await this._req(store.get('self_name'));
+      return result ? result.value : '';
+    } catch (e) {
+      return '';
+    }
   }
 
   setSelfName(name) {
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_CONFIG], 'readwrite');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.put({ key: 'self_name', value: name.trim() });
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    const store = this._tx([STORE_CONFIG], 'readwrite').objectStore(STORE_CONFIG);
+    return this._req(store.put({ key: 'self_name', value: name.trim() }));
   }
 
-  getLastServer() {
-    return new Promise((resolve) => {
-      const tx = this._tx([STORE_CONFIG], 'readonly');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.get('last_server');
-      request.onsuccess = () => resolve(request.result ? request.result.value : null);
-      request.onerror = () => resolve(null);
-    });
+  async getLastServer() {
+    try {
+      const store = this._tx([STORE_CONFIG], 'readonly').objectStore(STORE_CONFIG);
+      const result = await this._req(store.get('last_server'));
+      return result ? result.value : null;
+    } catch (e) {
+      return null;
+    }
   }
 
   setLastServer(name) {
-    return new Promise((resolve, reject) => {
-      const tx = this._tx([STORE_CONFIG], 'readwrite');
-      const store = tx.objectStore(STORE_CONFIG);
-      const request = store.put({ key: 'last_server', value: name });
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    const store = this._tx([STORE_CONFIG], 'readwrite').objectStore(STORE_CONFIG);
+    return this._req(store.put({ key: 'last_server', value: name }));
   }
 
   /**
@@ -546,14 +495,13 @@ export class IndexedDBAdapter {
   /**
    * 获取数据库中存储的消息总条数。
    */
-  getTotalMessageCount() {
-    return new Promise((resolve) => {
-      const tx = this._tx([STORE_MESSAGES], 'readonly');
-      const store = tx.objectStore(STORE_MESSAGES);
-      const request = store.count();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(0);
-    });
+  async getTotalMessageCount() {
+    try {
+      const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
+      return await this._req(store.count());
+    } catch (e) {
+      return 0;
+    }
   }
 
   // --- Legacy Support ---
