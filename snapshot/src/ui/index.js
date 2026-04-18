@@ -1,4 +1,4 @@
-import { UI_FEEDBACK_DURATION } from '../constants.js';
+import { UI_FEEDBACK_DURATION, UI_MESSAGES } from '../constants.js';
 import { MigrationManager } from '../migrations.js';
 import { storageManager } from '../storage/index.js';
 import { getDOMElements, initDOM } from './dom.js';
@@ -222,7 +222,7 @@ export async function createUI(dataAdapter, appCallbacks) {
         fetchPage = 1;
 
         // stats 模式特殊，绕过分页缓存，全量拉取
-        dom.logDisplay.value = '⏳ 正在准备读取数据...';
+        dom.logDisplay.value = UI_MESSAGES.LOADING_PREPARE;
         await new Promise((resolve) => setTimeout(resolve, 10));
         if (renderId !== currentRenderId) return;
 
@@ -238,7 +238,7 @@ export async function createUI(dataAdapter, appCallbacks) {
             const filled = Math.round(width * percentage);
             const empty = width - filled;
             const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
-            dom.logDisplay.value = `⏳ 正在读取统计数据...\n\n    ${bar} ${Math.round(
+            dom.logDisplay.value = `${UI_MESSAGES.LOADING_STATS}\n\n    ${bar} ${Math.round(
               percentage * 100,
             )}%\n    已读取: ${current} / ${total} 条`;
           },
@@ -252,7 +252,7 @@ export async function createUI(dataAdapter, appCallbacks) {
           messages = viewCache.get(fetchPage); // 零延迟命中！
         } else {
           // 缓存未命中，执行完整 DB 提取生命周期
-          dom.logDisplay.value = '⏳ 正在准备读取数据...';
+          dom.logDisplay.value = UI_MESSAGES.LOADING_PREPARE;
           await new Promise((resolve) => setTimeout(resolve, 10));
           if (renderId !== currentRenderId) return;
 
@@ -268,7 +268,7 @@ export async function createUI(dataAdapter, appCallbacks) {
               const filled = Math.round(width * percentage);
               const empty = width - filled;
               const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
-              dom.logDisplay.value = `⏳ 正在读取历史记录...\n\n    ${bar} ${Math.round(percentage * 100)}%\n    已读取: ${current} / ${total} 条`;
+              dom.logDisplay.value = `${UI_MESSAGES.LOADING_HISTORY}\n\n    ${bar} ${Math.round(percentage * 100)}%\n    已读取: ${current} / ${total} 条`;
             },
           );
 
@@ -281,7 +281,7 @@ export async function createUI(dataAdapter, appCallbacks) {
           viewCache.set(fetchPage, messages); // 存入缓存
 
           // 过渡状态
-          dom.logDisplay.value = '⏳ 数据读取完毕，正在构建文本视图...';
+          dom.logDisplay.value = UI_MESSAGES.LOADING_BUILDING;
           await new Promise((resolve) => setTimeout(resolve, 10));
         }
       }

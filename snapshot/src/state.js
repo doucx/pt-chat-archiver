@@ -1,3 +1,4 @@
+import { UI_MESSAGES } from './constants.js';
 import { generateULID, getISOTimestamp } from './utils.js';
 
 /**
@@ -125,7 +126,7 @@ export function mergeAndDeduplicateMessages(oldMessages, newMessages) {
       type: 'system',
       sender: 'Archiver',
       receiver: 'System',
-      content: '[警告 - 此处可能存在记录丢失]',
+      content: UI_MESSAGES.DISCONTINUITY_MARK,
       is_archiver: true,
     };
 

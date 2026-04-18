@@ -43,9 +43,12 @@ export function generateULID(seedTime = Date.now()) {
     time = Math.floor(time / ENCODING_LEN);
   }
 
+  const randomValues = new Uint8Array(16);
+  crypto.getRandomValues(randomValues);
   let randomChars = '';
   for (let i = 0; i < 16; i++) {
-    randomChars += ENCODING.charAt(Math.floor(Math.random() * ENCODING_LEN));
+    // 256 是 32 (ENCODING_LEN) 的倍数，因此取模分布是均匀的
+    randomChars += ENCODING.charAt(randomValues[i] % ENCODING_LEN);
   }
 
   return timeChars + randomChars;

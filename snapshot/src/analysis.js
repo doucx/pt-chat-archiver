@@ -1,3 +1,4 @@
+import { UI_MESSAGES } from './constants.js';
 import { formatISOTimeForDisplay, getISOTimestamp } from './utils.js';
 
 /**
@@ -42,7 +43,7 @@ export function calculateHourlyActivity(messages) {
 
 function formatTopTalkers(results) {
   const { data, total } = results;
-  const text = '\n\n===== 最活跃用户 (TOP 10) =====\n\n';
+  const text = UI_MESSAGES.TOP_TALKERS_TITLE;
   if (data.length === 0 || total === 0) return `${text}无用户发言记录。`;
   return (
     text +
@@ -58,7 +59,7 @@ function formatTopTalkers(results) {
 
 function formatHourlyActivity(results) {
   const { data, total } = results;
-  const text = '\n\n===== 聊天峰值时间段 =====\n\n';
+  const text = UI_MESSAGES.HOURLY_ACTIVITY_TITLE;
   if (data.length === 0 || total === 0) return `${text}无有效时间记录。`;
   return (
     text +
@@ -81,11 +82,15 @@ function formatHourlyActivity(results) {
  */
 export function generateStatisticsText(messages, channelName) {
   if (!messages || messages.length === 0)
-    return `--- 在频道 [${channelName}] 中没有记录可供统计 ---`;
+    return UI_MESSAGES.NO_STATS_IN_CHANNEL.replace('%s', channelName);
   const filteredMessages = messages.filter((msg) => !msg.is_fallback && !msg.is_archiver);
   if (filteredMessages.length === 0)
-    return `--- 在频道 [${channelName}] 中没有可供精细统计的用户消息 ---`;
-  let output = `--- [${channelName}] 频道统计报告 (分析 ${filteredMessages.length} 条消息) ---\n`;
+    return UI_MESSAGES.NO_USER_MSGS_FOR_STATS.replace('%s', channelName);
+
+  let output = UI_MESSAGES.STATS_REPORT_HEADER
+    .replace('%s', channelName)
+    .replace('%d', filteredMessages.length) + '\n';
+    
   output += formatTopTalkers(calculateTopTalkers(filteredMessages));
   output += formatHourlyActivity(calculateHourlyActivity(filteredMessages));
   return output;

@@ -1,3 +1,4 @@
+import { UI_MESSAGES } from '../constants.js';
 import { generateStatisticsText } from '../analysis.js';
 import { MigrationManager } from '../migrations.js';
 import { getStorageUsageInMB, storageManager } from '../storage/index.js';
@@ -192,7 +193,7 @@ export function createRenderer(dom, uiState) {
         dom.logDisplay.value =
           messages.length > 0
             ? messages.map(formatMessageForDisplay).join('\n')
-            : `--- 在频道 [${selectedChannel}] 中没有记录 ---`;
+            : UI_MESSAGES.NO_RECORDS_IN_CHANNEL.replace('%s', selectedChannel);
       });
 
       // 如果处于吸附模式，确保滚动到底部
