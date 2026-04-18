@@ -24,6 +24,8 @@ export async function createUI(dataAdapter, appCallbacks) {
   const renderer = createRenderer(dom, uiState);
   const viewCache = new ViewCache();
 
+  let currentRenderId = 0;
+
   /**
    * 预加载当前页的相邻页面。
    * 采用静默加载模式，不触发 UI 状态更新。
