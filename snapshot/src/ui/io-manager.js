@@ -88,7 +88,11 @@ export function createIOManager({ dom, dataAdapter, appCallbacks, refreshView })
       reader.onload = async (event) => {
         try {
           const importedData = JSON.parse(event.target.result);
-          if (typeof importedData !== 'object' || importedData === null || Array.isArray(importedData)) {
+          if (
+            typeof importedData !== 'object' ||
+            importedData === null ||
+            Array.isArray(importedData)
+          ) {
             throw new Error('无效的存档格式：根节点必须是一个对象。');
           }
 
@@ -126,7 +130,11 @@ export function createIOManager({ dom, dataAdapter, appCallbacks, refreshView })
       reader.onload = async (event) => {
         try {
           const importedData = JSON.parse(event.target.result);
-          if (typeof importedData !== 'object' || importedData === null || Array.isArray(importedData)) {
+          if (
+            typeof importedData !== 'object' ||
+            importedData === null ||
+            Array.isArray(importedData)
+          ) {
             throw new Error('无效的存档格式。');
           }
 
