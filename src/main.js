@@ -3,6 +3,7 @@ import { scanAllDuplicatesAsync } from './analysis.js';
 import { SELF_NAME_KEY } from './constants.js';
 import { EngineStates, engineMachine } from './machine.js';
 import { MigrationManager } from './migrations.js';
+import { ChatMonitor } from './monitor.js';
 import {
   extractServerFromDOM,
   extractUsefulData,
@@ -13,7 +14,6 @@ import { getSyntheticChannelName, mergeAndDeduplicateMessages } from './state.js
 import { storageManager } from './storage/index.js';
 import { createUI } from './ui/index.js';
 import { generateULID } from './utils.js';
-import { ChatMonitor } from './monitor.js';
 import { debounce, getISOTimestamp } from './utils.js';
 
 (async () => {
@@ -162,7 +162,10 @@ import { debounce, getISOTimestamp } from './utils.js';
         await storageManager.setLastServer(server); // 持久化缓存
 
         if (uiControls) {
-          uiControls.updateRecordingStatus(detectedServerName, chatMonitor ? chatMonitor.currentActiveChannel : null);
+          uiControls.updateRecordingStatus(
+            detectedServerName,
+            chatMonitor ? chatMonitor.currentActiveChannel : null,
+          );
         }
 
         // 检查并触发交互式迁移 (如 v5 -> v6)
