@@ -1,7 +1,7 @@
 {
   "name": "pt-chat-archiver",
   "private": true,
-  "version": "7.9.0",
+  "version": "7.10.0dev",
   "type": "module",
   "scripts": {
     "dev": "vite",
