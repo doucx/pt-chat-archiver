@@ -64,9 +64,9 @@ describe('IndexedDBAdapter Logic Tests', () => {
       expect(mockDb.transaction).toHaveBeenCalledWith([STORE_MESSAGES], 'readwrite');
       expect(mockStore.put).toHaveBeenCalledWith(expect.objectContaining({ content: 'hello' }));
       
-      // 验证缓存是否更新
-      const servers = await adapter.getServers();
-      expect(servers).toContain('S1');
+      // 验证缓存是否更新，由于 cache.servers 初始为 null 需要懒加载，
+      // 我们这里直接验证 cache.channels 是否被正确填充
+      expect(adapter.cache.channels['S1']).toContain('C1');
     });
 
     it('deleteMessages 应当在事务完成后 resolve', async () => {

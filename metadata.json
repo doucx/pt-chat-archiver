@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(storage): 完成 IDB 适配器重构并修复单元测试", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776474721.2113352, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(storage): 修复测试中的游标等待超时", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776474940.0506575, "duration_ms": 0}}
