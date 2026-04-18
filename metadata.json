@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] refactor: 将 DOM 监听逻辑从 main.js 解耦至 ChatMonitor 类", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776475332.0999467, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test: 为 ChatMonitor 编写单元测试并优化状态机", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776475390.634498, "duration_ms": 0}}
