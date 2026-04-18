@@ -17,3 +17,23 @@ export const MAIN_SERVER_HOSTS = ['pony.town'];
 
 // UI 交互反馈显示时长 (毫秒)
 export const UI_FEEDBACK_DURATION = 1500;
+
+// 统一 UI 提示文本
+export const UI_MESSAGES = {
+  // 状态与警告
+  DISCONTINUITY_MARK: '[警告 - 此处可能存在记录丢失]',
+  NO_RECORDS_IN_CHANNEL: '--- 在频道 [%s] 中没有记录 ---',
+  NO_STATS_IN_CHANNEL: '--- 在频道 [%s] 中没有记录可供统计 ---',
+  NO_USER_MSGS_FOR_STATS: '--- 在频道 [%s] 中没有可供精细统计的用户消息 ---',
+  
+  // 加载状态
+  LOADING_PREPARE: '⏳ 正在准备读取数据...',
+  LOADING_STATS: '⏳ 正在读取统计数据...',
+  LOADING_HISTORY: '⏳ 正在读取历史记录...',
+  LOADING_BUILDING: '⏳ 数据读取完毕，正在构建文本视图...',
+  
+  // 报告标题
+  STATS_REPORT_HEADER: '--- [%s] 频道统计报告 (分析 %d 条消息) ---',
+  TOP_TALKERS_TITLE: '\n\n===== 最活跃用户 (TOP 10) =====\n\n',
+  HOURLY_ACTIVITY_TITLE: '\n\n===== 聊天峰值时间段 =====\n\n',
+};
