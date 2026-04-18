@@ -34,6 +34,18 @@ export class ArchiverMachine {
     return this.state === EngineStates.STARTING;
   }
 
+  isStopped() {
+    return this.state === EngineStates.STOPPED;
+  }
+
+  isRecording() {
+    return this.state === EngineStates.RECORDING;
+  }
+
+  isTabSwitching() {
+    return this.state === EngineStates.TAB_SWITCHING;
+  }
+
   // --- 异步并发锁管理 ---
 
   tryAcquireScanLock() {
