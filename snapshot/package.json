@@ -27,6 +27,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
+    "@preact/signals": "^2.9.0",
     "preact": "^10.29.1"
   }
 }
