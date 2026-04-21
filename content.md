@@ -1,220 +1,342 @@
-## [WIP] refactor: 开启 Preact 重构 - 阶段二：状态层 (State) 响应式改造
+## [WIP] feat: 开启 Preact 重构 - 阶段三：原子组件拆分
 
 ### 用户需求
-根据重构路线图，执行阶段二任务：用 Preact Signals 替换原有的 Vanilla JS 状态管理（`ui/state.js`）。同时不破坏现有基于 Vanilla JS 的事件和渲染器，以保证重构过程中的平滑过渡。
+按照路线图，将 `templates.js` 中的巨型 HTML 字符串解构为声明式的 Preact 组件。重点实现 `Header`、`Pagination` 和 `LogViewer` 核心组件，并让它们直接驱动已建立的 `Signals`。
 
 ### 评论
-这是一种“外观模式（Facade Pattern）”的绝佳应用。我们将 `src/ui/state.js` 重写为一个代理对象，它的所有 `get` 和 `set` 方法都在底层操作 `@preact/signals`。这样，`renderer.js` 和 `events.js` 完全察觉不到底层状态引擎已经换成了响应式的 Signal，而我们可以顺理成章地将数据状态暴露给即将到来的 Preact 组件。
+从命令式 DOM 字符串跳转到声明式 JSX 是重构中最具获得感的一步。我们现在可以利用 Preact 的条件渲染逻辑（如 `{isReadOnly && <Indicator />}`）来替代之前繁琐的 `classList.toggle` 和 `style.display` 手动修改。由于底层状态已经通过 Signals 响应式化，这些组件在编写时几乎不需要考虑“何时更新”的问题，只需关注“如何展示”。
 
 ### 目标
-1.  创建 `src/ui/store/dataStore.js` 存放共享数据流（服务器列表、频道列表、当前消息等）。
-2.  重写 `src/ui/state.js`，让它成为 `uiStore.js` 的门面代理。
-3.  在 `src/ui/index.js` 的 `refreshView` 核心流程中，将提取到的数据实时同步给 `dataStore` 的 Signals，从而“桥接”新旧两个世界。
+1.  创建 `Header.jsx`：包含频道选择、录制状态展示及顶部控制按钮组。
+2.  创建 `Pagination.jsx`：实现分页导航逻辑，支持锁定到底部模式。
+3.  创建 `LogViewer.jsx`：封装日志显示区域，处理复杂的 `textarea` 自动滚动和只读提示逻辑。
+4.  组装 `App.jsx`：将上述组件缝合进主应用容器。
 
 ### 基本原理
-通过分离 UI 状态 (`uiStore`) 和数据状态 (`dataStore`)，我们构建了清晰的单向数据流。目前 `refreshView` 作为传统的 Controller 存在，它拉取数据后不仅调用 `renderer.render()`（驱动旧版 DOM），还更新 `dataStore` 的 Signals（驱动新版 Preact）。这为我们在阶段三引入组件提供了完美的数据源。
+我们将 `templates.js` 中的静态 HTML 块转化为接收 `Props` 或直接订阅 `Store` 的活性组件。
+*   **Header**：通过 `selectedChannel.value` 同步下拉框状态。
+*   **Pagination**：根据 `isLockedToBottom.value` 的变化自动切换按钮的高亮类名。
+*   **LogViewer**：利用 `useMemo` 缓存格式化后的日志字符串，避免每次状态微调都重新 join 几千行文本，从而保证性能。
 
 ### 标签
-#intent/refine #flow/ready #priority/high
-#comp/ui #concept/state #scope/core
+#intent/build #flow/ready #priority/high 
+#comp/ui #concept/ui #concept/parser #scope/ux 
 #ai/delegate
-#task/domain/ui #task/object/preact-refactor #task/action/state-migration
+#task/domain/ui #task/object/preact-refactor #task/action/component-split 
 #task/state/continue #task/status/active
 
 ---
 
 ### Script
 
-#### Acts 1: 创建共享数据流 Store
+#### Acts 1: 创建顶部 Header 组件
 
-我们需要一个地方来集中存放从 IndexedDB 提取出的数据阵列。这些将作为 Preact 组件的直接数据源。
-
-~~~~~act
-write_file
-src/ui/store/dataStore.js
-~~~~~
-~~~~~javascript
-import { signal } from '@preact/signals';
-
-// --- 共享的数据状态 ---
-export const serverList = signal([]);
-export const channelList = signal([]);
-export const channelCounts = signal({});
-export const currentMessages = signal([]);
-export const totalCount = signal(0);
-~~~~~
-
-#### Acts 2: 桥接旧版控制器与响应式系统
-
-在 `index.js` 中引入 `dataStore`，并在每次提取数据后同步到 Signals。
-
-~~~~~act
-patch_file
-src/ui/index.js
-~~~~~
-~~~~~javascript.old
-import { createUIState } from './state.js';
-import { ViewCache } from './view-cache.js';
-~~~~~
-~~~~~javascript.new
-import { createUIState } from './state.js';
-import { serverList as serverListSig, channelList as channelListSig, channelCounts as channelCountsSig, currentMessages, totalCount as totalCountSig } from './store/dataStore.js';
-import { ViewCache } from './view-cache.js';
-~~~~~
-
-~~~~~act
-patch_file
-src/ui/index.js
-~~~~~
-~~~~~javascript.old
-    const context = {
-      serverList,
-      channelList,
-      channelCounts,
-      messages,
-      totalCount,
-      selectedChannel, // 显式传递经过控制器校验的选中状态
-    };
-
-    renderer.render(context, uiCallbacks);
-~~~~~
-~~~~~javascript.new
-    const context = {
-      serverList,
-      channelList,
-      channelCounts,
-      messages,
-      totalCount,
-      selectedChannel, // 显式传递经过控制器校验的选中状态
-    };
-
-    // [Bridge] 同步数据到 Preact Signals，为即将到来的组件化供电
-    serverListSig.value = serverList;
-    channelListSig.value = channelList;
-    channelCountsSig.value = channelCounts;
-    currentMessages.value = messages;
-    totalCountSig.value = totalCount;
-
-    renderer.render(context, uiCallbacks);
-~~~~~
-
-#### Acts 3: 响应式改造 state.js (门面模式)
-
-完全重写 `ui/state.js`，将原本的闭包状态替换为对 `uiStore.js` 响应式节点的访问。这使得现有代码无需修改即可接入响应式生态。
+`Header` 负责全局导航和录制状态的实时反馈。
 
 ~~~~~act
 write_file
-src/ui/state.js
+src/ui/components/Header.jsx
 ~~~~~
-~~~~~javascript
-import { storageManager } from '../storage/index.js';
-import { 
-  currentPage, pageSize, statsLimit, readChunkSize, initDebounceMs, cachePages,
-  autoFollowServer, totalPages, viewMode, isLockedToBottom, isUIPaused,
-  activeServer, recordedChannel, viewingServer, selectedChannel, lastServer,
-  updateConfig, initStore
-} from './store/uiStore.js';
+~~~~~jsx
+import { viewMode, isUIPaused, activeServer, recordedChannel, viewingServer, selectedChannel, lastServer, isReadOnly } from '../store/uiStore';
+import { channelList, channelCounts } from '../store/dataStore';
+
+export function Header({ callbacks }) {
+  const handleToggleView = (mode) => {
+    viewMode.value = viewMode.value === mode ? 'log' : mode;
+  };
+
+  const handleResetServer = () => {
+    if (activeServer.value) viewingServer.value = activeServer.value;
+  };
+
+  const renderStatus = () => {
+    if (!activeServer.value) {
+      return (
+        <span style={{ fontSize: '0.85em' }}>
+          等待进入游戏... {lastServer.value && <span className="info-text-dim">(上个: {lastServer.value})</span>}
+        </span>
+      );
+    }
+    if (!isReadOnly.value) {
+      return (
+        <span style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em' }}>
+          ✅ 正在记录: {activeServer.value}{recordedChannel.value ? `::${recordedChannel.value}` : ''}
+        </span>
+      );
+    }
+    return (
+      <span style={{ color: 'var(--color-text-dim)', fontSize: '0.85em' }}>
+        📖 浏览存档: {viewingServer.value}
+      </span>
+    );
+  };
+
+  return (
+    <div id="log-archive-ui-header">
+      <div id="log-archive-ui-controls" style={{ width: '100%', justifyContent: 'space-between', display: 'flex' }}>
+        <select 
+          id="log-archive-channel-selector" 
+          className="log-archive-ui-button" 
+          style={{ flexGrow: 1, marginRight: '10px' }}
+          value={selectedChannel.value}
+          onChange={(e) => selectedChannel.value = e.target.value}
+        >
+          {channelList.value.length === 0 ? (
+            <option value="">无记录</option>
+          ) : (
+            channelList.value.map(ch => (
+              <option key={ch} value={ch}>{ch} ({channelCounts.value[ch] || 0})</option>
+            ))
+          )}
+        </select>
+
+        <div style={{ display: 'flex', gap: '5px' }}>
+          {isReadOnly.value && (
+            <button className="log-archive-ui-button" title="回到正在记录的服务器" onClick={handleResetServer}>📍</button>
+          )}
+          {!isReadOnly.value && (
+            <button 
+              className={`log-archive-ui-button ${isUIPaused.value ? 'paused' : ''}`} 
+              title="暂停/恢复录制"
+              onClick={() => isUIPaused.value = !isUIPaused.value}
+            >
+              {isUIPaused.value ? '▶️ ' : '⏸️ '}
+            </button>
+          )}
+          <button 
+            className={`log-archive-ui-button ${viewMode.value === 'stats' ? 'active' : ''}`} 
+            title="数据统计"
+            onClick={() => handleToggleView('stats')}
+          >
+            {viewMode.value === 'stats' ? '📜' : '📊'}
+          </button>
+          <button 
+            className={`log-archive-ui-button ${viewMode.value === 'config' ? 'active' : ''}`} 
+            title="设置"
+            onClick={() => handleToggleView('config')}
+          >
+            ⚙️
+          </button>
+          <button className="log-archive-ui-button" title="复制当前页内容" onClick={callbacks.copyCurrentPage}>📋</button>
+          <button className="log-archive-ui-button" title="关闭界面" onClick={callbacks.closeUI}>❌</button>
+        </div>
+      </div>
+      <div id="log-archive-server-status" style={{ marginTop: '5px', textAlign: 'center' }}>
+        {renderStatus()}
+      </div>
+    </div>
+  );
+}
+~~~~~
+
+#### Acts 2: 创建分页导航组件
+
+`Pagination` 组件直接操纵页码 Signal，并根据当前状态自动禁用按钮。
+
+~~~~~act
+write_file
+src/ui/components/Pagination.jsx
+~~~~~
+~~~~~jsx
+import { currentPage, totalPages, isLockedToBottom } from '../store/uiStore';
+
+export function Pagination() {
+  const isFirst = currentPage.value === 1;
+  const isLast = currentPage.value === totalPages.value;
+
+  const goToPage = (p) => {
+    isLockedToBottom.value = false;
+    currentPage.value = Math.max(1, Math.min(p, totalPages.value));
+  };
+
+  const toggleLock = () => {
+    if (!isLast) {
+      currentPage.value = totalPages.value;
+    }
+    isLockedToBottom.value = !isLockedToBottom.value;
+  };
+
+  return (
+    <div id="log-archive-ui-pagination-controls" style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexShrink: 0 }}>
+      <button className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(1)}>«</button>
+      <button className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(currentPage.value - 1)}>‹</button>
+      <span className="info-text-primary">{currentPage.value} / {totalPages.value}</span>
+      <button className="log-archive-ui-button" disabled={isLast} onClick={() => goToPage(currentPage.value + 1)}>›</button>
+      <button 
+        className={`log-archive-ui-button ${isLockedToBottom.value ? 'active' : ''}`} 
+        disabled={isLast && isLockedToBottom.value}
+        onClick={toggleLock}
+        title={isLockedToBottom.value ? "已锁定末尾" : "跳转并锁定到末尾"}
+      >
+        »
+      </button>
+    </div>
+  );
+}
+~~~~~
+
+#### Acts 3: 创建日志显示区域组件
+
+`LogViewer` 包含只读提示和核心文本框。这里我们使用 `useRef` 来接管原有的滚动高度逻辑。
+
+~~~~~act
+write_file
+src/ui/components/LogViewer.jsx
+~~~~~
+~~~~~jsx
+import { useMemo, useRef, useEffect } from 'preact/hooks';
+import { currentMessages } from '../store/dataStore';
+import { selectedChannel, isReadOnly, isLockedToBottom, currentPage, totalPages, isUIPaused } from '../store/uiStore';
+import { UI_MESSAGES } from '../../constants.js';
+import { formatMessageForDisplay } from '../renderer.js';
+import { Pagination } from './Pagination';
+
+export function LogViewer() {
+  const textareaRef = useRef(null);
+
+  // 性能优化：仅当消息列表改变时才重新生成巨型字符串
+  const displayText = useMemo(() => {
+    if (currentMessages.value.length === 0) {
+      return UI_MESSAGES.NO_RECORDS_IN_CHANNEL.replace('%s', selectedChannel.value);
+    }
+    return currentMessages.value.map(formatMessageForDisplay).join('\n');
+  }, [currentMessages.value, selectedChannel.value]);
+
+  // 自动滚动处理
+  useEffect(() => {
+    if (isLockedToBottom.value && currentPage.value === totalPages.value && textareaRef.current) {
+      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    }
+  }, [displayText, isLockedToBottom.value, currentPage.value, totalPages.value]);
+
+  const handleScroll = (e) => {
+    const el = e.target;
+    if (displayText.startsWith('⏳')) return;
+
+    const threshold = 10;
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+
+    if (isLockedToBottom.value && !isAtBottom) {
+      isLockedToBottom.value = false;
+    } else if (!isLockedToBottom.value && isAtBottom && currentPage.value === totalPages.value) {
+      isLockedToBottom.value = true;
+    }
+  };
+
+  const handleMouseDown = () => {
+    if (!isUIPaused.value) {
+      isUIPaused.value = true;
+    }
+  };
+
+  return (
+    <div id="log-archive-log-view" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {isReadOnly.value && <div className="readonly-pill">只读存档模式</div>}
+      <Pagination />
+      <textarea 
+        ref={textareaRef}
+        id="log-archive-ui-log-display" 
+        readOnly 
+        style={{ marginTop: '10px', flexGrow: 1 }}
+        value={displayText}
+        onScroll={handleScroll}
+        onMouseDown={handleMouseDown}
+      />
+    </div>
+  );
+}
+~~~~~
+
+#### Acts 4: 组装 App.jsx
+
+最后，我们将各原子组件组装进主架构，并预留 `ConfigPanel` 的位置。
+
+~~~~~act
+patch_file
+src/ui/App.jsx
+~~~~~
+~~~~~jsx.old
+import { useEffect } from 'preact/hooks';
+import { viewMode, isReadOnly } from './store/uiStore';
 
 /**
- * Creates and manages the UI's internal state.
- * (Currently acting as a backwards-compatible Facade for Preact Signals)
- * @returns {Promise<object>} A promise that resolves to a UI state manager instance.
+ * PT Chat Archiver 根组件
+ * 负责分发路由和管理全局容器样式
  */
-export async function createUIState() {
-  await initStore();
+export function App({ dataAdapter, appCallbacks }) {
+  return (
+    <div className={`log-archive-app-root ${isReadOnly.value ? 'is-readonly' : ''}`}>
+      {/* 
+          后续将在此处组装组件：
+          <Header />
+          <ViewContainer>
+             {viewMode.value === 'log' && <LogViewer />}
+             {viewMode.value === 'config' && <ConfigPanel />}
+             {viewMode.value === 'stats' && <StatsView />}
+          </ViewContainer>
+      */}
+      <div style={{ padding: '20px', color: 'white' }}>
+        <h2>Preact Engine Ready</h2>
+        <p>Current View: {viewMode.value}</p>
+        <p>Status: {isReadOnly.value ? 'ReadOnly' : 'Recording'}</p>
+        <button onClick={() => viewMode.value = viewMode.value === 'log' ? 'config' : 'log'}>
+          Toggle View (Signal Test)
+        </button>
+      </div>
+    </div>
+  );
+}
+~~~~~
+~~~~~jsx
+import { viewMode, isReadOnly } from './store/uiStore';
+import { Header } from './components/Header';
+import { LogViewer } from './components/LogViewer';
 
-  return {
-    getState: () => ({
-      currentPage: currentPage.value,
-      pageSize: pageSize.value,
-      statsLimit: statsLimit.value,
-      readChunkSize: readChunkSize.value,
-      initDebounceMs: initDebounceMs.value,
-      cachePages: cachePages.value,
-      autoFollowServer: autoFollowServer.value,
-      lastSavedTime: null,
-      totalPages: totalPages.value,
-      viewMode: viewMode.value,
-      isLockedToBottom: isLockedToBottom.value,
-      isUIPaused: isUIPaused.value,
-      activeServer: activeServer.value,
-      recordedChannel: recordedChannel.value,
-      viewingServer: viewingServer.value,
-      selectedChannel: selectedChannel.value,
-      lastServer: lastServer.value,
-    }),
-
-    setPage: (page) => { 
-      currentPage.value = Math.max(1, Math.min(page, totalPages.value)); 
+export function App({ dataAdapter, appCallbacks }) {
+  // 定义桥接到 UI 外部的回调
+  const callbacks = {
+    closeUI: () => {
+      const container = document.getElementById('log-archive-ui-container');
+      if (container) container.style.display = 'none';
     },
-    setTotalPages: (total) => { 
-      totalPages.value = Math.max(1, total); 
-    },
-    setViewMode: (mode) => { 
-      if (['log', 'stats', 'config'].includes(mode)) {
-        viewMode.value = mode; 
+    copyCurrentPage: () => {
+      const display = document.getElementById('log-archive-ui-log-display');
+      if (display?.value) {
+        navigator.clipboard.writeText(display.value);
+        // 这里可以添加更优雅的 Preact Toast 反馈
       }
-    },
-    setPageSize: async (size) => {
-      const val = Number.parseInt(size, 10);
-      if (!Number.isNaN(val) && val >= 10) await updateConfig('pageSize', val);
-    },
-    setStatsLimit: async (limit) => {
-      const val = Number.parseInt(limit, 10);
-      if (!Number.isNaN(val) && val >= 100) await updateConfig('statsLimit', val);
-    },
-    setReadChunkSize: async (size) => {
-      const val = Number.parseInt(size, 10);
-      if (!Number.isNaN(val) && val >= 50) await updateConfig('readChunkSize', val);
-    },
-    setInitDebounceMs: async (ms) => {
-      const val = Number.parseInt(ms, 10);
-      if (!Number.isNaN(val) && val >= 50) await updateConfig('initDebounceMs', val);
-    },
-    setCachePages: async (pages) => {
-      const val = Number.parseInt(pages, 10);
-      if (!Number.isNaN(val) && val >= 1) await updateConfig('cachePages', val);
-    },
-    setAutoFollowServer: async (enabled) => {
-      await updateConfig('autoFollowServer', !!enabled);
-    },
-    setLastSavedTime: (isoString) => {
-      // Legacy
-    },
-    togglePause: () => { 
-      isUIPaused.value = !isUIPaused.value; 
-      return isUIPaused.value; 
-    },
-    setLockedToBottom: (locked) => { 
-      isLockedToBottom.value = !!locked; 
-    },
-    forcePause: (paused) => { 
-      isUIPaused.value = paused; 
-    },
-    setRecordingStatus: (serverName, channelName) => {
-      activeServer.value = serverName;
-      recordedChannel.value = channelName;
-      if (serverName) {
-        lastServer.value = serverName;
-        storageManager.setLastServer(serverName); // 立即持久化
-      }
-      if (autoFollowServer.value || !viewingServer.value) {
-        viewingServer.value = serverName;
-      }
-    },
-    setViewingServer: (serverName) => { 
-      viewingServer.value = serverName; 
-    },
-    setSelectedChannel: (channel) => { 
-      selectedChannel.value = channel; 
-    },
-    getSelfName: async () => await storageManager.getSelfName(),
-    setSelfName: async (name) => await storageManager.setSelfName(name),
+    }
   };
+
+  return (
+    <div 
+      className={`log-archive-app-root ${isReadOnly.value ? 'is-readonly' : ''}`}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}
+    >
+      <Header callbacks={callbacks} />
+      
+      <div id="log-archive-view-container" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {viewMode.value === 'log' && <LogViewer />}
+        {viewMode.value === 'config' && (
+          <div style={{ padding: '20px', color: '#ccc' }}>
+            <h3>Config Panel (In Progress)</h3>
+            <p>正在重构配置面板组件...</p>
+          </div>
+        )}
+        {viewMode.value === 'stats' && (
+          <div style={{ padding: '20px', color: '#ccc' }}>
+            <h3>Statistics View (In Progress)</h3>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 ~~~~~
 
 ### 下一步建议
-通过门面模式，我们已经成功将响应式引擎埋入了系统的深处，而完全没有破坏旧的运行逻辑。
-
-现在我们可以正式进入 **阶段三：原子组件拆分**。我们将从简单的组件开始，依次创建 `Header.jsx`, `Pagination.jsx`, `ConfigPanel.jsx` 等，逐步将 `templates.js` 中的巨型字符串拆分成可维护的模块，并让它们直接订阅和修改我们刚建立的 `Signals` 状态。
+我们已经完成了核心查看页面的重构。接下来的任务是：
+1.  **实现 `ConfigPanel.jsx`**：这是 `templates.js` 中最臃肿的部分，包含大量的输入框和按钮逻辑。
+2.  **实现 `StatsView.jsx`**：将统计报告的文本生成逻辑也迁移为组件。
+3.  **全面接管渲染**：在 `index.js` 中将 Preact 挂载到真实的 `#log-archive-ui-container` 中，并开始有计划地删除旧的 `renderer.js` 和 `templates.js`。
