@@ -2,7 +2,12 @@ import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
 import { createUI } from '../src/ui/index.jsx';
-import { currentPage, isLockedToBottom, loadingMessage, viewMode } from '../src/ui/store/uiStore.js';
+import {
+  currentPage,
+  isLockedToBottom,
+  loadingMessage,
+  viewMode,
+} from '../src/ui/store/uiStore.js';
 import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
@@ -24,7 +29,7 @@ const createMockAdapter = (state) => ({
   getMessages: async (server, channel, page, pageSize, onProgress, offsetOverride) => {
     const list = state[server]?.[channel] || [];
     const start = offsetOverride !== undefined ? offsetOverride : (page - 1) * pageSize;
-    
+
     // 如果是请求统计数据，模拟进度回调
     if (onProgress) {
       onProgress(Math.floor(pageSize / 2), pageSize);
@@ -190,7 +195,11 @@ describe('UI Integration Smoke Tests', () => {
 
     // 模拟向上滚动：手动 mock DOM 属性
     Object.defineProperty(logDisplay, 'scrollHeight', { value: 1000, configurable: true });
-    Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true, writable: true });
+    Object.defineProperty(logDisplay, 'scrollTop', {
+      value: 200,
+      configurable: true,
+      writable: true,
+    });
     Object.defineProperty(logDisplay, 'clientHeight', { value: 500, configurable: true });
 
     fireEvent.scroll(logDisplay);
@@ -211,7 +220,9 @@ describe('UI Integration Smoke Tests', () => {
 
     // 1. 设置延迟，拦截 getMessages
     let resolveDelay;
-    global.__test_delay_promise = new Promise((r) => { resolveDelay = r; });
+    global.__test_delay_promise = new Promise((r) => {
+      resolveDelay = r;
+    });
 
     // 2. 触发统计分析
     fireEvent.click(statsBtn);
@@ -235,6 +246,6 @@ describe('UI Integration Smoke Tests', () => {
       expect(display.value).toContain('Message 1');
     });
 
-    delete global.__test_delay_promise;
+    global.__test_delay_promise = undefined;
   });
 });
