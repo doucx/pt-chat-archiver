@@ -45,6 +45,10 @@ async function renderUI(initialState) {
   const adapter = createMockAdapter(initialState);
   const ui = await createUI(adapter, mockCallbacks);
   await ui.updateRecordingStatus('Test Server', 'Local');
+  
+  const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+  if (toggleBtn) fireEvent.click(toggleBtn);
+  
   return ui;
 }
 

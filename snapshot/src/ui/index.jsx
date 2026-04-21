@@ -1,5 +1,5 @@
 import { render } from 'preact';
-import { TOGGLE_BUTTON_ICON, UI_MESSAGES } from '../constants.js';
+import { UI_MESSAGES } from '../constants.js';
 import { MigrationManager } from '../migrations.js';
 import { storageManager } from '../storage/index.js';
 import { App } from './App.jsx';
@@ -40,7 +40,7 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const toggleButton = document.createElement('div');
   toggleButton.id = 'log-archive-ui-toggle-button';
-  toggleButton.textContent = TOGGLE_BUTTON_ICON;
+  toggleButton.textContent = '📝';
   document.body.appendChild(toggleButton);
 
   let currentRenderId = 0;

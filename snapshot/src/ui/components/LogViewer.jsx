@@ -33,7 +33,7 @@ export function LogViewer() {
 
   // 自动滚动处理
   useEffect(() => {
-    if (locked && curPage === totPages && textareaRef.current) {
+    if (displayText !== undefined && locked && curPage === totPages && textareaRef.current) {
       textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
     }
   }, [displayText, locked, curPage, totPages]);

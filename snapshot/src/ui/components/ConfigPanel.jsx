@@ -44,12 +44,12 @@ export function ConfigPanel({ callbacks }) {
   const [duplicateIds, setDuplicateIds] = useState([]);
 
   const handleScanDuplicates = async () => {
-    if (scanState === 'idle' || scanState === 'done') {
+    if (scanState === 'idle' || scanState === 'no_duplicates' || scanState === 'done') {
       setScanState('scanning');
       try {
         const ids = await callbacks.scanDuplicates();
         if (ids.length === 0) {
-          setScanState('done');
+          setScanState('no_duplicates');
           setTimeout(() => setScanState('idle'), 1500);
         } else {
           setDuplicateIds(ids);
@@ -91,9 +91,10 @@ export function ConfigPanel({ callbacks }) {
       </div>
 
       <div class="config-group">
-        <label>查看存档服务器</label>
+        <label htmlFor="config-viewing-server">查看存档服务器</label>
         <div class="config-input-row">
           <select
+            id="config-viewing-server"
             className="log-archive-ui-button"
             style={{ flexGrow: 1, minWidth: 0 }}
             value={viewingServer.value}
@@ -114,12 +115,14 @@ export function ConfigPanel({ callbacks }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
           <input
+            id="config-auto-follow"
             type="checkbox"
             checked={autoFollowServer.value}
             onChange={(e) => handleUpdate('autoFollowServer', e.target.checked)}
             style={{ width: 'auto', margin: 0 }}
           />
           <label
+            htmlFor="config-auto-follow"
             style={{
               fontWeight: 'normal',
               color: 'var(--color-text-dim)',
@@ -133,8 +136,9 @@ export function ConfigPanel({ callbacks }) {
       </div>
 
       <div class="config-group">
-        <label>用户昵称</label>
+        <label htmlFor="config-self-name">用户昵称</label>
         <input
+          id="config-self-name"
           type="text"
           value={selfName.value}
           onInput={handleSelfNameChange}
@@ -143,8 +147,9 @@ export function ConfigPanel({ callbacks }) {
       </div>
 
       <div class="config-group">
-        <label>分页大小 (每页消息条数)</label>
+        <label htmlFor="config-page-size">分页大小 (每页消息条数)</label>
         <input
+          id="config-page-size"
           type="number"
           value={pageSize.value}
           onChange={(e) => handleUpdate('pageSize', Number.parseInt(e.target.value))}
@@ -155,7 +160,7 @@ export function ConfigPanel({ callbacks }) {
       </div>
 
       <div class="config-group">
-        <label>维护操作</label>
+        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>维护操作</div>
         <div class="info-text-dim">估算数据占用: {usage.toFixed(2)} MB</div>
         <div class="info-text-dim" style={{ marginBottom: '8px' }}>
           存档消息总数: {msgCount.toLocaleString()} 条
@@ -163,21 +168,22 @@ export function ConfigPanel({ callbacks }) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <button class="log-archive-ui-button" onClick={callbacks.copyJSON}>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.copyJSON}>
               复制 JSON
             </button>
-            <button class="log-archive-ui-button" onClick={callbacks.copyTXT}>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.copyTXT}>
               复制 TXT
             </button>
-            <button class="log-archive-ui-button" onClick={callbacks.downloadJSON}>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.downloadJSON}>
               下载 JSON
             </button>
-            <button class="log-archive-ui-button" onClick={callbacks.downloadTXT}>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.downloadTXT}>
               下载 TXT
             </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             <button
+              type="button"
               class={`log-archive-ui-button ${scanState === 'pending' ? 'active' : ''}`}
               onClick={handleScanDuplicates}
               disabled={scanState === 'scanning' || scanState === 'cleaning'}
@@ -190,12 +196,15 @@ export function ConfigPanel({ callbacks }) {
                     ? `清理重复 (${duplicateIds.length})`
                     : scanState === 'cleaning'
                       ? '清理中...'
-                      : '清理完毕!'}
+                      : scanState === 'no_duplicates'
+                        ? '未发现重复'
+                        : '清理完毕!'}
             </button>
-            <button class="log-archive-ui-button" onClick={callbacks.importAllData}>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.importAllData}>
               导入 JSON (覆盖)
             </button>
             <button
+              type="button"
               class="log-archive-ui-button"
               style={{ gridColumn: 'span 2', backgroundColor: 'var(--color-success)' }}
               onClick={callbacks.importAndMergeData}
@@ -216,12 +225,13 @@ export function ConfigPanel({ callbacks }) {
             border: '1px dashed var(--color-warning)',
           }}
         >
-          <label style={{ color: 'var(--color-warning)' }}>发现残留数据!</label>
+          <div style={{ fontWeight: 'bold', color: 'var(--color-warning)', marginBottom: '4px' }}>发现残留数据!</div>
           <div class="info-text-dim" style={{ marginBottom: '8px' }}>
             检测到旧版本数据尚未合并。
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
+              type="button"
               class="log-archive-ui-button"
               style={{ backgroundColor: 'var(--color-warning)', color: '#000', flexGrow: 1 }}
               onClick={() => callbacks.recoverLegacyData(viewingServer.value)}
@@ -229,6 +239,7 @@ export function ConfigPanel({ callbacks }) {
               尝试合并
             </button>
             <button
+              type="button"
               class="log-archive-ui-button"
               style={{ backgroundColor: 'var(--color-danger)', color: '#fff', flexGrow: 1 }}
               onClick={callbacks.clearLegacyData}
@@ -243,8 +254,8 @@ export function ConfigPanel({ callbacks }) {
         class="config-group"
         style={{ marginTop: '10px', borderTop: '1px dashed #444', paddingTop: '20px' }}
       >
-        <label style={{ color: '#ff6666' }}>危险操作</label>
-        <button class="log-archive-ui-button" onClick={callbacks.clearAllData}>
+        <div style={{ fontWeight: 'bold', color: '#ff6666', marginBottom: '8px' }}>危险操作</div>
+        <button type="button" class="log-archive-ui-button" onClick={callbacks.clearAllData}>
           清空所有本地存档
         </button>
       </div>

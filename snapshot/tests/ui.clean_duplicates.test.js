@@ -91,6 +91,9 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     const ui = await createUI(adapter, mockCallbacks);
     await ui.updateRecordingStatus('Server A', 'Local');
 
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
+
     // 进入设置页面
     const settingsButton = screen.getByTitle('设置');
     fireEvent.click(settingsButton);
@@ -110,6 +113,9 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     const adapter = createMockAdapter(mockAppState);
     const ui = await createUI(adapter, mockCallbacks);
     await ui.updateRecordingStatus('Server A', 'Local');
+
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
 
     fireEvent.click(screen.getByTitle('设置'));
 
@@ -146,6 +152,9 @@ describe('UI Clean Duplicates Regression (V6)', () => {
     };
     const adapter = createMockAdapter(cleanState);
     await createUI(adapter, mockCallbacks);
+
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
 
     fireEvent.click(screen.getByTitle('设置'));
 
