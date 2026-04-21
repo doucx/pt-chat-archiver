@@ -3,8 +3,6 @@ import {
   activeServer,
   isReadOnly,
   isUIPaused,
-  lastServer,
-  recordedChannel,
   selectedChannel,
   viewMode,
   viewingServer,
@@ -17,30 +15,6 @@ export function Header({ callbacks }) {
 
   const handleResetServer = () => {
     if (activeServer.value) viewingServer.value = activeServer.value;
-  };
-
-  const renderStatus = () => {
-    if (!activeServer.value) {
-      return (
-        <span style={{ fontSize: '0.85em' }}>
-          等待进入游戏...{' '}
-          {lastServer.value && <span className="info-text-dim">(上个: {lastServer.value})</span>}
-        </span>
-      );
-    }
-    if (!isReadOnly.value) {
-      return (
-        <span style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em' }}>
-          ✅ 正在记录: {activeServer.value}
-          {recordedChannel.value ? `::${recordedChannel.value}` : ''}
-        </span>
-      );
-    }
-    return (
-      <span style={{ color: 'var(--color-text-dim)', fontSize: '0.85em' }}>
-        📖 浏览存档: {viewingServer.value}
-      </span>
-    );
   };
 
   return (
@@ -125,9 +99,6 @@ export function Header({ callbacks }) {
             ❌
           </button>
         </div>
-      </div>
-      <div id="log-archive-server-status" style={{ marginTop: '5px', textAlign: 'center' }}>
-        {renderStatus()}
       </div>
     </div>
   );

@@ -7,9 +7,11 @@ import {
   autoFollowServer,
   cachePages,
   initDebounceMs,
+  isReadOnly,
   lastServer,
   pageSize,
   readChunkSize,
+  recordedChannel,
   selfName,
   statsLimit,
   updateConfig,
@@ -43,6 +45,32 @@ export function ConfigPanel({ callbacks }) {
   const [scanState, setScanState] = useState('idle');
   const [duplicateIds, setDuplicateIds] = useState([]);
   const timerRef = useRef(null);
+
+  const renderStatus = () => {
+    if (!activeServer.value) {
+      return (
+        <div style={{ fontSize: '0.85em', marginTop: '8px' }}>
+          等待进入游戏...{' '}
+          {lastServer.value && <span className="info-text-dim">(上个: {lastServer.value})</span>}
+        </div>
+      );
+    }
+    if (!isReadOnly.value) {
+      return (
+        <div
+          style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em', marginTop: '8px' }}
+        >
+          ✅ 正在记录: {activeServer.value}
+          {recordedChannel.value ? `::${recordedChannel.value}` : ''}
+        </div>
+      );
+    }
+    return (
+      <div style={{ color: 'var(--color-text-dim)', fontSize: '0.85em', marginTop: '8px' }}>
+        📖 浏览存档: {viewingServer.value}
+      </div>
+    );
+  };
 
   useEffect(() => {
     return () => {
@@ -95,6 +123,7 @@ export function ConfigPanel({ callbacks }) {
             v{__APP_VERSION__}
           </span>
         </div>
+        {renderStatus()}
       </div>
 
       <div class="config-group">

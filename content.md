@@ -1,73 +1,251 @@
-我们将按照重构路线图的最后一步，为这次具有里程碑意义的 UI 架构迁移——从原生 JavaScript (Vanilla JS) 转向 Preact 与 Signals 响应式框架——创建一个完整的 Git 提交。
+你的分析非常准确。将实时状态信息从全局通用的 `Header` 移动到功能更密集的 `ConfigPanel`（设置页面）是一个很好的 UX 改进，这能让主界面保持简洁，同时在设置时提供必要的上下文反馈。
 
-此次重构彻底移除了碎片的 DOM 操作和复杂的渲染逻辑，建立了清晰的组件化体系和响应式状态管理流，为项目的长期维护和功能扩展奠定了坚实基础。
+我将生成一个计划来执行这项重构：清理 `Header.jsx` 中的状态逻辑和 DOM 结构，并将其迁移到 `ConfigPanel.jsx` 的顶部。
 
-## [COMMIT] refactor(ui): migrate entire UI layer to Preact and @preact/signals
+## [WIP] refactor: 将服务器录制状态显示从 Header 迁移至 ConfigPanel
 
 ### 用户需求
-完成 UI 层的 Preact 架构重构，并将所有更改提交到版本控制系统。
+需要将 UI 顶部的“正在记录/浏览存档”状态条从 `Header` 组件移动到 `ConfigPanel` 组件的顶部，并相应清理 `Header` 中的冗余代码。
 
 ### 评论
-这是一次极具价值的重构（DX/UX 提升）。通过引入虚拟 DOM 和信号（Signals）机制，解决了以往由于手动操作 `textarea` 和状态同步困难导致的潜在 Bug（如滚动解锁失败、状态不一致等）。同时，组件化的代码结构显著降低了开发心智负担。
+这个改动提升了 UI 的整洁度。`Header` 作为主要交互区，应当保持紧凑。将详细的状态信息（如具体的服务器名和正在记录的频道）放入设置面板更符合信息层级的逻辑，因为用户通常在需要调整配置或维护数据时才关心这些细节。
 
 ### 目标
-1.  将所有新增的 `.jsx` 组件、Store 文件以及修改后的逻辑代码添加到 Git 暂存区。
-2.  记录被移除的旧版 UI 文件（`dom.js`, `events.js`, `renderer.js` 等）。
-3.  创建一个包含详细变更说明的正式提交。
+1.  从 `src/ui/components/Header.jsx` 中完全移除 `renderStatus` 函数及其对应的底部 `div` 容器。
+2.  清理 `src/ui/components/Header.jsx` 中不再使用的信号导入（`lastServer`, `recordedChannel`）。
+3.  在 `src/ui/components/ConfigPanel.jsx` 中引入 `isReadOnly` 和 `recordedChannel` 信号。
+4.  在 `ConfigPanel` 组件内部重新实现 `renderStatus` 逻辑，并将其放置在面板顶部的标题栏下方。
 
 ### 基本原理
-根据 Quipu 执行协议，在文件系统变更（由用户完成或在前序 WIP 中完成）被验证后，我们通过 `[COMMIT]` 类型的计划来执行版本持久化。由于当前文件系统中旧文件已移除且新文件已就绪，使用 `git_add .` 可以高效地捕获所有增删改查的变更状态。
+通过修改 Preact 组件的 JSX 结构和信号订阅来实现。由于状态存储在全局的 `uiStore` 中，我们只需要在 `ConfigPanel` 中重新订阅这些信号即可实现无缝迁移。我们将原有的 `span` 包装改为 `div`，以便在设置面板的纵向布局中获得更好的显示效果。
 
 ### 标签
-#intent/refine #flow/ready #priority/high 
-#comp/ui #comp/build #concept/state #scope/core #scope/dx
-#ai/delegate
-#task/domain/ui #task/object/preact-migration #task/action/refactor 
-#task/state/end #task/status/completed
+#intent/refine #flow/ready #priority/medium #comp/ui #concept/ui #scope/ux #ai/instruct #task/domain/ui #task/object/status-display #task/action/refactor #task/state/begin
 
 ---
 
 ### Script
 
-#### Acts 1: 提交重构代码
+#### Acts 1: 清理 `Header.jsx`
 
-我们将所有变更（包括新增的 JSX 组件、Signals Store、更新后的测试用例以及被移除的旧代码）添加到暂存区并提交。
+移除状态渲染逻辑、底部 DOM 节点以及不再需要的信号导入。
 
 ~~~~~act
-git_add
-package.json
-package-lock.json
-vite.config.js
-src/main.js
-src/ui/
-tests/
+patch_file
+src/ui/components/Header.jsx
+~~~~~
+~~~~~javascript.old
+import { channelCounts, channelList } from '../store/dataStore';
+import {
+  activeServer,
+  isReadOnly,
+  isUIPaused,
+  lastServer,
+  recordedChannel,
+  selectedChannel,
+  viewMode,
+  viewingServer,
+} from '../store/uiStore';
+
+export function Header({ callbacks }) {
+  const handleToggleView = (mode) => {
+    viewMode.value = viewMode.value === mode ? 'log' : mode;
+  };
+
+  const handleResetServer = () => {
+    if (activeServer.value) viewingServer.value = activeServer.value;
+  };
+
+  const renderStatus = () => {
+    if (!activeServer.value) {
+      return (
+        <span style={{ fontSize: '0.85em' }}>
+          等待进入游戏...{' '}
+          {lastServer.value && <span className="info-text-dim">(上个: {lastServer.value})</span>}
+        </span>
+      );
+    }
+    if (!isReadOnly.value) {
+      return (
+        <span style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em' }}>
+          ✅ 正在记录: {activeServer.value}
+          {recordedChannel.value ? `::${recordedChannel.value}` : ''}
+        </span>
+      );
+    }
+    return (
+      <span style={{ color: 'var(--color-text-dim)', fontSize: '0.85em' }}>
+        📖 浏览存档: {viewingServer.value}
+      </span>
+    );
+  };
+
+  return (
+    <div id="log-archive-ui-header">
+~~~~~
+~~~~~javascript.new
+import { channelCounts, channelList } from '../store/dataStore';
+import {
+  activeServer,
+  isReadOnly,
+  isUIPaused,
+  selectedChannel,
+  viewMode,
+  viewingServer,
+} from '../store/uiStore';
+
+export function Header({ callbacks }) {
+  const handleToggleView = (mode) => {
+    viewMode.value = viewMode.value === mode ? 'log' : mode;
+  };
+
+  const handleResetServer = () => {
+    if (activeServer.value) viewingServer.value = activeServer.value;
+  };
+
+  return (
+    <div id="log-archive-ui-header">
 ~~~~~
 
 ~~~~~act
-git_commit
+patch_file
+src/ui/components/Header.jsx
 ~~~~~
-~~~~~text
-refactor(ui): migrate entire UI layer to Preact and @preact/signals
+~~~~~javascript.old
+          <button
+            type="button"
+            className="log-archive-ui-button"
+            title="关闭界面"
+            onClick={callbacks.closeUI}
+          >
+            ❌
+          </button>
+        </div>
+      </div>
+      <div id="log-archive-server-status" style={{ marginTop: '5px', textAlign: 'center' }}>
+        {renderStatus()}
+      </div>
+    </div>
+  );
+}
+~~~~~
+~~~~~javascript.new
+          <button
+            type="button"
+            className="log-archive-ui-button"
+            title="关闭界面"
+            onClick={callbacks.closeUI}
+          >
+            ❌
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+~~~~~
 
-This commit marks a major architectural shift from manual, imperative DOM manipulation to a modern, declarative UI framework.
+#### Acts 2: 增强 `ConfigPanel.jsx`
 
-Key changes:
-- Infrastructure: Added Preact and @preact/signals dependencies; configured Vite with @preact/preset-vite for JSX support.
-- State Management: Replaced the monolithic ui/state.js with reactive signals distributed in ui/store/uiStore.js (UI routing and config) and ui/store/dataStore.js (chat data).
-- Componentization: Refactored the UI into functional components:
-    - App: Main layout and view switching.
-    - Header: Channel selection and recording status.
-    - LogViewer: Paginated chat display with scroll-to-bottom logic.
-    - ConfigPanel: Comprehensive settings and data management.
-    - StatsView: Data analysis display.
-    - Pagination: Reactive page navigation.
-- Decoupling: Removed dom.js, events.js, renderer.js, and templates.js, significantly reducing the imperative code surface.
-- Maintenance: Updated the test suite to align with the new reactive signals and component-based structure.
+在设置面板顶部植入状态显示逻辑。
 
-This migration provides a much more robust foundation for future features such as advanced search, filtering, and enhanced data visualization.
+~~~~~act
+patch_file
+src/ui/components/ConfigPanel.jsx
+~~~~~
+~~~~~javascript.old
+import {
+  activeServer,
+  autoFollowServer,
+  cachePages,
+  initDebounceMs,
+  lastServer,
+  pageSize,
+  readChunkSize,
+  selfName,
+  statsLimit,
+  updateConfig,
+  viewingServer,
+} from '../store/uiStore';
+~~~~~
+~~~~~javascript.new
+import {
+  activeServer,
+  autoFollowServer,
+  cachePages,
+  initDebounceMs,
+  isReadOnly,
+  lastServer,
+  pageSize,
+  readChunkSize,
+  recordedChannel,
+  selfName,
+  statsLimit,
+  updateConfig,
+  viewingServer,
+} from '../store/uiStore';
+~~~~~
+
+~~~~~act
+patch_file
+src/ui/components/ConfigPanel.jsx
+~~~~~
+~~~~~javascript.old
+  const [duplicateIds, setDuplicateIds] = useState([]);
+  const timerRef = useRef(null);
+~~~~~
+~~~~~javascript.new
+  const [duplicateIds, setDuplicateIds] = useState([]);
+  const timerRef = useRef(null);
+
+  const renderStatus = () => {
+    if (!activeServer.value) {
+      return (
+        <div style={{ fontSize: '0.85em', marginTop: '8px' }}>
+          等待进入游戏...{' '}
+          {lastServer.value && <span className="info-text-dim">(上个: {lastServer.value})</span>}
+        </div>
+      );
+    }
+    if (!isReadOnly.value) {
+      return (
+        <div
+          style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em', marginTop: '8px' }}
+        >
+          ✅ 正在记录: {activeServer.value}
+          {recordedChannel.value ? `::${recordedChannel.value}` : ''}
+        </div>
+      );
+    }
+    return (
+      <div style={{ color: 'var(--color-text-dim)', fontSize: '0.85em', marginTop: '8px' }}>
+        📖 浏览存档: {viewingServer.value}
+      </div>
+    );
+  };
+~~~~~
+
+~~~~~act
+patch_file
+src/ui/components/ConfigPanel.jsx
+~~~~~
+~~~~~javascript.old
+          <span className="info-text-dim" style={{ fontSize: '0.8em' }}>
+            v{__APP_VERSION__}
+          </span>
+        </div>
+      </div>
+~~~~~
+~~~~~javascript.new
+          <span className="info-text-dim" style={{ fontSize: '0.8em' }}>
+            v{__APP_VERSION__}
+          </span>
+        </div>
+        {renderStatus()}
+      </div>
 ~~~~~
 
 ### 下一步建议
-- **性能审计**: 在处理超大规模存档（5万条以上消息）时，观察 Preact 处理巨型 `textarea` 的渲染性能。
-- **样式清理**: 下一步可以将 `src/ui/style.css` 迁移为 CSS Modules，以实现更彻底的样式隔离。
-- **功能增强**: 基于现在的响应式架构，可以轻松实现“关键词高亮”或“实时过滤器”功能。
+1.  **界面验证**: 进入设置面板，验证状态信息是否正确显示，并尝试切换服务器或频道，确保状态能实时更新。
+2.  **样式微调**: 检查状态文字在 `ConfigPanel` 标题栏下的边距和对齐是否美观。如果需要更显著的提示，可以考虑为其增加一个轻微的背景色或边框。
+3.  **提交更改**: 如果显示效果满意，可以进行 Git 提交。
