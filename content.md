@@ -1,202 +1,220 @@
-好的，我们正式开启 `pt-chat-archiver` 的 Preact 重构之旅。
-
-根据路线图，我们现在执行 **阶段一：环境准备与基建搭建**。虽然 `package.json` 中已经预装了相关依赖，但 `vite.config.js` 尚未激活编译插件，且文件结构需要为组件化做准备。同时，为了给阶段二铺路，我们将直接建立基于 Signals 的响应式状态存储。
-
-## [WIP] feat: 开启 Preact 重构 - 阶段一环境准备与基建
+## [WIP] refactor: 开启 Preact 重构 - 阶段二：状态层 (State) 响应式改造
 
 ### 用户需求
-配置 Vite 以支持 Preact (JSX) 开发环境，建立符合组件化规范的目录结构，并初始化基于 `@preact/signals` 的全局状态存储。
+根据重构路线图，执行阶段二任务：用 Preact Signals 替换原有的 Vanilla JS 状态管理（`ui/state.js`）。同时不破坏现有基于 Vanilla JS 的事件和渲染器，以保证重构过程中的平滑过渡。
 
 ### 评论
-这是重构中最关键的“地基”步骤。引入 JSX 支持后，我们可以开始将原本散落在 `templates.js` 和 `renderer.js` 中的逻辑通过声明式组件重组。使用 Signals 代替原有的手动状态管理，将极大地简化 UI 更新机制。
+这是一种“外观模式（Facade Pattern）”的绝佳应用。我们将 `src/ui/state.js` 重写为一个代理对象，它的所有 `get` 和 `set` 方法都在底层操作 `@preact/signals`。这样，`renderer.js` 和 `events.js` 完全察觉不到底层状态引擎已经换成了响应式的 Signal，而我们可以顺理成章地将数据状态暴露给即将到来的 Preact 组件。
 
 ### 目标
-1.  修改 `vite.config.js`，启用 `@preact/preset-vite`。
-2.  创建 `src/ui/` 下的子目录结构：`components/`、`hooks/`、`store/`。
-3.  创建 `src/ui/store/uiStore.js`，定义核心响应式状态。
-4.  创建 `src/ui/App.jsx` 作为 Preact 根组件入口。
+1.  创建 `src/ui/store/dataStore.js` 存放共享数据流（服务器列表、频道列表、当前消息等）。
+2.  重写 `src/ui/state.js`，让它成为 `uiStore.js` 的门面代理。
+3.  在 `src/ui/index.js` 的 `refreshView` 核心流程中，将提取到的数据实时同步给 `dataStore` 的 Signals，从而“桥接”新旧两个世界。
 
 ### 基本原理
-通过在 Vite 配置中添加 `preact()` 插件，构建工具将能够处理 `.jsx` 文件并将其转换为高效的渲染指令。建立 `uiStore.js` 是为了实现状态与 UI 的解耦：当 Signals 的值改变时，订阅该 Signal 的 Preact 组件会自动重绘，从而彻底废弃原有的 `refreshView()` 手动调用逻辑。
+通过分离 UI 状态 (`uiStore`) 和数据状态 (`dataStore`)，我们构建了清晰的单向数据流。目前 `refreshView` 作为传统的 Controller 存在，它拉取数据后不仅调用 `renderer.render()`（驱动旧版 DOM），还更新 `dataStore` 的 Signals（驱动新版 Preact）。这为我们在阶段三引入组件提供了完美的数据源。
 
 ### 标签
-#intent/build #flow/ready #priority/high 
-#comp/build #comp/ui #concept/state #scope/dx 
+#intent/refine #flow/ready #priority/high
+#comp/ui #concept/state #scope/core
 #ai/delegate
-#task/domain/ui #task/object/preact-refactor #task/action/environment-setup 
-#task/state/begin #task/status/active
+#task/domain/ui #task/object/preact-refactor #task/action/state-migration
+#task/state/continue #task/status/active
 
 ---
 
 ### Script
 
-#### Acts 1: 配置开发环境与目录结构
+#### Acts 1: 创建共享数据流 Store
 
-首先，我们需要让 Vite 能够识别并处理 JSX，并建立必要的文件夹。
-
-~~~~~act
-patch_file
-vite.config.js
-~~~~~
-~~~~~javascript.old
-import { defineConfig } from 'vite';
-import monkey from 'vite-plugin-monkey';
-import packageJson from './package.json';
-~~~~~
-~~~~~javascript.new
-import { defineConfig } from 'vite';
-import preact from '@preact/preset-vite';
-import monkey from 'vite-plugin-monkey';
-import packageJson from './package.json';
-~~~~~
-
-~~~~~act
-patch_file
-vite.config.js
-~~~~~
-~~~~~javascript.old
-  plugins: [
-    monkey({
-~~~~~
-~~~~~javascript.new
-  plugins: [
-    preact(),
-    monkey({
-~~~~~
-
-~~~~~act
-run_command
-~~~~~
-~~~~~
-mkdir -p src/ui/components src/ui/hooks src/ui/store
-~~~~~
-
-#### Acts 2: 初始化响应式 Store (uiStore.js)
-
-我们将原 `src/ui/state.js` 中的命令式状态迁移到基于 Signals 的响应式存储中。
+我们需要一个地方来集中存放从 IndexedDB 提取出的数据阵列。这些将作为 Preact 组件的直接数据源。
 
 ~~~~~act
 write_file
-src/ui/store/uiStore.js
+src/ui/store/dataStore.js
 ~~~~~
 ~~~~~javascript
-import { signal, computed } from '@preact/signals';
-import { storageManager } from '../../storage/index.js';
+import { signal } from '@preact/signals';
 
-// --- 全局 UI 状态 ---
-export const viewMode = signal('log'); // 'log' | 'stats' | 'config'
-export const isUIPaused = signal(false);
-export const isLockedToBottom = signal(false);
+// --- 共享的数据状态 ---
+export const serverList = signal([]);
+export const channelList = signal([]);
+export const channelCounts = signal({});
+export const currentMessages = signal([]);
+export const totalCount = signal(0);
+~~~~~
 
-// --- 存档查看状态 ---
-export const viewingServer = signal(null);
-export const selectedChannel = signal('Local');
-export const currentPage = signal(1);
-export const totalPages = signal(1);
+#### Acts 2: 桥接旧版控制器与响应式系统
 
-// --- 实时录制状态 ---
-export const activeServer = signal(null);
-export const recordedChannel = signal(null);
-export const lastServer = signal(null);
+在 `index.js` 中引入 `dataStore`，并在每次提取数据后同步到 Signals。
 
-// --- 用户配置 (从 Storage 加载) ---
-export const pageSize = signal(1000);
-export const statsLimit = signal(5000);
-export const readChunkSize = signal(250);
-export const initDebounceMs = signal(150);
-export const cachePages = signal(5);
-export const autoFollowServer = signal(true);
+~~~~~act
+patch_file
+src/ui/index.js
+~~~~~
+~~~~~javascript.old
+import { createUIState } from './state.js';
+import { ViewCache } from './view-cache.js';
+~~~~~
+~~~~~javascript.new
+import { createUIState } from './state.js';
+import { serverList as serverListSig, channelList as channelListSig, channelCounts as channelCountsSig, currentMessages, totalCount as totalCountSig } from './store/dataStore.js';
+import { ViewCache } from './view-cache.js';
+~~~~~
 
-// --- 派生状态 (Computed) ---
-export const isReadOnly = computed(() => {
-  return activeServer.value !== null && viewingServer.value !== activeServer.value;
-});
+~~~~~act
+patch_file
+src/ui/index.js
+~~~~~
+~~~~~javascript.old
+    const context = {
+      serverList,
+      channelList,
+      channelCounts,
+      messages,
+      totalCount,
+      selectedChannel, // 显式传递经过控制器校验的选中状态
+    };
+
+    renderer.render(context, uiCallbacks);
+~~~~~
+~~~~~javascript.new
+    const context = {
+      serverList,
+      channelList,
+      channelCounts,
+      messages,
+      totalCount,
+      selectedChannel, // 显式传递经过控制器校验的选中状态
+    };
+
+    // [Bridge] 同步数据到 Preact Signals，为即将到来的组件化供电
+    serverListSig.value = serverList;
+    channelListSig.value = channelList;
+    channelCountsSig.value = channelCounts;
+    currentMessages.value = messages;
+    totalCountSig.value = totalCount;
+
+    renderer.render(context, uiCallbacks);
+~~~~~
+
+#### Acts 3: 响应式改造 state.js (门面模式)
+
+完全重写 `ui/state.js`，将原本的闭包状态替换为对 `uiStore.js` 响应式节点的访问。这使得现有代码无需修改即可接入响应式生态。
+
+~~~~~act
+write_file
+src/ui/state.js
+~~~~~
+~~~~~javascript
+import { storageManager } from '../storage/index.js';
+import { 
+  currentPage, pageSize, statsLimit, readChunkSize, initDebounceMs, cachePages,
+  autoFollowServer, totalPages, viewMode, isLockedToBottom, isUIPaused,
+  activeServer, recordedChannel, viewingServer, selectedChannel, lastServer,
+  updateConfig, initStore
+} from './store/uiStore.js';
 
 /**
- * 初始化 Store，从持久化层加载数据
+ * Creates and manages the UI's internal state.
+ * (Currently acting as a backwards-compatible Facade for Preact Signals)
+ * @returns {Promise<object>} A promise that resolves to a UI state manager instance.
  */
-export async function initStore() {
-  const config = await storageManager.getConfig();
-  lastServer.value = await storageManager.getLastServer();
-  
-  pageSize.value = config.pageSize || 1000;
-  statsLimit.value = config.statsLimit || 5000;
-  readChunkSize.value = config.readChunkSize || 250;
-  initDebounceMs.value = config.initDebounceMs || 150;
-  cachePages.value = config.cachePages || 5;
-  autoFollowServer.value = config.autoFollowServer !== false;
+export async function createUIState() {
+  await initStore();
 
-  // 如果有持久化的最后服务器，初始化 viewingServer
-  if (lastServer.value && !viewingServer.value) {
-    viewingServer.value = lastServer.value;
-  }
-}
-
-/**
- * 统一的状态修改 Action (用于持久化)
- */
-export const updateConfig = async (key, value) => {
-  const signalMap = {
-    pageSize, statsLimit, readChunkSize, initDebounceMs, cachePages, autoFollowServer
-  };
-  
-  if (signalMap[key]) {
-    signalMap[key].value = value;
-    await storageManager.saveConfig({
+  return {
+    getState: () => ({
+      currentPage: currentPage.value,
       pageSize: pageSize.value,
       statsLimit: statsLimit.value,
       readChunkSize: readChunkSize.value,
       initDebounceMs: initDebounceMs.value,
       cachePages: cachePages.value,
-      autoFollowServer: autoFollowServer.value
-    });
-  }
-};
-~~~~~
+      autoFollowServer: autoFollowServer.value,
+      lastSavedTime: null,
+      totalPages: totalPages.value,
+      viewMode: viewMode.value,
+      isLockedToBottom: isLockedToBottom.value,
+      isUIPaused: isUIPaused.value,
+      activeServer: activeServer.value,
+      recordedChannel: recordedChannel.value,
+      viewingServer: viewingServer.value,
+      selectedChannel: selectedChannel.value,
+      lastServer: lastServer.value,
+    }),
 
-#### Acts 3: 创建根组件 App.jsx
-
-创建一个基础的根组件，作为后续 UI 重构的挂载点。
-
-~~~~~act
-write_file
-src/ui/App.jsx
-~~~~~
-~~~~~jsx
-import { useEffect } from 'preact/hooks';
-import { viewMode, isReadOnly } from './store/uiStore';
-
-/**
- * PT Chat Archiver 根组件
- * 负责分发路由和管理全局容器样式
- */
-export function App({ dataAdapter, appCallbacks }) {
-  return (
-    <div className={`log-archive-app-root ${isReadOnly.value ? 'is-readonly' : ''}`}>
-      {/* 
-          后续将在此处组装组件：
-          <Header />
-          <ViewContainer>
-             {viewMode.value === 'log' && <LogViewer />}
-             {viewMode.value === 'config' && <ConfigPanel />}
-             {viewMode.value === 'stats' && <StatsView />}
-          </ViewContainer>
-      */}
-      <div style={{ padding: '20px', color: 'white' }}>
-        <h2>Preact Engine Ready</h2>
-        <p>Current View: {viewMode.value}</p>
-        <p>Status: {isReadOnly.value ? 'ReadOnly' : 'Recording'}</p>
-        <button onClick={() => viewMode.value = viewMode.value === 'log' ? 'config' : 'log'}>
-          Toggle View (Signal Test)
-        </button>
-      </div>
-    </div>
-  );
+    setPage: (page) => { 
+      currentPage.value = Math.max(1, Math.min(page, totalPages.value)); 
+    },
+    setTotalPages: (total) => { 
+      totalPages.value = Math.max(1, total); 
+    },
+    setViewMode: (mode) => { 
+      if (['log', 'stats', 'config'].includes(mode)) {
+        viewMode.value = mode; 
+      }
+    },
+    setPageSize: async (size) => {
+      const val = Number.parseInt(size, 10);
+      if (!Number.isNaN(val) && val >= 10) await updateConfig('pageSize', val);
+    },
+    setStatsLimit: async (limit) => {
+      const val = Number.parseInt(limit, 10);
+      if (!Number.isNaN(val) && val >= 100) await updateConfig('statsLimit', val);
+    },
+    setReadChunkSize: async (size) => {
+      const val = Number.parseInt(size, 10);
+      if (!Number.isNaN(val) && val >= 50) await updateConfig('readChunkSize', val);
+    },
+    setInitDebounceMs: async (ms) => {
+      const val = Number.parseInt(ms, 10);
+      if (!Number.isNaN(val) && val >= 50) await updateConfig('initDebounceMs', val);
+    },
+    setCachePages: async (pages) => {
+      const val = Number.parseInt(pages, 10);
+      if (!Number.isNaN(val) && val >= 1) await updateConfig('cachePages', val);
+    },
+    setAutoFollowServer: async (enabled) => {
+      await updateConfig('autoFollowServer', !!enabled);
+    },
+    setLastSavedTime: (isoString) => {
+      // Legacy
+    },
+    togglePause: () => { 
+      isUIPaused.value = !isUIPaused.value; 
+      return isUIPaused.value; 
+    },
+    setLockedToBottom: (locked) => { 
+      isLockedToBottom.value = !!locked; 
+    },
+    forcePause: (paused) => { 
+      isUIPaused.value = paused; 
+    },
+    setRecordingStatus: (serverName, channelName) => {
+      activeServer.value = serverName;
+      recordedChannel.value = channelName;
+      if (serverName) {
+        lastServer.value = serverName;
+        storageManager.setLastServer(serverName); // 立即持久化
+      }
+      if (autoFollowServer.value || !viewingServer.value) {
+        viewingServer.value = serverName;
+      }
+    },
+    setViewingServer: (serverName) => { 
+      viewingServer.value = serverName; 
+    },
+    setSelectedChannel: (channel) => { 
+      selectedChannel.value = channel; 
+    },
+    getSelfName: async () => await storageManager.getSelfName(),
+    setSelfName: async (name) => await storageManager.setSelfName(name),
+  };
 }
 ~~~~~
 
 ### 下一步建议
-环境和状态机已就绪。下一步我们将进入 **阶段二：状态层改造** 的深度集成：
-1.  在 `src/ui/index.js` 中调用 `initStore()` 并在 `createUI` 中挂载 Preact `App`。
-2.  开始将 `index.js` 中的异步控制逻辑（`refreshView`）迁移到组件的生命周期（如 `useEffect`）中。
-3.  逐步将 `src/ui/state.js` 的引用替换为对 `src/ui/store/uiStore.js` 的 Signal 订阅。
+通过门面模式，我们已经成功将响应式引擎埋入了系统的深处，而完全没有破坏旧的运行逻辑。
+
+现在我们可以正式进入 **阶段三：原子组件拆分**。我们将从简单的组件开始，依次创建 `Header.jsx`, `Pagination.jsx`, `ConfigPanel.jsx` 等，逐步将 `templates.js` 中的巨型字符串拆分成可维护的模块，并让它们直接订阅和修改我们刚建立的 `Signals` 状态。

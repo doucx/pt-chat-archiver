@@ -6,6 +6,7 @@ import { bindUIEvents } from './events.js';
 import { createIOManager } from './io-manager.js';
 import { createRenderer } from './renderer.js';
 import { createUIState } from './state.js';
+import { serverList as serverListSig, channelList as channelListSig, channelCounts as channelCountsSig, currentMessages, totalCount as totalCountSig } from './store/dataStore.js';
 import { ViewCache } from './view-cache.js';
 
 /**
@@ -245,6 +246,13 @@ export async function createUI(dataAdapter, appCallbacks) {
       totalCount,
       selectedChannel, // 显式传递经过控制器校验的选中状态
     };
+
+    // [Bridge] 同步数据到 Preact Signals，为即将到来的组件化供电
+    serverListSig.value = serverList;
+    channelListSig.value = channelList;
+    channelCountsSig.value = channelCounts;
+    currentMessages.value = messages;
+    totalCountSig.value = totalCount;
 
     renderer.render(context, uiCallbacks);
 

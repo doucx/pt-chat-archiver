@@ -1,131 +1,103 @@
 import { storageManager } from '../storage/index.js';
+import { 
+  currentPage, pageSize, statsLimit, readChunkSize, initDebounceMs, cachePages,
+  autoFollowServer, totalPages, viewMode, isLockedToBottom, isUIPaused,
+  activeServer, recordedChannel, viewingServer, selectedChannel, lastServer,
+  updateConfig, initStore
+} from './store/uiStore.js';
 
 /**
  * Creates and manages the UI's internal state.
+ * (Currently acting as a backwards-compatible Facade for Preact Signals)
  * @returns {Promise<object>} A promise that resolves to a UI state manager instance.
  */
 export async function createUIState() {
-  const state = {
-    currentPage: 1,
-    pageSize: 1000,
-    statsLimit: 5000,
-    readChunkSize: 250,
-    initDebounceMs: 150,
-    cachePages: 5,
-    autoFollowServer: true,
-    lastSavedTime: null,
-    totalPages: 1,
-    viewMode: 'log', // 'log' | 'stats' | 'config'
-    isLockedToBottom: false, // 是否锁定在最底端跟随新消息
-    isUIPaused: false,
-    activeServer: null, // 当前物理所在的服务器
-    recordedChannel: null, // 当前正在录制的频道
-    viewingServer: null, // 当前正在查看的存档服务器
-    selectedChannel: 'Local', // 默认为 Local 频道
-    lastServer: null,
-  };
-
-  // Async load config
-  state.lastServer = await storageManager.getLastServer();
-  const config = await storageManager.getConfig();
-  state.pageSize = config.pageSize || 1000;
-  state.statsLimit = config.statsLimit || 5000;
-  state.readChunkSize = config.readChunkSize || 250;
-  state.initDebounceMs = config.initDebounceMs || 150;
-  state.cachePages = config.cachePages || 5;
-  state.autoFollowServer = config.autoFollowServer !== false; // 默认为 true
-
-  const saveConfig = async () => {
-    await storageManager.saveConfig({
-      pageSize: state.pageSize,
-      statsLimit: state.statsLimit,
-      readChunkSize: state.readChunkSize,
-      initDebounceMs: state.initDebounceMs,
-      cachePages: state.cachePages,
-      autoFollowServer: state.autoFollowServer,
-    });
-  };
+  await initStore();
 
   return {
-    getState: () => ({ ...state }),
+    getState: () => ({
+      currentPage: currentPage.value,
+      pageSize: pageSize.value,
+      statsLimit: statsLimit.value,
+      readChunkSize: readChunkSize.value,
+      initDebounceMs: initDebounceMs.value,
+      cachePages: cachePages.value,
+      autoFollowServer: autoFollowServer.value,
+      lastSavedTime: null,
+      totalPages: totalPages.value,
+      viewMode: viewMode.value,
+      isLockedToBottom: isLockedToBottom.value,
+      isUIPaused: isUIPaused.value,
+      activeServer: activeServer.value,
+      recordedChannel: recordedChannel.value,
+      viewingServer: viewingServer.value,
+      selectedChannel: selectedChannel.value,
+      lastServer: lastServer.value,
+    }),
 
-    setPage: (page) => {
-      state.currentPage = Math.max(1, Math.min(page, state.totalPages));
+    setPage: (page) => { 
+      currentPage.value = Math.max(1, Math.min(page, totalPages.value)); 
     },
-    setTotalPages: (total) => {
-      state.totalPages = Math.max(1, total);
+    setTotalPages: (total) => { 
+      totalPages.value = Math.max(1, total); 
     },
-    setViewMode: (mode) => {
+    setViewMode: (mode) => { 
       if (['log', 'stats', 'config'].includes(mode)) {
-        state.viewMode = mode;
+        viewMode.value = mode; 
       }
     },
     setPageSize: async (size) => {
       const val = Number.parseInt(size, 10);
-      if (!Number.isNaN(val) && val >= 10) {
-        state.pageSize = val;
-        await saveConfig();
-      }
+      if (!Number.isNaN(val) && val >= 10) await updateConfig('pageSize', val);
     },
     setStatsLimit: async (limit) => {
       const val = Number.parseInt(limit, 10);
-      if (!Number.isNaN(val) && val >= 100) {
-        state.statsLimit = val;
-        await saveConfig();
-      }
+      if (!Number.isNaN(val) && val >= 100) await updateConfig('statsLimit', val);
     },
     setReadChunkSize: async (size) => {
       const val = Number.parseInt(size, 10);
-      if (!Number.isNaN(val) && val >= 50) {
-        state.readChunkSize = val;
-        await saveConfig();
-      }
+      if (!Number.isNaN(val) && val >= 50) await updateConfig('readChunkSize', val);
     },
     setInitDebounceMs: async (ms) => {
       const val = Number.parseInt(ms, 10);
-      if (!Number.isNaN(val) && val >= 50) {
-        state.initDebounceMs = val;
-        await saveConfig();
-      }
+      if (!Number.isNaN(val) && val >= 50) await updateConfig('initDebounceMs', val);
     },
     setCachePages: async (pages) => {
       const val = Number.parseInt(pages, 10);
-      if (!Number.isNaN(val) && val >= 1) {
-        state.cachePages = val;
-        await saveConfig();
-      }
+      if (!Number.isNaN(val) && val >= 1) await updateConfig('cachePages', val);
     },
     setAutoFollowServer: async (enabled) => {
-      state.autoFollowServer = !!enabled;
-      await saveConfig();
+      await updateConfig('autoFollowServer', !!enabled);
     },
     setLastSavedTime: (isoString) => {
-      state.lastSavedTime = isoString;
+      // Legacy
     },
-    togglePause: () => {
-      state.isUIPaused = !state.isUIPaused;
-      return state.isUIPaused;
+    togglePause: () => { 
+      isUIPaused.value = !isUIPaused.value; 
+      return isUIPaused.value; 
     },
-    setLockedToBottom: (locked) => {
-      state.isLockedToBottom = !!locked;
+    setLockedToBottom: (locked) => { 
+      isLockedToBottom.value = !!locked; 
     },
-    forcePause: (paused) => {
-      state.isUIPaused = paused;
+    forcePause: (paused) => { 
+      isUIPaused.value = paused; 
     },
     setRecordingStatus: (serverName, channelName) => {
-      state.activeServer = serverName;
-      state.recordedChannel = channelName;
-      if (serverName) state.lastServer = serverName;
-      // 如果开启了自动跟随，或者这是第一次检测到服务器，则更新查看视图
-      if (state.autoFollowServer || !state.viewingServer) {
-        state.viewingServer = serverName;
+      activeServer.value = serverName;
+      recordedChannel.value = channelName;
+      if (serverName) {
+        lastServer.value = serverName;
+        storageManager.setLastServer(serverName); // 立即持久化
+      }
+      if (autoFollowServer.value || !viewingServer.value) {
+        viewingServer.value = serverName;
       }
     },
-    setViewingServer: (serverName) => {
-      state.viewingServer = serverName;
+    setViewingServer: (serverName) => { 
+      viewingServer.value = serverName; 
     },
-    setSelectedChannel: (channel) => {
-      state.selectedChannel = channel;
+    setSelectedChannel: (channel) => { 
+      selectedChannel.value = channel; 
     },
     getSelfName: async () => await storageManager.getSelfName(),
     setSelfName: async (name) => await storageManager.setSelfName(name),
