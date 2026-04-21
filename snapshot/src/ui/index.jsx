@@ -179,10 +179,6 @@ export async function createUI(dataAdapter, appCallbacks) {
       }
     }
 
-    if (stateViewMode === 'config') {
-      loadingMessage.value = '';
-    }
-
     const newTotalPages = Math.ceil(totalCount / statePageSize) || 1;
 
     // 使用 batch 确保内部的多次信号修改只触发一次重新渲染
@@ -191,11 +187,14 @@ export async function createUI(dataAdapter, appCallbacks) {
 
       if (stateIsLockedToBottom && stateViewMode === 'log' && newTotalPages > stateCurrentPage) {
         currentPage.value = newTotalPages;
-        // 注意：这里由于 currentPage 变了，后续会由 effect 再次触发拉取，
-        // 但为了交互平滑，这里我们保持内存中的 messages 更新
       }
 
       if (renderId !== currentRenderId) return;
+
+      // 只要到达了这里且没有被新任务抢占，就说明加载已完成或无需加载
+      if (stateViewMode === 'config' || messages.length > 0 || totalCount === 0) {
+        loadingMessage.value = '';
+      }
 
       serverListSig.value = serverList;
       channelListSig.value = channelList;

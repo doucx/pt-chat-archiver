@@ -80,10 +80,17 @@ describe('UI Integration Smoke Tests', () => {
   });
 
   beforeEach(async () => {
+    localStorage.clear();
     await storageManager.init();
+    
+    // 强制重置所有模块级 Signal 的初值，防止跨测试污染
     viewMode.value = 'log';
     currentPage.value = 1;
     isLockedToBottom.value = false;
+    pageSize.value = 1000;
+    statsLimit.value = 5000;
+    loadingMessage.value = '';
+
     mockAppState = {
       'Test Server': {
         Local: Array.from({ length: 250 }, (_, i) => ({

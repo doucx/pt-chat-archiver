@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M ui.integration.test.js", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776810730.0836382, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(ui): 解决加载状态残留及统计视图样式缺陷，并增强测试隔离", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776810837.8236387, "duration_ms": 0}}
