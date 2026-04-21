@@ -1,6 +1,8 @@
 import { UI_MESSAGES } from '../constants.js';
 import { MigrationManager } from '../migrations.js';
 import { storageManager } from '../storage/index.js';
+import { render } from 'preact';
+import { App } from './App.jsx';
 import { getDOMElements, initDOM } from './dom.js';
 import { bindUIEvents } from './events.js';
 import { createIOManager } from './io-manager.js';
@@ -323,15 +325,19 @@ export async function createUI(dataAdapter, appCallbacks) {
     callbacks: uiCallbacks,
   });
 
-  // 4. Initial Render
+  // 4. Preact Mounting
+  // 正式将 Preact 渲染引擎挂载到 DOM 容器中
+  render(<App dataAdapter={dataAdapter} appCallbacks={uiCallbacks} />, dom.uiContainer);
+
+  // 5. Initial Render
   // 必须等待首屏渲染完成，确保 UI 实例返回时 DOM 已就绪
   await refreshView();
 
-  // 5. Return the public API
+  // 6. Return the public API
   return {
-    updateUI: () => {
+    updateUI: async () => {
       if (!uiState.getState().isUIPaused) {
-        refreshView();
+        await refreshView();
       }
     },
     onNewMessage: (msg) => {
@@ -340,15 +346,15 @@ export async function createUI(dataAdapter, appCallbacks) {
     invalidateCache: () => {
       viewCache.clear();
     },
-    setState: (newState) => {
-      refreshView();
+    setState: async (newState) => {
+      await refreshView();
     },
     checkStorageUsage: async () => await renderer.checkStorageUsage(),
     isUIPaused: () => uiState.getState().isUIPaused,
     getInitDebounceMs: () => uiState.getState().initDebounceMs,
-    updateRecordingStatus: (serverName, channelName) => {
+    updateRecordingStatus: async (serverName, channelName) => {
       uiState.setRecordingStatus(serverName, channelName);
-      refreshView();
+      await refreshView();
     },
   };
 }

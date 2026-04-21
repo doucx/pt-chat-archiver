@@ -89,7 +89,7 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
     const adapter = createMockAdapter(mockAppState);
     const ui = await createUI(adapter, mockCallbacks);
-    ui.updateRecordingStatus('Server A', 'Local');
+    await ui.updateRecordingStatus('Server A', 'Local');
 
     // 进入设置页面
     const settingsButton = screen.getByTitle('设置');
@@ -109,7 +109,7 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
     const adapter = createMockAdapter(mockAppState);
     const ui = await createUI(adapter, mockCallbacks);
-    ui.updateRecordingStatus('Server A', 'Local');
+    await ui.updateRecordingStatus('Server A', 'Local');
 
     fireEvent.click(screen.getByTitle('设置'));
 
