@@ -82,6 +82,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       channelCountsSig.value = {};
       currentMessages.value = [];
       totalCountSig.value = 0;
+      loadingMessage.value = '';
       return;
     }
 
@@ -113,6 +114,10 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
     viewCache.setTotalCount(totalCount);
+
+    if (stateViewMode === 'config') {
+      loadingMessage.value = '';
+    }
 
     if (currentServer && finalSelectedChannel && stateViewMode !== 'config') {
       let fetchSize = statePageSize;

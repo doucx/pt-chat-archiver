@@ -1,7 +1,7 @@
 import { useMemo } from 'preact/hooks';
 import { generateStatisticsText } from '../../analysis.js';
 import { currentMessages } from '../store/dataStore';
-import { selectedChannel } from '../store/uiStore';
+import { loadingMessage, selectedChannel } from '../store/uiStore';
 
 export function StatsView() {
   const msgs = currentMessages.value;
@@ -20,7 +20,7 @@ export function StatsView() {
         readOnly
         className="log-archive-ui-log-display"
         style={{ flexGrow: 1, backgroundColor: 'rgba(0,0,0,0.2)' }}
-        value={statsText}
+        value={loadingMessage.value || statsText}
       />
     </div>
   );
