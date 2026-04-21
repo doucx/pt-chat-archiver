@@ -1,14 +1,20 @@
+import { render } from 'preact';
 import { UI_MESSAGES } from '../constants.js';
 import { MigrationManager } from '../migrations.js';
 import { storageManager } from '../storage/index.js';
-import { render } from 'preact';
 import { App } from './App.jsx';
 import { getDOMElements, initDOM } from './dom.js';
 import { bindUIEvents } from './events.js';
 import { createIOManager } from './io-manager.js';
 import { createRenderer } from './renderer.js';
 import { createUIState } from './state.js';
-import { serverList as serverListSig, channelList as channelListSig, channelCounts as channelCountsSig, currentMessages, totalCount as totalCountSig } from './store/dataStore.js';
+import {
+  channelCounts as channelCountsSig,
+  channelList as channelListSig,
+  currentMessages,
+  serverList as serverListSig,
+  totalCount as totalCountSig,
+} from './store/dataStore.js';
 import { ViewCache } from './view-cache.js';
 
 /**

@@ -1,6 +1,6 @@
-import { viewMode, isReadOnly } from './store/uiStore';
 import { Header } from './components/Header';
 import { LogViewer } from './components/LogViewer';
+import { isReadOnly, viewMode } from './store/uiStore';
 
 export function App({ dataAdapter, appCallbacks }) {
   // 定义桥接到 UI 外部的回调
@@ -15,17 +15,20 @@ export function App({ dataAdapter, appCallbacks }) {
         navigator.clipboard.writeText(display.value);
         // 这里可以添加更优雅的 Preact Toast 反馈
       }
-    }
+    },
   };
 
   return (
-    <div 
+    <div
       className={`log-archive-app-root ${isReadOnly.value ? 'is-readonly' : ''}`}
       style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}
     >
       <Header callbacks={callbacks} />
-      
-      <div id="log-archive-view-container" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      <div
+        id="log-archive-view-container"
+        style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+      >
         {viewMode.value === 'log' && <LogViewer />}
         {viewMode.value === 'config' && (
           <div style={{ padding: '20px', color: '#ccc' }}>

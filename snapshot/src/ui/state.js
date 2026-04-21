@@ -1,9 +1,23 @@
 import { storageManager } from '../storage/index.js';
-import { 
-  currentPage, pageSize, statsLimit, readChunkSize, initDebounceMs, cachePages,
-  autoFollowServer, totalPages, viewMode, isLockedToBottom, isUIPaused,
-  activeServer, recordedChannel, viewingServer, selectedChannel, lastServer,
-  updateConfig, initStore
+import {
+  activeServer,
+  autoFollowServer,
+  cachePages,
+  currentPage,
+  initDebounceMs,
+  initStore,
+  isLockedToBottom,
+  isUIPaused,
+  lastServer,
+  pageSize,
+  readChunkSize,
+  recordedChannel,
+  selectedChannel,
+  statsLimit,
+  totalPages,
+  updateConfig,
+  viewMode,
+  viewingServer,
 } from './store/uiStore.js';
 
 /**
@@ -35,15 +49,15 @@ export async function createUIState() {
       lastServer: lastServer.value,
     }),
 
-    setPage: (page) => { 
-      currentPage.value = Math.max(1, Math.min(page, totalPages.value)); 
+    setPage: (page) => {
+      currentPage.value = Math.max(1, Math.min(page, totalPages.value));
     },
-    setTotalPages: (total) => { 
-      totalPages.value = Math.max(1, total); 
+    setTotalPages: (total) => {
+      totalPages.value = Math.max(1, total);
     },
-    setViewMode: (mode) => { 
+    setViewMode: (mode) => {
       if (['log', 'stats', 'config'].includes(mode)) {
-        viewMode.value = mode; 
+        viewMode.value = mode;
       }
     },
     setPageSize: async (size) => {
@@ -72,15 +86,15 @@ export async function createUIState() {
     setLastSavedTime: (isoString) => {
       // Legacy
     },
-    togglePause: () => { 
-      isUIPaused.value = !isUIPaused.value; 
-      return isUIPaused.value; 
+    togglePause: () => {
+      isUIPaused.value = !isUIPaused.value;
+      return isUIPaused.value;
     },
-    setLockedToBottom: (locked) => { 
-      isLockedToBottom.value = !!locked; 
+    setLockedToBottom: (locked) => {
+      isLockedToBottom.value = !!locked;
     },
-    forcePause: (paused) => { 
-      isUIPaused.value = paused; 
+    forcePause: (paused) => {
+      isUIPaused.value = paused;
     },
     setRecordingStatus: (serverName, channelName) => {
       activeServer.value = serverName;
@@ -93,11 +107,11 @@ export async function createUIState() {
         viewingServer.value = serverName;
       }
     },
-    setViewingServer: (serverName) => { 
-      viewingServer.value = serverName; 
+    setViewingServer: (serverName) => {
+      viewingServer.value = serverName;
     },
-    setSelectedChannel: (channel) => { 
-      selectedChannel.value = channel; 
+    setSelectedChannel: (channel) => {
+      selectedChannel.value = channel;
     },
     getSelfName: async () => await storageManager.getSelfName(),
     setSelfName: async (name) => await storageManager.setSelfName(name),

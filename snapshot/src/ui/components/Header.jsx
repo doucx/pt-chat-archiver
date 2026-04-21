@@ -1,5 +1,14 @@
-import { viewMode, isUIPaused, activeServer, recordedChannel, viewingServer, selectedChannel, lastServer, isReadOnly } from '../store/uiStore';
-import { channelList, channelCounts } from '../store/dataStore';
+import { channelCounts, channelList } from '../store/dataStore';
+import {
+  activeServer,
+  isReadOnly,
+  isUIPaused,
+  lastServer,
+  recordedChannel,
+  selectedChannel,
+  viewMode,
+  viewingServer,
+} from '../store/uiStore';
 
 export function Header({ callbacks }) {
   const handleToggleView = (mode) => {
@@ -14,14 +23,16 @@ export function Header({ callbacks }) {
     if (!activeServer.value) {
       return (
         <span style={{ fontSize: '0.85em' }}>
-          等待进入游戏... {lastServer.value && <span className="info-text-dim">(上个: {lastServer.value})</span>}
+          等待进入游戏...{' '}
+          {lastServer.value && <span className="info-text-dim">(上个: {lastServer.value})</span>}
         </span>
       );
     }
     if (!isReadOnly.value) {
       return (
         <span style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em' }}>
-          ✅ 正在记录: {activeServer.value}{recordedChannel.value ? `::${recordedChannel.value}` : ''}
+          ✅ 正在记录: {activeServer.value}
+          {recordedChannel.value ? `::${recordedChannel.value}` : ''}
         </span>
       );
     }
@@ -34,52 +45,71 @@ export function Header({ callbacks }) {
 
   return (
     <div id="log-archive-ui-header">
-      <div id="log-archive-ui-controls" style={{ width: '100%', justifyContent: 'space-between', display: 'flex' }}>
-        <select 
-          id="log-archive-channel-selector" 
-          className="log-archive-ui-button" 
+      <div
+        id="log-archive-ui-controls"
+        style={{ width: '100%', justifyContent: 'space-between', display: 'flex' }}
+      >
+        <select
+          id="log-archive-channel-selector"
+          className="log-archive-ui-button"
           style={{ flexGrow: 1, marginRight: '10px' }}
           value={selectedChannel.value}
-          onChange={(e) => selectedChannel.value = e.target.value}
+          onChange={(e) => (selectedChannel.value = e.target.value)}
         >
           {channelList.value.length === 0 ? (
             <option value="">无记录</option>
           ) : (
-            channelList.value.map(ch => (
-              <option key={ch} value={ch}>{ch} ({channelCounts.value[ch] || 0})</option>
+            channelList.value.map((ch) => (
+              <option key={ch} value={ch}>
+                {ch} ({channelCounts.value[ch] || 0})
+              </option>
             ))
           )}
         </select>
 
         <div style={{ display: 'flex', gap: '5px' }}>
           {isReadOnly.value && (
-            <button className="log-archive-ui-button" title="回到正在记录的服务器" onClick={handleResetServer}>📍</button>
+            <button
+              className="log-archive-ui-button"
+              title="回到正在记录的服务器"
+              onClick={handleResetServer}
+            >
+              📍
+            </button>
           )}
           {!isReadOnly.value && (
-            <button 
-              className={`log-archive-ui-button ${isUIPaused.value ? 'paused' : ''}`} 
+            <button
+              className={`log-archive-ui-button ${isUIPaused.value ? 'paused' : ''}`}
               title="暂停/恢复录制"
-              onClick={() => isUIPaused.value = !isUIPaused.value}
+              onClick={() => (isUIPaused.value = !isUIPaused.value)}
             >
               {isUIPaused.value ? '▶️ ' : '⏸️ '}
             </button>
           )}
-          <button 
-            className={`log-archive-ui-button ${viewMode.value === 'stats' ? 'active' : ''}`} 
+          <button
+            className={`log-archive-ui-button ${viewMode.value === 'stats' ? 'active' : ''}`}
             title="数据统计"
             onClick={() => handleToggleView('stats')}
           >
             {viewMode.value === 'stats' ? '📜' : '📊'}
           </button>
-          <button 
-            className={`log-archive-ui-button ${viewMode.value === 'config' ? 'active' : ''}`} 
+          <button
+            className={`log-archive-ui-button ${viewMode.value === 'config' ? 'active' : ''}`}
             title="设置"
             onClick={() => handleToggleView('config')}
           >
             ⚙️
           </button>
-          <button className="log-archive-ui-button" title="复制当前页内容" onClick={callbacks.copyCurrentPage}>📋</button>
-          <button className="log-archive-ui-button" title="关闭界面" onClick={callbacks.closeUI}>❌</button>
+          <button
+            className="log-archive-ui-button"
+            title="复制当前页内容"
+            onClick={callbacks.copyCurrentPage}
+          >
+            📋
+          </button>
+          <button className="log-archive-ui-button" title="关闭界面" onClick={callbacks.closeUI}>
+            ❌
+          </button>
         </div>
       </div>
       <div id="log-archive-server-status" style={{ marginTop: '5px', textAlign: 'center' }}>
