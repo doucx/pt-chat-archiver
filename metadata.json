@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修复统计视图加载状态残留及进度显示不全的问题", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776810224.4546354, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test: 建立统计视图加载状态与进度显示的回归测试", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776810317.2912045, "duration_ms": 0}}

@@ -1,40 +1,3 @@
-好的，我们将建立针对该场景的自动化回归测试。为了确保修复的有效性，我们需要模拟一个耗时的数据加载过程，并验证在不同视图状态下 `loadingMessage` 的行为。
-
-我们将创建一个新的测试文件 `tests/ui.stats_loading.test.js`，专门用于验证加载状态机的逻辑。
-
-## [WIP] test: 建立统计视图加载状态与进度显示的回归测试
-
-### 用户需求
-建立针对加载状态残留和统计视图进度显示的自动化验证，防止未来的变更再次引入异步竞争导致 UI 锁死的 Bug。
-
-### 评论
-异步竞争问题（Race Conditions）通常难以通过简单的冒烟测试发现。通过在 Mock Adapter 中引入人工延迟和进度回调，我们可以精确地观测 UI 在“半加载”状态下的表现。
-
-### 目标
-1.  创建一个专门的集成测试文件。
-2.  模拟一个耗时 100ms 以上的数据拉取过程，并伴随进度更新。
-3.  验证 `StatsView` 是否能正确渲染进度文字。
-4.  验证从 `stats` 切换到 `config` 后，加载提示是否立即消失。
-
-### 基本原理
-利用 `vitest` 的异步等待机制和 `testing-library` 的 DOM 匹配能力，我们可以断言 `loadingMessage` 信号在 UI 组件中的实时体现。通过在一个正在进行的加载任务中强行修改 `viewMode`，我们可以测试 `index.jsx` 中新添加的清理路径。
-
-### 标签
-#intent/tooling #flow/ready #priority/medium #comp/tests #concept/ui #scope/dx #ai/build #task/domain/testing #task/object/loading-state-regression #task/action/test-implementation #task/state/continue
-
----
-
-### Script
-
-#### Acts 1: 创建统计加载逻辑回归测试
-
-我们将创建一个新的测试文件，模拟复杂的异步加载场景。
-
-~~~~~act
-write_file
-tests/ui.stats_loading.test.js
-~~~~~
-~~~~~javascript
 import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
@@ -140,8 +103,3 @@ describe('UI Loading State Regression', () => {
     });
   });
 });
-~~~~~
-
-### 下一步建议
-- **执行测试**: 运行 `npm test tests/ui.stats_loading.test.js` 验证测试是否通过。
-- **提交变更**: 在确认测试通过后，我们将把这些修复和测试作为一个完整的逻辑单元提交。
