@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M package.json", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776811396.9627862, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] refactor(ui): migrate entire UI layer to Preact and @preact/signals", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776811397.4904754, "duration_ms": 0}}
