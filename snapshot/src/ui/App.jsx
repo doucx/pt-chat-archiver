@@ -15,7 +15,7 @@ export function App({ dataAdapter, appCallbacks }) {
       const display = document.getElementById('log-archive-ui-log-display');
       if (display?.value) {
         navigator.clipboard.writeText(display.value);
-        // 这里可以添加更优雅的 Preact Toast 反馈
+        alert('✅ 已复制到剪贴板');
       }
     },
   };

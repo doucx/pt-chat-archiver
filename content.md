@@ -1,213 +1,408 @@
-非常感谢你的配合！根据测试输出，我们发现了两点需要进一步修复：
+好的，我分析了这次自动重构引入的变更。从 `diff` 文件可以看出，项目经历了一次重大的 UI 架构升级，从原生的 DOM 操作迁移到了基于 Preact 和 Signals 的组件化架构。
 
-1. **测试逻辑的时序冲突**：在 `ui.integration.test.js` 的“在加载过程中发生的滚动不应触发错误解锁”测试中，由于前一个动作（点击最后一页）触发了异步的数据拉取 (`refreshView`)，它在后台会设置和清除 `loadingMessage`。而测试用例通过手动修改 DOM `value` 来模拟滚动，这与后台真实的信号状态 (`loadingMessage.value`) 发生了竞态。当执行最后一步“正常解锁”时，后台的加载其实还没有结束，导致滚动事件被拦截，按钮依然保有 `active` class。
-2. **需要将清理逻辑应用到所有集成测试**：正如上一次的“下一步建议”所述，`ui.integration.test.js` 中也需要引入 `activeUI.destroy()` 来避免环境污染。
+这次重构非常成功地现代化了代码库，但在此过程中，一些旧有的配置项和功能性 UI 元素未能被迁移到新的 Preact 组件中，导致了功能上的倒退。
 
-下面我们将生成计划来修复这些问题。
+我将生成一个计划来修复这些问题，恢复缺失的功能，以确保新架构与旧版本在功能上保持一致。
 
-## [WIP] fix(test): 修复集成测试中的时序竞态条件及内存泄漏
-
-### 错误分析
-在 `ui.integration.test.js` 的 `在加载过程中发生的滚动不应触发错误解锁` 测试中，最后断言 `expect(lastBtn).not.toHaveClass('active')` 失败。
-根本原因是：
-测试点击 `lastBtn` 后，虽然测试代码立即手动覆盖了 `logDisplay.value` 并触发了滚动，但后台由 `currentPage.value` 改变引发的 `refreshView` 仍在执行。当测试进行到第 4 步和第 5 步时，全局状态 `loadingMessage.value` 可能依然是真值（例如 `"⏳ 数据加载..."`）。在 `LogViewer` 的 `handleScroll` 中，由于 `loadingMessage.value` 为真，事件被直接 `return` 掉，解锁逻辑未能执行。
+## [WIP] fix: 恢复重构后缺失的UI配置项和功能
 
 ### 用户需求
-确保 `tests/ui.integration.test.js` 全部通过，测试环境没有残留。
+
+1.  **恢复配置项**: 在新的“设置”面板中，重新加入原有的“统计分析上限”、“数据库读取分片大小”、“初始化防抖延迟”和“内存缓存容量”这些配置选项。
+2.  **恢复备份管理**: 在“设置”面板中，重新加入用于删除旧版（v6）LocalStorage 备份文件的 UI 功能。
+3.  **修复硬编码**: 修复统计分析功能中硬编码为 `5000` 的消息上限，使其重新与用户配置联动。
+4.  **补充交互反馈**: 为“复制当前页”按钮增加操作成功的提示。
 
 ### 评论
-对于异步的副作用（尤其是涉及延时的 UI 反馈），测试用例必须显式地等待状态平息（settled），再进行下一步断言。这在基于信号和异步流的架构中尤为重要。
+
+这是一个关键的功能修复。恢复这些配置项不仅能让高级用户根据设备性能进行微调，也确保了从旧版本迁移过来的用户能够管理其数据备份。修复硬编码值则保证了软件行为与 UI 配置的一致性。这些改动将使新的 Preact 架构在功能上与之前版本完全对等。
 
 ### 目标
-1.  在 `ui.integration.test.js` 中引入 `loadingMessage` 信号，用于精确等待异步加载完成。
-2.  在所有测试的最后进行 `destroy()` 清理。
+
+1.  **修改 `ConfigPanel.jsx`**: 添加缺失的四个配置输入框，并将其绑定到 `uiStore.js` 中对应的 `signal`。
+2.  **修改 `ConfigPanel.jsx`**: 利用已存在的 `hasBackup` 状态，条件性地渲染“删除旧版 LocalStorage 备份”的 UI 区域和按钮。
+3.  **修改 `index.jsx`**: 移除硬编码的 `5000`，改为从 `uiStore.js` 的 `statsLimit` signal 中读取统计分析的消息数量。
+4.  **修改 `App.jsx`**: 在 `copyCurrentPage` 回调函数中，加入 `alert` 以向用户反馈复制成功。
 
 ### 基本原理
-通过 `waitFor(() => expect(loadingMessage.value).toBe(''))` 确保后台的所有异步读取和渲染都已结束，这时再模拟常规的向上滚动，就不会被 `handleScroll` 中的加载保护机制拦截，从而能够正确验证解锁逻辑。
+
+本次修复将严格遵循新的 Preact 和 Signals 架构：
+*   所有 UI 变更都将通过修改 JSX 组件来完成，确保声明式 UI 的一致性。
+*   所有状态和配置的读写都将通过 `uiStore.js` 中的 `signal` 和 `updateConfig` action 来进行，维持单向数据流。
+*   所有与外部系统的交互（如 `deleteV6Backup`）都通过 `appCallbacks` 属性传递，保持组件的纯粹性。
 
 ### 标签
-#intent/fix #flow/ready #priority/high #comp/tests #concept/navigation #scope/dx #ai/refine #task/domain/testing #task/object/integration-tests #task/action/fix #task/state/begin
+#intent/fix #flow/ready #priority/high #comp/cli #concept/ui #scope/ux #scope/dx #ai/instruct #task/domain/ui #task/object/refactor-parity #task/action/bug-fix #task/state/begin
 
 ---
 
 ### Script
 
-#### Acts 1: 修复 `ui.integration.test.js`
+#### Acts 1: 恢复 `ConfigPanel` 中缺失的配置项和备份管理UI
+
+我将一次性地对 `src/ui/components/ConfigPanel.jsx` 文件进行修改，补全所有缺失的配置输入框和旧版备份删除功能。
 
 ~~~~~act
 patch_file
-tests/ui.integration.test.js
+src/ui/components/ConfigPanel.jsx
 ~~~~~
-~~~~~javascript.old
-import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.jsx';
-import { currentPage, isLockedToBottom, viewMode } from '../src/ui/store/uiStore.js';
+~~~~~jsx.old
+      <div class="config-group">
+        <label htmlFor="config-page-size">分页大小 (每页消息条数)</label>
+        <input
+          id="config-page-size"
+          type="number"
+          value={pageSize.value}
+          onChange={(e) => handleUpdate('pageSize', Number.parseInt(e.target.value))}
+          min="10"
+          max="10000"
+          step="100"
+        />
+      </div>
+
+      <div class="config-group">
+        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>维护操作</div>
+        <div class="info-text-dim">估算数据占用: {usage.toFixed(2)} MB</div>
+        <div class="info-text-dim" style={{ marginBottom: '8px' }}>
+          存档消息总数: {msgCount.toLocaleString()} 条
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.copyJSON}>
+              复制 JSON
+            </button>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.copyTXT}>
+              复制 TXT
+            </button>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.downloadJSON}>
+              下载 JSON
+            </button>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.downloadTXT}>
+              下载 TXT
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button
+              type="button"
+              class={`log-archive-ui-button ${scanState === 'pending' ? 'active' : ''}`}
+              onClick={handleScanDuplicates}
+              disabled={scanState === 'scanning' || scanState === 'cleaning'}
+            >
+              {scanState === 'idle'
+                ? '扫描重复记录'
+                : scanState === 'scanning'
+                  ? '扫描中...'
+                  : scanState === 'pending'
+                    ? `清理重复 (${duplicateIds.length})`
+                    : scanState === 'cleaning'
+                      ? '清理中...'
+                      : scanState === 'no_duplicates'
+                        ? '未发现重复'
+                        : '清理完毕!'}
+            </button>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.importAllData}>
+              导入 JSON (覆盖)
+            </button>
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              style={{ gridColumn: 'span 2', backgroundColor: 'var(--color-success)' }}
+              onClick={callbacks.importAndMergeData}
+            >
+              导入 JSON (合并)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {(legacy.v4 || legacy.v5 || legacy.v6) && (
+        <div
+          class="config-group"
+          style={{
+            marginTop: '10px',
+            padding: '10px',
+            background: 'rgba(200, 150, 50, 0.1)',
+            border: '1px dashed var(--color-warning)',
+          }}
+        >
+          <div style={{ fontWeight: 'bold', color: 'var(--color-warning)', marginBottom: '4px' }}>
+            发现残留数据!
+          </div>
+          <div class="info-text-dim" style={{ marginBottom: '8px' }}>
+            检测到旧版本数据尚未合并。
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              style={{ backgroundColor: 'var(--color-warning)', color: '#000', flexGrow: 1 }}
+              onClick={() => callbacks.recoverLegacyData(viewingServer.value)}
+            >
+              尝试合并
+            </button>
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              style={{ backgroundColor: 'var(--color-danger)', color: '#fff', flexGrow: 1 }}
+              onClick={callbacks.clearLegacyData}
+            >
+              放弃并清理
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div
+        class="config-group"
+        style={{ marginTop: '10px', borderTop: '1px dashed #444', paddingTop: '20px' }}
 ~~~~~
-~~~~~javascript.new
-import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.jsx';
-import { currentPage, isLockedToBottom, loadingMessage, viewMode } from '../src/ui/store/uiStore.js';
+~~~~~jsx.new
+      <div class="config-group">
+        <label htmlFor="config-page-size">分页大小 (每页消息条数)</label>
+        <input
+          id="config-page-size"
+          type="number"
+          value={pageSize.value}
+          onChange={(e) => handleUpdate('pageSize', Number.parseInt(e.target.value))}
+          min="10"
+          max="10000"
+          step="100"
+        />
+      </div>
+
+      <div class="config-group">
+        <label htmlFor="config-stats-limit">统计分析上限 (最后 N 条)</label>
+        <input
+          id="config-stats-limit"
+          type="number"
+          value={statsLimit.value}
+          onChange={(e) => handleUpdate('statsLimit', Number.parseInt(e.target.value))}
+          min="100"
+          max="50000"
+          step="500"
+        />
+      </div>
+      <div class="config-group">
+        <label htmlFor="config-read-chunk">数据库读取分片大小</label>
+        <input
+          id="config-read-chunk"
+          type="number"
+          value={readChunkSize.value}
+          onChange={(e) => handleUpdate('readChunkSize', Number.parseInt(e.target.value))}
+          min="50"
+          max="2000"
+          step="50"
+        />
+      </div>
+      <div class="config-group">
+        <label htmlFor="config-init-debounce">初始化防抖延迟 (毫秒)</label>
+        <input
+          id="config-init-debounce"
+          type="number"
+          value={initDebounceMs.value}
+          onChange={(e) => handleUpdate('initDebounceMs', Number.parseInt(e.target.value))}
+          min="50"
+          max="5000"
+          step="50"
+        />
+      </div>
+      <div class="config-group">
+        <label htmlFor="config-cache-pages">内存缓存容量 (页数)</label>
+        <input
+          id="config-cache-pages"
+          type="number"
+          value={cachePages.value}
+          onChange={(e) => handleUpdate('cachePages', Number.parseInt(e.target.value))}
+          min="1"
+          max="50"
+          step="1"
+        />
+      </div>
+
+      <div class="config-group">
+        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>维护操作</div>
+        <div class="info-text-dim">估算数据占用: {usage.toFixed(2)} MB</div>
+        <div class="info-text-dim" style={{ marginBottom: '8px' }}>
+          存档消息总数: {msgCount.toLocaleString()} 条
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.copyJSON}>
+              复制 JSON
+            </button>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.copyTXT}>
+              复制 TXT
+            </button>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.downloadJSON}>
+              下载 JSON
+            </button>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.downloadTXT}>
+              下载 TXT
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button
+              type="button"
+              class={`log-archive-ui-button ${scanState === 'pending' ? 'active' : ''}`}
+              onClick={handleScanDuplicates}
+              disabled={scanState === 'scanning' || scanState === 'cleaning'}
+            >
+              {scanState === 'idle'
+                ? '扫描重复记录'
+                : scanState === 'scanning'
+                  ? '扫描中...'
+                  : scanState === 'pending'
+                    ? `清理重复 (${duplicateIds.length})`
+                    : scanState === 'cleaning'
+                      ? '清理中...'
+                      : scanState === 'no_duplicates'
+                        ? '未发现重复'
+                        : '清理完毕!'}
+            </button>
+            <button type="button" class="log-archive-ui-button" onClick={callbacks.importAllData}>
+              导入 JSON (覆盖)
+            </button>
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              style={{ gridColumn: 'span 2', backgroundColor: 'var(--color-success)' }}
+              onClick={callbacks.importAndMergeData}
+            >
+              导入 JSON (合并)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {(legacy.v4 || legacy.v5 || legacy.v6) && (
+        <div
+          class="config-group"
+          style={{
+            marginTop: '10px',
+            padding: '10px',
+            background: 'rgba(200, 150, 50, 0.1)',
+            border: '1px dashed var(--color-warning)',
+          }}
+        >
+          <div style={{ fontWeight: 'bold', color: 'var(--color-warning)', marginBottom: '4px' }}>
+            发现残留数据!
+          </div>
+          <div class="info-text-dim" style={{ marginBottom: '8px' }}>
+            检测到旧版本数据尚未合并。
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              style={{ backgroundColor: 'var(--color-warning)', color: '#000', flexGrow: 1 }}
+              onClick={() => callbacks.recoverLegacyData(viewingServer.value)}
+            >
+              尝试合并
+            </button>
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              style={{ backgroundColor: 'var(--color-danger)', color: '#fff', flexGrow: 1 }}
+              onClick={callbacks.clearLegacyData}
+            >
+              放弃并清理
+            </button>
+          </div>
+        </div>
+      )}
+
+      {hasBackup && (
+        <div class="config-group" style={{ marginTop: '10px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>兼容性清理</div>
+          <button type="button" class="log-archive-ui-button" onClick={callbacks.deleteV6Backup}>
+            删除旧版 LocalStorage 备份
+          </button>
+          <div class="info-text-dim" style={{ marginTop: '4px', fontSize: '0.8em' }}>
+            迁移至新数据库后生成的备份文件，删除可释放浏览器 LocalStorage 空间。
+          </div>
+        </div>
+      )}
+
+      <div
+        class="config-group"
+        style={{ marginTop: '10px', borderTop: '1px dashed #444', paddingTop: '20px' }}
 ~~~~~
+
+#### Acts 2: 修复硬编码的统计分析上限
+
+接下来，我将修复 `src/ui/index.jsx` 中的硬编码问题，并导入所需的 `statsLimit` 信号。
+
 ~~~~~act
 patch_file
-tests/ui.integration.test.js
+src/ui/index.jsx
 ~~~~~
-~~~~~javascript.old
-describe('UI Integration Smoke Tests', () => {
-  let mockAppState;
-
-  beforeEach(async () => {
-    await storageManager.init();
+~~~~~jsx.old
+  selectedChannel,
+  setRecordingStatus,
+  totalPages,
+  viewMode,
 ~~~~~
-~~~~~javascript.new
-describe('UI Integration Smoke Tests', () => {
-  let mockAppState;
-  let activeUI = null;
-
-  afterEach(() => {
-    if (activeUI) {
-      activeUI.destroy();
-      activeUI = null;
-    }
-  });
-
-  beforeEach(async () => {
-    await storageManager.init();
+~~~~~jsx.new
+  selectedChannel,
+  setRecordingStatus,
+  statsLimit,
+  totalPages,
+  viewMode,
 ~~~~~
+
 ~~~~~act
 patch_file
-tests/ui.integration.test.js
+src/ui/index.jsx
 ~~~~~
-~~~~~javascript.old
-  it('初始加载时应正确渲染数据和默认频道', async () => {
-    await renderUI(mockAppState);
+~~~~~jsx.old
+      let offset = undefined;
 
-    // 虽然 renderUI 内部已经 await refreshView，但在复杂的测试环境中
+      if (stateViewMode === 'stats') {
+        const stateStatsLimit = 5000;
+        fetchSize = stateStatsLimit;
+        offset = Math.max(0, totalCount - stateStatsLimit);
+        fetchPage = 1;
 ~~~~~
-~~~~~javascript.new
-  it('初始加载时应正确渲染数据和默认频道', async () => {
-    activeUI = await renderUI(mockAppState);
+~~~~~jsx.new
+      let offset = undefined;
 
-    // 虽然 renderUI 内部已经 await refreshView，但在复杂的测试环境中
+      if (stateViewMode === 'stats') {
+        const stateStatsLimit = statsLimit.value;
+        fetchSize = stateStatsLimit;
+        offset = Math.max(0, totalCount - stateStatsLimit);
+        fetchPage = 1;
 ~~~~~
+
+#### Acts 3: 为复制按钮添加交互反馈
+
+最后，我将为 `src/ui/App.jsx` 中的复制按钮添加一个简单的 `alert` 提示。
+
 ~~~~~act
 patch_file
-tests/ui.integration.test.js
+src/ui/App.jsx
 ~~~~~
-~~~~~javascript.old
-  it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
-    await renderUI(mockAppState);
-
-    const settingsButton = screen.getByTitle('设置');
+~~~~~jsx.old
+    copyCurrentPage: () => {
+      const display = document.getElementById('log-archive-ui-log-display');
+      if (display?.value) {
+        navigator.clipboard.writeText(display.value);
+        // 这里可以添加更优雅的 Preact Toast 反馈
+      }
+    },
 ~~~~~
-~~~~~javascript.new
-  it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
-    activeUI = await renderUI(mockAppState);
-
-    const settingsButton = screen.getByTitle('设置');
-~~~~~
-~~~~~act
-patch_file
-tests/ui.integration.test.js
-~~~~~
-~~~~~javascript.old
-  it('在设置中修改分页大小应能实时改变日志显示条数', async () => {
-    await renderUI(mockAppState);
-
-    // 1. 进入设置
-~~~~~
-~~~~~javascript.new
-  it('在设置中修改分页大小应能实时改变日志显示条数', async () => {
-    activeUI = await renderUI(mockAppState);
-
-    // 1. 进入设置
-~~~~~
-~~~~~act
-patch_file
-tests/ui.integration.test.js
-~~~~~
-~~~~~javascript.old
-  it('在加载过程中发生的滚动不应触发错误解锁', async () => {
-    await renderUI(mockAppState);
-    const lastBtn = screen.getByTitle('跳转并锁定到末尾');
-    const logDisplay = screen.getByRole('textbox');
-
-    // 1. 点击末页进入锁定模式
-    fireEvent.click(lastBtn);
-    // 使用 waitFor 确保即使渲染循环有微小延迟也能通过
-    await waitFor(() => expect(lastBtn).toHaveClass('active'));
-
-    // 2. 模拟加载中状态（refreshView 异步流启动）
-    // 直接操作 value 模拟 renderer 的中间态
-    logDisplay.value = '⏳ 数据加载与处理中...';
-
-    // 模拟由内容变短引起的滚动事件
-    // 在锁定状态下，如果 isAtBottom 为假（此时内容只有一行，自然为假），且没有加载保护，会触发解锁
-    fireEvent.scroll(logDisplay);
-
-    // 3. 验证：由于加载保护存在，锁定状态不应被移除
-    await waitFor(() => {
-      expect(lastBtn).toHaveClass('active');
-    });
-
-    // 4. 模拟加载完成
-    logDisplay.value = 'Line 1\nLine 2\nLine 3';
-    // 模拟向上滚动：手动 mock DOM 属性
-    Object.defineProperty(logDisplay, 'scrollHeight', { value: 1000, configurable: true });
-    Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true, writable: true });
-    Object.defineProperty(logDisplay, 'clientHeight', { value: 500, configurable: true });
-
-    fireEvent.scroll(logDisplay);
-
-    // 5. 验证：此时向上滚动可以正常解锁
-    await waitFor(() => {
-      expect(lastBtn).not.toHaveClass('active');
-    });
-  });
-~~~~~
-~~~~~javascript.new
-  it('在加载过程中发生的滚动不应触发错误解锁', async () => {
-    activeUI = await renderUI(mockAppState);
-    const lastBtn = screen.getByTitle('跳转并锁定到末尾');
-    const logDisplay = screen.getByRole('textbox');
-
-    // 1. 点击末页进入锁定模式
-    fireEvent.click(lastBtn);
-    // 使用 waitFor 确保即使渲染循环有微小延迟也能通过
-    await waitFor(() => expect(lastBtn).toHaveClass('active'));
-
-    // 2. 模拟加载中状态（refreshView 异步流启动）
-    // 直接操作 value 模拟 renderer 的中间态
-    logDisplay.value = '⏳ 数据加载与处理中...';
-
-    // 模拟由内容变短引起的滚动事件
-    // 在锁定状态下，如果 isAtBottom 为假（此时内容只有一行，自然为假），且没有加载保护，会触发解锁
-    fireEvent.scroll(logDisplay);
-
-    // 3. 验证：由于加载保护存在，锁定状态不应被移除
-    await waitFor(() => {
-      expect(lastBtn).toHaveClass('active');
-    });
-
-    // 4. 等待后台真实的 refreshView 完成
-    // 必须确保 loadingMessage 被清空，否则后续真实的 scroll 会被拦截
-    await waitFor(() => {
-      expect(loadingMessage.value).toBe('');
-    });
-
-    // 模拟向上滚动：手动 mock DOM 属性
-    Object.defineProperty(logDisplay, 'scrollHeight', { value: 1000, configurable: true });
-    Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true, writable: true });
-    Object.defineProperty(logDisplay, 'clientHeight', { value: 500, configurable: true });
-
-    fireEvent.scroll(logDisplay);
-
-    // 5. 验证：此时向上滚动可以正常解锁
-    await waitFor(() => {
-      expect(lastBtn).not.toHaveClass('active');
-    });
-  });
+~~~~~jsx.new
+    copyCurrentPage: () => {
+      const display = document.getElementById('log-archive-ui-log-display');
+      if (display?.value) {
+        navigator.clipboard.writeText(display.value);
+        alert('✅ 已复制到剪贴板');
+      }
+    },
 ~~~~~
 
 ### 下一步建议
-再次运行所有的测试。通过这次修复，我们清理了环境并修正了最后可能的竞态条件，这应该能让测试全面并且稳定地通过。
+
+- **全面审查**: 建议对重构后的其他 UI 部分进行一次全面的功能点对点审查，以确保没有其他细微的功能回归。
+- **UI 反馈优化**: 当前的 `alert` 是一种简单有效的反馈方式。在未来的迭代中，可以考虑实现一个非阻塞式的 Toast 通知组件，以提供更现代、更流畅的用户体验。

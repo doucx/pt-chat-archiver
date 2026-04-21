@@ -167,6 +167,55 @@ export function ConfigPanel({ callbacks }) {
       </div>
 
       <div class="config-group">
+        <label htmlFor="config-stats-limit">统计分析上限 (最后 N 条)</label>
+        <input
+          id="config-stats-limit"
+          type="number"
+          value={statsLimit.value}
+          onChange={(e) => handleUpdate('statsLimit', Number.parseInt(e.target.value))}
+          min="100"
+          max="50000"
+          step="500"
+        />
+      </div>
+      <div class="config-group">
+        <label htmlFor="config-read-chunk">数据库读取分片大小</label>
+        <input
+          id="config-read-chunk"
+          type="number"
+          value={readChunkSize.value}
+          onChange={(e) => handleUpdate('readChunkSize', Number.parseInt(e.target.value))}
+          min="50"
+          max="2000"
+          step="50"
+        />
+      </div>
+      <div class="config-group">
+        <label htmlFor="config-init-debounce">初始化防抖延迟 (毫秒)</label>
+        <input
+          id="config-init-debounce"
+          type="number"
+          value={initDebounceMs.value}
+          onChange={(e) => handleUpdate('initDebounceMs', Number.parseInt(e.target.value))}
+          min="50"
+          max="5000"
+          step="50"
+        />
+      </div>
+      <div class="config-group">
+        <label htmlFor="config-cache-pages">内存缓存容量 (页数)</label>
+        <input
+          id="config-cache-pages"
+          type="number"
+          value={cachePages.value}
+          onChange={(e) => handleUpdate('cachePages', Number.parseInt(e.target.value))}
+          min="1"
+          max="50"
+          step="1"
+        />
+      </div>
+
+      <div class="config-group">
         <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>维护操作</div>
         <div class="info-text-dim">估算数据占用: {usage.toFixed(2)} MB</div>
         <div class="info-text-dim" style={{ marginBottom: '8px' }}>
@@ -255,6 +304,18 @@ export function ConfigPanel({ callbacks }) {
             >
               放弃并清理
             </button>
+          </div>
+        </div>
+      )}
+
+      {hasBackup && (
+        <div class="config-group" style={{ marginTop: '10px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>兼容性清理</div>
+          <button type="button" class="log-archive-ui-button" onClick={callbacks.deleteV6Backup}>
+            删除旧版 LocalStorage 备份
+          </button>
+          <div class="info-text-dim" style={{ marginTop: '4px', fontSize: '0.8em' }}>
+            迁移至新数据库后生成的备份文件，删除可释放浏览器 LocalStorage 空间。
           </div>
         </div>
       )}

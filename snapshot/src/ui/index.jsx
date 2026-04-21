@@ -22,6 +22,7 @@ import {
   pageSize,
   selectedChannel,
   setRecordingStatus,
+  statsLimit,
   totalPages,
   viewMode,
   viewingServer,
@@ -119,7 +120,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       let offset = undefined;
 
       if (stateViewMode === 'stats') {
-        const stateStatsLimit = 5000;
+        const stateStatsLimit = statsLimit.value;
         fetchSize = stateStatsLimit;
         offset = Math.max(0, totalCount - stateStatsLimit);
         fetchPage = 1;
