@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite';
 import preact from '@preact/preset-vite';
+import { defineConfig } from 'vite';
 import monkey from 'vite-plugin-monkey';
 import packageJson from './package.json';
 

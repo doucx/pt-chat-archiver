@@ -1,8 +1,16 @@
-import { useMemo, useRef, useEffect } from 'preact/hooks';
-import { currentMessages } from '../store/dataStore';
-import { selectedChannel, isReadOnly, isLockedToBottom, currentPage, totalPages, isUIPaused, loadingMessage } from '../store/uiStore';
+import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { UI_MESSAGES } from '../../constants.js';
 import { formatMessageForDisplay } from '../../utils.js';
+import { currentMessages } from '../store/dataStore';
+import {
+  currentPage,
+  isLockedToBottom,
+  isReadOnly,
+  isUIPaused,
+  loadingMessage,
+  selectedChannel,
+  totalPages,
+} from '../store/uiStore';
 import { Pagination } from './Pagination';
 
 export function LogViewer() {
@@ -51,13 +59,16 @@ export function LogViewer() {
   };
 
   return (
-    <div id="log-archive-log-view" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div
+      id="log-archive-log-view"
+      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+    >
       {isReadOnly.value && <div className="readonly-pill">只读存档模式</div>}
       <Pagination />
-      <textarea 
+      <textarea
         ref={textareaRef}
-        id="log-archive-ui-log-display" 
-        readOnly 
+        id="log-archive-ui-log-display"
+        readOnly
         style={{ marginTop: '10px', flexGrow: 1 }}
         value={loadingMessage.value || displayText}
         onScroll={handleScroll}

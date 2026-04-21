@@ -40,7 +40,11 @@ export function createIOManager({ dataAdapter, appCallbacks, refreshView }) {
   const downloadJSON = async () => {
     const allData = await dataAdapter.getAllData();
     if (Object.keys(allData).length === 0) return;
-    triggerDownload(JSON.stringify(allData, null, 2), `pt-saver-${getExportTimestamp()}.json`, 'application/json');
+    triggerDownload(
+      JSON.stringify(allData, null, 2),
+      `pt-saver-${getExportTimestamp()}.json`,
+      'application/json',
+    );
   };
 
   const downloadTXT = async () => {
@@ -76,7 +80,11 @@ export function createIOManager({ dataAdapter, appCallbacks, refreshView }) {
       reader.onload = async (event) => {
         try {
           const importedData = JSON.parse(event.target.result);
-          if (typeof importedData !== 'object' || importedData === null || Array.isArray(importedData)) {
+          if (
+            typeof importedData !== 'object' ||
+            importedData === null ||
+            Array.isArray(importedData)
+          ) {
             throw new Error('无效的存档格式：根节点必须是一个对象。');
           }
 
@@ -111,7 +119,11 @@ export function createIOManager({ dataAdapter, appCallbacks, refreshView }) {
       reader.onload = async (event) => {
         try {
           const importedData = JSON.parse(event.target.result);
-          if (typeof importedData !== 'object' || importedData === null || Array.isArray(importedData)) {
+          if (
+            typeof importedData !== 'object' ||
+            importedData === null ||
+            Array.isArray(importedData)
+          ) {
             throw new Error('无效的存档格式。');
           }
 

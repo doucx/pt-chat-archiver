@@ -1,4 +1,4 @@
-import { signal, computed } from '@preact/signals';
+import { computed, signal } from '@preact/signals';
 import { storageManager } from '../../storage/index.js';
 
 // --- 全局 UI 状态 ---
@@ -38,7 +38,7 @@ export const isReadOnly = computed(() => {
 export async function initStore() {
   const config = await storageManager.getConfig();
   lastServer.value = await storageManager.getLastServer();
-  
+
   pageSize.value = config.pageSize || 1000;
   statsLimit.value = config.statsLimit || 5000;
   readChunkSize.value = config.readChunkSize || 250;
@@ -58,9 +58,14 @@ export async function initStore() {
  */
 export const updateConfig = async (key, value) => {
   const signalMap = {
-    pageSize, statsLimit, readChunkSize, initDebounceMs, cachePages, autoFollowServer
+    pageSize,
+    statsLimit,
+    readChunkSize,
+    initDebounceMs,
+    cachePages,
+    autoFollowServer,
   };
-  
+
   if (signalMap[key]) {
     signalMap[key].value = value;
     await storageManager.saveConfig({
@@ -69,7 +74,7 @@ export const updateConfig = async (key, value) => {
       readChunkSize: readChunkSize.value,
       initDebounceMs: initDebounceMs.value,
       cachePages: cachePages.value,
-      autoFollowServer: autoFollowServer.value
+      autoFollowServer: autoFollowServer.value,
     });
   }
 };

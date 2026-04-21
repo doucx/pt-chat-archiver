@@ -1,15 +1,31 @@
 import { render } from 'preact';
+import { TOGGLE_BUTTON_ICON, UI_MESSAGES } from '../constants.js';
+import { MigrationManager } from '../migrations.js';
+import { storageManager } from '../storage/index.js';
 import { App } from './App.jsx';
 import { createIOManager } from './io-manager.js';
-import { 
-  initStore, isUIPaused, viewingServer, currentPage, pageSize, totalPages, viewMode, 
-  isLockedToBottom, selectedChannel, setRecordingStatus, loadingMessage, initDebounceMs
+import {
+  channelCounts as channelCountsSig,
+  channelList as channelListSig,
+  currentMessages,
+  serverList as serverListSig,
+  totalCount as totalCountSig,
+} from './store/dataStore.js';
+import {
+  currentPage,
+  initDebounceMs,
+  initStore,
+  isLockedToBottom,
+  isUIPaused,
+  loadingMessage,
+  pageSize,
+  selectedChannel,
+  setRecordingStatus,
+  totalPages,
+  viewMode,
+  viewingServer,
 } from './store/uiStore.js';
-import { serverList as serverListSig, channelList as channelListSig, channelCounts as channelCountsSig, currentMessages, totalCount as totalCountSig } from './store/dataStore.js';
 import { ViewCache } from './view-cache.js';
-import { storageManager } from '../storage/index.js';
-import { MigrationManager } from '../migrations.js';
-import { UI_MESSAGES, TOGGLE_BUTTON_ICON } from '../constants.js';
 
 export async function createUI(dataAdapter, appCallbacks) {
   // 1. Initialize Store
@@ -43,7 +59,7 @@ export async function createUI(dataAdapter, appCallbacks) {
   // The core reactive cycle bridging the dataAdapter and Preact Signals
   const refreshView = async () => {
     const renderId = ++currentRenderId;
-    
+
     // Capture state snapshots
     const stateViewingServer = viewingServer.value;
     const stateCurrentPage = currentPage.value;
@@ -69,7 +85,7 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     const channelList = await dataAdapter.getChannels(currentServer);
     const channelCounts = {};
-    
+
     await Promise.all(
       channelList.map(async (ch) => {
         if (dataAdapter.getChannelCount) {
@@ -78,7 +94,7 @@ export async function createUI(dataAdapter, appCallbacks) {
           const { total } = await dataAdapter.getMessages(currentServer, ch, 1, 1);
           channelCounts[ch] = total;
         }
-      })
+      }),
     );
 
     let finalSelectedChannel = stateSelectedChannel;
@@ -91,7 +107,7 @@ export async function createUI(dataAdapter, appCallbacks) {
     }
 
     let messages = [];
-    let totalCount = finalSelectedChannel ? (channelCounts[finalSelectedChannel] || 0) : 0;
+    let totalCount = finalSelectedChannel ? channelCounts[finalSelectedChannel] || 0 : 0;
 
     viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
     viewCache.setTotalCount(totalCount);
@@ -112,13 +128,16 @@ export async function createUI(dataAdapter, appCallbacks) {
         if (renderId !== currentRenderId) return;
 
         const result = await dataAdapter.getMessages(
-          currentServer, finalSelectedChannel, fetchPage, fetchSize,
+          currentServer,
+          finalSelectedChannel,
+          fetchPage,
+          fetchSize,
           (current, total) => {
             if (renderId !== currentRenderId) return;
             const percentage = current / total;
             loadingMessage.value = `${UI_MESSAGES.LOADING_STATS}\n    已读取: ${current} / ${total} 条 (${Math.round(percentage * 100)}%)`;
           },
-          offset
+          offset,
         );
         if (renderId !== currentRenderId) return;
         messages = result.messages;
@@ -132,12 +151,15 @@ export async function createUI(dataAdapter, appCallbacks) {
           if (renderId !== currentRenderId) return;
 
           const result = await dataAdapter.getMessages(
-            currentServer, finalSelectedChannel, fetchPage, fetchSize,
+            currentServer,
+            finalSelectedChannel,
+            fetchPage,
+            fetchSize,
             (current, total) => {
               if (renderId !== currentRenderId) return;
               const percentage = current / total;
               loadingMessage.value = `${UI_MESSAGES.LOADING_HISTORY}\n    已读取: ${current} / ${total} 条 (${Math.round(percentage * 100)}%)`;
-            }
+            },
           );
 
           if (renderId !== currentRenderId) return;
@@ -145,7 +167,7 @@ export async function createUI(dataAdapter, appCallbacks) {
           totalCount = result.total;
           viewCache.setTotalCount(totalCount);
           viewCache.set(fetchPage, messages);
-          
+
           loadingMessage.value = UI_MESSAGES.LOADING_BUILDING;
           await new Promise((r) => setTimeout(r, 10));
           loadingMessage.value = '';
@@ -161,7 +183,12 @@ export async function createUI(dataAdapter, appCallbacks) {
       if (viewCache.has(newTotalPages)) {
         messages = viewCache.get(newTotalPages);
       } else {
-        const followResult = await dataAdapter.getMessages(currentServer, finalSelectedChannel, newTotalPages, statePageSize);
+        const followResult = await dataAdapter.getMessages(
+          currentServer,
+          finalSelectedChannel,
+          newTotalPages,
+          statePageSize,
+        );
         if (renderId !== currentRenderId) return;
         messages = followResult.messages;
         viewCache.set(newTotalPages, messages);
@@ -178,7 +205,13 @@ export async function createUI(dataAdapter, appCallbacks) {
     totalCountSig.value = totalCount;
 
     if (stateViewMode === 'log' && currentServer && finalSelectedChannel) {
-      preloadAdjacentPages(stateCurrentPage, newTotalPages, currentServer, finalSelectedChannel, statePageSize);
+      preloadAdjacentPages(
+        stateCurrentPage,
+        newTotalPages,
+        currentServer,
+        finalSelectedChannel,
+        statePageSize,
+      );
     }
   };
 
