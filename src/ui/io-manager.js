@@ -1,12 +1,6 @@
-import { UI_FEEDBACK_DURATION } from '../constants.js';
-import { formatMessageForDisplay } from './renderer.js';
+import { formatMessageForDisplay } from '../utils.js';
 
-/**
- * 负责处理数据的导入、导出以及与浏览器下载 API 的交互。
- */
-export function createIOManager({ dom, dataAdapter, appCallbacks, refreshView }) {
-  // --- 私有工具函数 ---
-
+export function createIOManager({ dataAdapter, appCallbacks, refreshView }) {
   const getExportTimestamp = () => {
     const now = new Date();
     return now.toISOString().replace(/[:.]/g, '-').slice(0, 16);
@@ -43,8 +37,6 @@ export function createIOManager({ dom, dataAdapter, appCallbacks, refreshView })
     URL.revokeObjectURL(url);
   };
 
-  // --- 公开 API 方法 ---
-
   const downloadJSON = async () => {
     const allData = await dataAdapter.getAllData();
     if (Object.keys(allData).length === 0) return;
@@ -64,14 +56,14 @@ export function createIOManager({ dom, dataAdapter, appCallbacks, refreshView })
 
   const copyJSON = async () => {
     const allData = await dataAdapter.getAllData();
-    const data = JSON.stringify(allData, null, 2);
-    navigator.clipboard.writeText(data);
+    navigator.clipboard.writeText(JSON.stringify(allData, null, 2));
+    alert('✅ 已复制 JSON');
   };
 
   const copyTXT = async () => {
     const allData = await dataAdapter.getAllData();
-    const text = generateFullTextExport(allData);
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(generateFullTextExport(allData));
+    alert('✅ 已复制 TXT');
   };
 
   const importAllData = () => {
@@ -101,10 +93,7 @@ export function createIOManager({ dom, dataAdapter, appCallbacks, refreshView })
 
           if (confirm(warning)) {
             await appCallbacks.saveMessagesToStorage(importedData);
-            dom.importButton.textContent = '✅ 导入成功';
-            setTimeout(() => {
-              dom.importButton.textContent = '导入 JSON (覆盖)';
-            }, UI_FEEDBACK_DURATION);
+            alert('✅ 导入成功');
             refreshView();
           }
         } catch (err) {
@@ -142,14 +131,8 @@ export function createIOManager({ dom, dataAdapter, appCallbacks, refreshView })
           const msg = `准备合并文件: ${file.name}\n包含 ${serverCount} 个服务器的数据。\n\n系统将自动跳过重复记录。是否继续？`;
 
           if (confirm(msg)) {
-            dom.importMergeButton.disabled = true;
-            dom.importMergeButton.textContent = '正在合并...';
             await appCallbacks.mergeMessagesToStorage(importedData);
-            dom.importMergeButton.textContent = '✅ 合并成功';
-            setTimeout(() => {
-              dom.importMergeButton.disabled = false;
-              dom.importMergeButton.textContent = '导入并合并 JSON (推荐)';
-            }, UI_FEEDBACK_DURATION);
+            alert('✅ 合并成功');
             refreshView();
           }
         } catch (err) {

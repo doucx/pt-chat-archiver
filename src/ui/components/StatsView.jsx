@@ -1,0 +1,29 @@
+import { useMemo } from 'preact/hooks';
+import { generateStatisticsText } from '../../analysis.js';
+import { currentMessages } from '../store/dataStore';
+import { loadingMessage, selectedChannel } from '../store/uiStore';
+
+export function StatsView() {
+  const msgs = currentMessages.value;
+  const channel = selectedChannel.value;
+  const loading = loadingMessage.value;
+
+  const statsText = useMemo(() => {
+    return generateStatisticsText(msgs, channel);
+  }, [msgs, channel]);
+
+  return (
+    <div
+      id="log-archive-stats-view"
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '10px' }}
+    >
+      <textarea
+        id="log-archive-ui-log-display"
+        readOnly
+        className="log-archive-ui-log-display"
+        style={{ flexGrow: 1, color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)' }}
+        value={loading || statsText}
+      />
+    </div>
+  );
+}

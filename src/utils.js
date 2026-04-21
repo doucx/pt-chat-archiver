@@ -55,6 +55,16 @@ export function generateULID(seedTime = Date.now()) {
 }
 
 /** 在UI界面中，将ISO UTC时间字符串格式化为用户本地时区的可读格式。*/
+export function formatMessageForDisplay(msg) {
+  let prefix = '';
+  const type = msg.type || '';
+  if (type.includes('party')) prefix = '👥 ';
+  else if (type.includes('whisper')) prefix = '💬 ';
+  else if (type.includes('announcement')) prefix = '📣 ';
+  const displayTime = formatISOTimeForDisplay(msg.time);
+  return `${displayTime} ${prefix}${msg.content}`;
+}
+
 export function formatISOTimeForDisplay(isoString) {
   if (!isoString) return 'N/A';
   try {

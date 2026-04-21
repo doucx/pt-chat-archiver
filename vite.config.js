@@ -1,3 +1,4 @@
+import preact from '@preact/preset-vite';
 import { defineConfig } from 'vite';
 import monkey from 'vite-plugin-monkey';
 import packageJson from './package.json';
@@ -18,6 +19,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    preact(),
     monkey({
       entry: 'src/main.js',
       userscript: {

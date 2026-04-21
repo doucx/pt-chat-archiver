@@ -1,7 +1,17 @@
 import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.js';
+import { createUI } from '../src/ui/index.jsx';
+import {
+  currentPage,
+  isLockedToBottom,
+  loadingMessage,
+  pageSize,
+  selectedChannel,
+  statsLimit,
+  viewMode,
+  viewingServer,
+} from '../src/ui/store/uiStore.js';
 import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
@@ -20,9 +30,19 @@ const createMockAdapter = (state) => ({
   getServers: async () => Object.keys(state),
   getChannels: async (server) => Object.keys(state[server] || {}),
   getChannelCount: async (server, channel) => (state[server]?.[channel] || []).length,
-  getMessages: async (server, channel, page, pageSize) => {
+  getMessages: async (server, channel, page, pageSize, onProgress, offsetOverride) => {
     const list = state[server]?.[channel] || [];
-    const start = (page - 1) * pageSize;
+    const start = offsetOverride !== undefined ? offsetOverride : (page - 1) * pageSize;
+
+    // 如果是请求统计数据，模拟进度回调
+    if (onProgress) {
+      onProgress(Math.floor(pageSize / 2), pageSize);
+      // 检查是否有挂起的 promise 可以用来模拟延迟
+      if (global.__test_delay_promise) {
+        await global.__test_delay_promise;
+      }
+    }
+
     return {
       messages: list.slice(start, start + pageSize),
       total: list.length,
@@ -44,15 +64,32 @@ async function renderUI(initialState) {
   document.body.innerHTML = '';
   const adapter = createMockAdapter(initialState);
   const ui = await createUI(adapter, mockCallbacks);
-  ui.updateRecordingStatus('Test Server', 'Local');
+  await ui.updateRecordingStatus('Test Server', 'Local');
+
+  const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+  if (toggleBtn) fireEvent.click(toggleBtn);
+
   return ui;
 }
 
 describe('UI Integration Smoke Tests', () => {
   let mockAppState;
+  let activeUI = null;
 
   beforeEach(async () => {
+    localStorage.clear();
+    vi.clearAllMocks();
     await storageManager.init();
+    // 显式重置所有可能被测试修改的全局信号，防止跨测试污染
+    viewMode.value = 'log';
+    currentPage.value = 1;
+    pageSize.value = 1000;
+    statsLimit.value = 5000;
+    selectedChannel.value = 'Local';
+    viewingServer.value = null;
+    isLockedToBottom.value = false;
+    loadingMessage.value = '';
+
     mockAppState = {
       'Test Server': {
         Local: Array.from({ length: 250 }, (_, i) => ({
@@ -63,11 +100,17 @@ describe('UI Integration Smoke Tests', () => {
         Party: [{ time: new Date().toISOString(), content: 'Party Message', type: 'party' }],
       },
     };
-    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    if (activeUI) {
+      activeUI.destroy();
+      activeUI = null;
+    }
   });
 
   it('初始加载时应正确渲染数据和默认频道', async () => {
-    await renderUI(mockAppState);
+    activeUI = await renderUI(mockAppState);
 
     // 虽然 renderUI 内部已经 await refreshView，但在复杂的测试环境中
     // 配合 waitFor 是一种更稳健的实践
@@ -81,40 +124,38 @@ describe('UI Integration Smoke Tests', () => {
   });
 
   it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
-    await renderUI(mockAppState);
+    activeUI = await renderUI(mockAppState);
 
     const settingsButton = screen.getByTitle('设置');
-    const logView = document.getElementById('log-archive-log-view');
-    const configView = document.getElementById('log-archive-config-view');
 
-    // 初始状态
-    expect(logView).toBeVisible();
-    expect(configView).not.toBeVisible();
+    // 初始状态 (ConfigPanel 未挂载)
+    expect(document.getElementById('log-archive-log-view')).toBeVisible();
+    expect(document.getElementById('log-archive-config-view')).toBeNull();
 
     // 点击设置 (触发异步刷新)
     fireEvent.click(settingsButton);
 
     // 必须使用 waitFor 等待异步 DOM 变更
     await waitFor(() => {
-      expect(logView).not.toBeVisible();
-      expect(configView).toBeVisible();
+      expect(document.getElementById('log-archive-log-view')).toBeNull();
+      expect(document.getElementById('log-archive-config-view')).toBeVisible();
     });
 
     // 再次点击切回
     fireEvent.click(settingsButton);
     await waitFor(() => {
-      expect(logView).toBeVisible();
+      expect(document.getElementById('log-archive-log-view')).toBeVisible();
     });
   });
 
   it('在设置中修改分页大小应能实时改变日志显示条数', async () => {
-    await renderUI(mockAppState);
+    activeUI = await renderUI(mockAppState);
 
     // 1. 进入设置
     fireEvent.click(screen.getByTitle('设置'));
 
-    // 2. 找到分页大小输入框并改为 50
-    const pageSizeInput = screen.getByLabelText(/分页大小/);
+    // 2. 找到分页大小输入框并改为 50 (等待渲染完成)
+    const pageSizeInput = await screen.findByLabelText(/分页大小/);
     fireEvent.change(pageSizeInput, { target: { value: '50' } });
 
     // 3. 等待异步设置完成并切回日志视图
@@ -128,14 +169,16 @@ describe('UI Integration Smoke Tests', () => {
     });
 
     // 5. 验证内容只显示到第 50 条
-    const logDisplay = screen.getByRole('textbox');
-    expect(logDisplay.value).toContain('Message 50');
-    expect(logDisplay.value).not.toContain('Message 51');
+    await waitFor(() => {
+      const logDisplay = screen.getByRole('textbox');
+      expect(logDisplay.value).toContain('Message 50');
+      expect(logDisplay.value).not.toContain('Message 51');
+    });
   });
 
   it('在加载过程中发生的滚动不应触发错误解锁', async () => {
-    await renderUI(mockAppState);
-    const lastBtn = screen.getByText('»');
+    activeUI = await renderUI(mockAppState);
+    const lastBtn = screen.getByTitle('跳转并锁定到末尾');
     const logDisplay = screen.getByRole('textbox');
 
     // 1. 点击末页进入锁定模式
@@ -152,18 +195,71 @@ describe('UI Integration Smoke Tests', () => {
     fireEvent.scroll(logDisplay);
 
     // 3. 验证：由于加载保护存在，锁定状态不应被移除
-    expect(lastBtn).toHaveClass('active');
+    await waitFor(() => {
+      expect(lastBtn).toHaveClass('active');
+    });
 
-    // 4. 模拟加载完成
-    logDisplay.value = 'Line 1\nLine 2\nLine 3';
+    // 4. 等待后台真实的 refreshView 完成
+    // 必须确保 loadingMessage 被清空，否则后续真实的 scroll 会被拦截
+    await waitFor(() => {
+      expect(loadingMessage.value).toBe('');
+    });
+
     // 模拟向上滚动：手动 mock DOM 属性
     Object.defineProperty(logDisplay, 'scrollHeight', { value: 1000, configurable: true });
-    Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true });
+    Object.defineProperty(logDisplay, 'scrollTop', {
+      value: 200,
+      configurable: true,
+      writable: true,
+    });
     Object.defineProperty(logDisplay, 'clientHeight', { value: 500, configurable: true });
 
     fireEvent.scroll(logDisplay);
 
     // 5. 验证：此时向上滚动可以正常解锁
-    expect(lastBtn).not.toHaveClass('active');
+    await waitFor(() => {
+      expect(lastBtn).not.toHaveClass('active');
+    });
+  });
+
+  it('切换到统计分析时应显示加载信息，且中断加载切回日志时应清理加载状态', async () => {
+    activeUI = await renderUI(mockAppState);
+    const statsBtn = screen.getByTitle('数据统计');
+
+    // 此时日志视图已加载完毕，进入缓存
+    await waitFor(() => {
+      expect(screen.getByRole('textbox').value).toContain('Message 1');
+    });
+    expect(loadingMessage.value).toBe('');
+
+    // 1. 设置延迟，拦截 getMessages
+    let resolveDelay;
+    global.__test_delay_promise = new Promise((r) => {
+      resolveDelay = r;
+    });
+
+    // 2. 触发统计分析
+    fireEvent.click(statsBtn);
+
+    // 3. 验证此时 StatsView 显示了 loadingMessage
+    await waitFor(() => {
+      const display = screen.getByRole('textbox');
+      expect(display.value).toContain('正在读取统计数据');
+    });
+
+    // 4. 在加载完成前，再次点击切回 LogView
+    fireEvent.click(statsBtn); // 触发 handleToggleView('stats') -> 'log'
+
+    // 5. 解除延迟，让被废弃的 refreshView 继续执行完毕
+    resolveDelay();
+
+    // 6. 验证切回 LogView 时，因为它命中了缓存，loadingMessage 应被清理
+    await waitFor(() => {
+      const display = screen.getByRole('textbox');
+      expect(display.value).not.toContain('正在读取统计数据');
+      expect(display.value).toContain('Message 1');
+    });
+
+    global.__test_delay_promise = undefined;
   });
 });

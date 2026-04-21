@@ -1,7 +1,8 @@
 import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.js';
+import { createUI } from '../src/ui/index.jsx';
+import { viewMode } from '../src/ui/store/uiStore.js';
 import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
@@ -34,10 +35,19 @@ const createMockAdapter = (state) => ({
 describe('UI Clean Duplicates Regression (V6)', () => {
   let mockAppState;
   let mockCallbacks;
+  let activeUI = null;
+
+  afterEach(() => {
+    if (activeUI) {
+      activeUI.destroy();
+      activeUI = null;
+    }
+  });
 
   beforeEach(async () => {
     document.body.innerHTML = '';
     await storageManager.init();
+    viewMode.value = 'log';
 
     // 1. 构造 Mock 状态
     // 我们在 "Server A" 的 "Local" 频道构造一个爆发期 (25条重复消息)
@@ -88,8 +98,11 @@ describe('UI Clean Duplicates Regression (V6)', () => {
 
   it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
     const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    ui.updateRecordingStatus('Server A', 'Local');
+    activeUI = await createUI(adapter, mockCallbacks);
+    await activeUI.updateRecordingStatus('Server A', 'Local');
+
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
 
     // 进入设置页面
     const settingsButton = screen.getByTitle('设置');
@@ -108,8 +121,11 @@ describe('UI Clean Duplicates Regression (V6)', () => {
 
   it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
     const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    ui.updateRecordingStatus('Server A', 'Local');
+    activeUI = await createUI(adapter, mockCallbacks);
+    await activeUI.updateRecordingStatus('Server A', 'Local');
+
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
 
     fireEvent.click(screen.getByTitle('设置'));
 
@@ -145,7 +161,10 @@ describe('UI Clean Duplicates Regression (V6)', () => {
       S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
     };
     const adapter = createMockAdapter(cleanState);
-    await createUI(adapter, mockCallbacks);
+    activeUI = await createUI(adapter, mockCallbacks);
+
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
 
     fireEvent.click(screen.getByTitle('设置'));
 

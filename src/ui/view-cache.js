@@ -39,7 +39,8 @@ export class ViewCache {
   has(page) {
     if (!this.pages.has(page)) return false;
     const msgs = this.pages.get(page);
-    const isLastPage = page === Math.ceil(this.totalCount / this.pageSize) || 1;
+    const totalPages = Math.ceil(this.totalCount / this.pageSize) || 1;
+    const isLastPage = page === totalPages;
     return msgs.length === this.pageSize || isLastPage;
   }
 
