@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修复 Preact JSX 编译错误与 Biome Linter 告警", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776757140.7835383, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(ui): 临时屏蔽 Preact App 的挂载以解决双重 UI 冲突和测试失败", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776757447.3151805, "duration_ms": 0}}
