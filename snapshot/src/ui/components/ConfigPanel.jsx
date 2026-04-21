@@ -1,0 +1,115 @@
+import { useState, useEffect } from 'preact/hooks';
+import { 
+  pageSize, statsLimit, readChunkSize, initDebounceMs, cachePages, 
+  autoFollowServer, viewingServer, activeServer, lastServer, selfName, updateConfig 
+} from '../store/uiStore';
+import { serverList } from '../store/dataStore';
+import { storageManager, getStorageUsageInMB } from '../../storage/index.js';
+import { MigrationManager } from '../../migrations.js';
+
+export function ConfigPanel({ callbacks }) {
+  const [usage, setUsage] = useState(0);
+  const [msgCount, setMsgCount] = useState(0);
+  const [legacy, setLegacy] = useState({ v4: false, v5: false, v6: false });
+  const [hasBackup, setHasBackup] = useState(false);
+
+  // 挂载时刷新统计信息
+  useEffect(() => {
+    getStorageUsageInMB().then(setUsage);
+    storageManager.getTotalMessageCount().then(setMsgCount);
+    setLegacy(MigrationManager.scanForLegacyData());
+    setHasBackup(storageManager.hasV6Backup());
+  }, []);
+
+  const handleUpdate = (key, val) => {
+    updateConfig(key, val);
+  };
+
+  const handleSelfNameChange = async (e) => {
+    const val = e.target.value.trim();
+    selfName.value = val;
+    await storageManager.setSelfName(val);
+  };
+
+  return (
+    <div id="log-archive-config-view" class="config-section">
+      <div style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '15px', marginBottom: '5px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <h3 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '1.1em' }}>PT Chat Archiver</h3>
+          <span className="info-text-dim" style={{ fontSize: '0.8em' }}>v{__APP_VERSION__}</span>
+        </div>
+      </div>
+
+      <div class="config-group">
+        <label>查看存档服务器</label>
+        <div class="config-input-row">
+          <select 
+            className="log-archive-ui-button" 
+            style={{ flexGrow: 1, minWidth: 0 }}
+            value={viewingServer.value}
+            onChange={(e) => { viewingServer.value = e.target.value; }}
+          >
+            {serverList.value.length === 0 ? (
+              <option value="">无存档</option>
+            ) : (
+              serverList.value.map(s => (
+                <option key={s} value={s}>{s === activeServer.value ? `${s} (正在记录)` : s}</option>
+              ))
+            )}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+          <input 
+            type="checkbox" 
+            checked={autoFollowServer.value} 
+            onChange={(e) => handleUpdate('autoFollowServer', e.target.checked)} 
+            style={{ width: 'auto', margin: 0 }}
+          />
+          <label style={{ fontWeight: 'normal', color: 'var(--color-text-dim)', fontSize: '0.85em', cursor: 'pointer' }}>跟随游戏服务器切换</label>
+        </div>
+      </div>
+
+      <div class="config-group">
+        <label>用户昵称</label>
+        <input type="text" value={selfName.value} onInput={handleSelfNameChange} placeholder="用于识别私聊方向..." />
+      </div>
+
+      <div class="config-group">
+        <label>分页大小 (每页消息条数)</label>
+        <input type="number" value={pageSize.value} onChange={(e) => handleUpdate('pageSize', parseInt(e.target.value))} min="10" max="10000" step="100" />
+      </div>
+
+      <div class="config-group">
+        <label>维护操作</label>
+        <div class="info-text-dim">估算数据占用: {usage.toFixed(2)} MB</div>
+        <div class="info-text-dim" style={{ marginBottom: '8px' }}>存档消息总数: {msgCount.toLocaleString()} 条</div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button class="log-archive-ui-button" onClick={callbacks.copyJSON}>复制 JSON</button>
+            <button class="log-archive-ui-button" onClick={callbacks.copyTXT}>复制 TXT</button>
+            <button class="log-archive-ui-button" onClick={callbacks.downloadJSON}>下载 JSON</button>
+            <button class="log-archive-ui-button" onClick={callbacks.downloadTXT}>下载 TXT</button>
+          </div>
+          <button class="log-archive-ui-button" style={{ backgroundColor: 'var(--color-success)' }} onClick={callbacks.importAndMergeData}>导入 JSON (合并)</button>
+        </div>
+      </div>
+
+      { (legacy.v4 || legacy.v5 || legacy.v6) && (
+        <div class="config-group" style={{ marginTop: '10px', padding: '10px', background: 'rgba(200, 150, 50, 0.1)', border: '1px dashed var(--color-warning)' }}>
+          <label style={{ color: 'var(--color-warning)' }}>发现残留数据!</label>
+          <div class="info-text-dim" style={{ marginBottom: '8px' }}>检测到旧版本数据尚未合并。</div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button class="log-archive-ui-button" style={{ backgroundColor: 'var(--color-warning)', color: '#000', flexGrow: 1 }} onClick={() => callbacks.recoverLegacyData(viewingServer.value)}>尝试合并</button>
+            <button class="log-archive-ui-button" style={{ backgroundColor: 'var(--color-danger)', color: '#fff', flexGrow: 1 }} onClick={callbacks.clearLegacyData}>放弃并清理</button>
+          </div>
+        </div>
+      )}
+
+      <div class="config-group" style={{ marginTop: '10px', borderTop: '1px dashed #444', paddingTop: '20px' }}>
+        <label style={{ color: '#ff6666' }}>危险操作</label>
+        <button class="log-archive-ui-button" onClick={callbacks.clearAllData}>清空所有本地存档</button>
+      </div>
+    </div>
+  );
+}

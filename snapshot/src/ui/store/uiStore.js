@@ -24,6 +24,7 @@ export const readChunkSize = signal(250);
 export const initDebounceMs = signal(150);
 export const cachePages = signal(5);
 export const autoFollowServer = signal(true);
+export const selfName = signal('');
 
 // --- 派生状态 (Computed) ---
 export const isReadOnly = computed(() => {
@@ -43,6 +44,7 @@ export async function initStore() {
   initDebounceMs.value = config.initDebounceMs || 150;
   cachePages.value = config.cachePages || 5;
   autoFollowServer.value = config.autoFollowServer !== false;
+  selfName.value = await storageManager.getSelfName();
 
   // 如果有持久化的最后服务器，初始化 viewingServer
   if (lastServer.value && !viewingServer.value) {

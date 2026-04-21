@@ -1,6 +1,8 @@
 import { viewMode, isReadOnly } from './store/uiStore';
 import { Header } from './components/Header';
 import { LogViewer } from './components/LogViewer';
+import { ConfigPanel } from './components/ConfigPanel';
+import { StatsView } from './components/StatsView';
 
 export function App({ dataAdapter, appCallbacks }) {
   // 定义桥接到 UI 外部的回调
@@ -35,17 +37,8 @@ export function App({ dataAdapter, appCallbacks }) {
       
       <div id="log-archive-view-container" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {viewMode.value === 'log' && <LogViewer />}
-        {viewMode.value === 'config' && (
-          <div style={{ padding: '20px', color: '#ccc' }}>
-            <h3>Config Panel (In Progress)</h3>
-            <p>正在重构配置面板组件...</p>
-          </div>
-        )}
-        {viewMode.value === 'stats' && (
-          <div style={{ padding: '20px', color: '#ccc' }}>
-            <h3>Statistics View (In Progress)</h3>
-          </div>
-        )}
+        {viewMode.value === 'config' && <ConfigPanel callbacks={appCallbacks} />}
+        {viewMode.value === 'stats' && <StatsView />}
       </div>
     </div>
   );
