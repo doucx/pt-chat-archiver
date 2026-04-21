@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[COMMIT] fix(runtime): 修复 main.js 引用错误并补充服务器检测测试", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776475913.3611403, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "Capture: M CHANGELOG.md, M package.json, M main.js", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776755364.886689, "duration_ms": 0}}
