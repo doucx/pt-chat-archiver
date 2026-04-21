@@ -6,7 +6,11 @@ import {
   currentPage,
   isLockedToBottom,
   loadingMessage,
+  pageSize,
+  selectedChannel,
+  statsLimit,
   viewMode,
+  viewingServer,
 } from '../src/ui/store/uiStore.js';
 import '@testing-library/jest-dom/vitest';
 
@@ -81,9 +85,16 @@ describe('UI Integration Smoke Tests', () => {
 
   beforeEach(async () => {
     await storageManager.init();
+    // 显式重置所有可能被测试修改的全局信号，防止跨测试污染
     viewMode.value = 'log';
     currentPage.value = 1;
+    pageSize.value = 1000;
+    statsLimit.value = 5000;
+    selectedChannel.value = 'Local';
+    viewingServer.value = null;
     isLockedToBottom.value = false;
+    loadingMessage.value = '';
+
     mockAppState = {
       'Test Server': {
         Local: Array.from({ length: 250 }, (_, i) => ({

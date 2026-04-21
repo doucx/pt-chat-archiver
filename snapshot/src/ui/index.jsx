@@ -115,6 +115,13 @@ export async function createUI(dataAdapter, appCallbacks) {
     viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
     viewCache.setTotalCount(totalCount);
 
+    // 默认假设不需要显示加载信息，除非进入下方的异步逻辑
+    if (stateViewMode !== 'config' && !viewCache.has(stateCurrentPage)) {
+      // 保持现状，让下方的逻辑决定 loadingMessage
+    } else {
+      loadingMessage.value = '';
+    }
+
     if (currentServer && finalSelectedChannel && stateViewMode !== 'config') {
       let fetchSize = statePageSize;
       let fetchPage = stateCurrentPage;
