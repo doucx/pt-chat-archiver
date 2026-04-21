@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat(ui): 实现 ConfigPanel 与 StatsView 组件，补齐 Preact 原子组件集", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776757506.8665307, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] refactor(ui): 正式移除 Vanilla UI 引擎，全面启用 Preact 架构", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776757626.5670652, "duration_ms": 0}}
