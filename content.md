@@ -1,147 +1,79 @@
-好的，我们将建立针对该场景的自动化回归测试。为了确保修复的有效性，我们需要模拟一个耗时的数据加载过程，并验证在不同视图状态下 `loadingMessage` 的行为。
+测试失败的原因非常明确：在 `createUI` 时，UI 容器的默认样式是 `display: none`。而 `testing-library` 的 `getByRole` 默认会忽略不可见的元素，导致无法找到 `textarea`（textbox）。
 
-我们将创建一个新的测试文件 `tests/ui.stats_loading.test.js`，专门用于验证加载状态机的逻辑。
+我将修正测试脚本，在操作前模拟点击切换按钮以显示 UI，并确保测试逻辑与组件逻辑完全对齐。
 
-## [WIP] test: 建立统计视图加载状态与进度显示的回归测试
+## [WIP] fix: 修正回归测试脚本中的 UI 可见性问题
+
+### 错误分析
+- **测试环境不一致**: 测试脚本直接修改了 `viewMode` 信号，但没有触发 UI 的显示逻辑。由于 `log-archive-ui-container` 处于隐藏状态，其内部的所有表单元素在可访问性树（Accessibility Tree）中都是不可见的，因此 `screen.getByRole('textbox')` 抛出了错误。
 
 ### 用户需求
-建立针对加载状态残留和统计视图进度显示的自动化验证，防止未来的变更再次引入异步竞争导致 UI 锁死的 Bug。
-
-### 评论
-异步竞争问题（Race Conditions）通常难以通过简单的冒烟测试发现。通过在 Mock Adapter 中引入人工延迟和进度回调，我们可以精确地观测 UI 在“半加载”状态下的表现。
+- 修复测试脚本，使其能够正确找到并验证 UI 元素。
 
 ### 目标
-1.  创建一个专门的集成测试文件。
-2.  模拟一个耗时 100ms 以上的数据拉取过程，并伴随进度更新。
-3.  验证 `StatsView` 是否能正确渲染进度文字。
-4.  验证从 `stats` 切换到 `config` 后，加载提示是否立即消失。
+1.  在 `tests/ui.stats_loading.test.js` 中增加显示 UI 的操作。
+2.  确保 `loadingMessage` 在测试中的同步性。
 
 ### 基本原理
-利用 `vitest` 的异步等待机制和 `testing-library` 的 DOM 匹配能力，我们可以断言 `loadingMessage` 信号在 UI 组件中的实时体现。通过在一个正在进行的加载任务中强行修改 `viewMode`，我们可以测试 `index.jsx` 中新添加的清理路径。
+- 在 `createUI` 之后模拟点击 `log-archive-ui-toggle-button`。这将改变容器的 `display` 样式，使得内部的 `textarea` 对测试框架可见。
 
 ### 标签
-#intent/tooling #flow/ready #priority/medium #comp/tests #concept/ui #scope/dx #ai/build #task/domain/testing #task/object/loading-state-regression #task/action/test-implementation #task/state/continue
+#intent/tooling #flow/ready #priority/medium #comp/tests #concept/ui #ai/refine #task/domain/testing #task/object/loading-state-regression #task/action/fix-test-script #task/state/continue
 
 ---
 
 ### Script
 
-#### Acts 1: 创建统计加载逻辑回归测试
+#### Acts 1: 修正 `tests/ui.stats_loading.test.js`
 
-我们将创建一个新的测试文件，模拟复杂的异步加载场景。
+我们将添加点击切换按钮的逻辑，确保 UI 处于可见状态。
 
 ~~~~~act
-write_file
+patch_file
 tests/ui.stats_loading.test.js
 ~~~~~
-~~~~~javascript
-import { fireEvent, screen, waitFor } from '@testing-library/dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.jsx';
-import { loadingMessage, viewMode } from '../src/ui/store/uiStore.js';
-import '@testing-library/jest-dom/vitest';
-
-global.__APP_VERSION__ = '7.0.0-test';
-
-const mockCallbacks = {
-  scanAndMergeHistory: vi.fn(),
-  saveMessagesToStorage: vi.fn(),
-  scanAllDuplicatesAsync: vi.fn(),
-  deleteMessages: vi.fn(),
-  deactivateLogger: vi.fn(),
-};
-
-describe('UI Loading State Regression', () => {
-  let activeUI = null;
-
-  beforeEach(async () => {
-    document.body.innerHTML = '';
-    await storageManager.init();
-    loadingMessage.value = ''; // 重置信号
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    if (activeUI) {
-      activeUI.destroy();
-    }
-  });
-
-  it('统计视图应当显示加载进度', async () => {
-    // 构造一个具有明显延迟和进度汇报的 Adapter
-    const adapter = {
-      getServers: async () => ['S1'],
-      getChannels: async () => ['Local'],
-      getChannelCount: async () => 1000,
-      getMessages: async (s, c, p, sz, onProgress) => {
-        // 模拟一个耗时的拉取
-        for (let i = 1; i <= 2; i++) {
-          if (onProgress) onProgress(i * 500, 1000);
-          await new Promise((r) => setTimeout(r, 20));
-        }
-        return { messages: [], total: 1000 };
-      },
-    };
-
+~~~~~javascript.old
     activeUI = await createUI(adapter, mockCallbacks);
     await activeUI.updateRecordingStatus('S1', 'Local');
 
     // 1. 进入统计视图
     viewMode.value = 'stats';
+~~~~~
+~~~~~javascript.new
+    activeUI = await createUI(adapter, mockCallbacks);
+    await activeUI.updateRecordingStatus('S1', 'Local');
 
-    // 2. 验证加载提示是否出现在 DOM 中
-    await waitFor(() => {
-      const statsDisplay = screen.getByRole('textbox');
-      expect(statsDisplay.value).toContain('⏳ 正在读取统计数据...');
-      expect(statsDisplay.value).toContain('500 / 1000');
-    });
+    // 显示 UI
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
 
-    // 3. 等待加载完成，提示应当消失
-    await waitFor(() => {
-      const statsDisplay = screen.getByRole('textbox');
-      expect(statsDisplay.value).not.toContain('⏳');
-    }, { timeout: 1000 });
-  });
+    // 1. 进入统计视图
+    viewMode.value = 'stats';
+~~~~~
 
-  it('切换到设置视图时应当强制清理加载残留', async () => {
-    // 构造一个永不结束的加载
-    const adapter = {
-      getServers: async () => ['S1'],
-      getChannels: async () => ['Local'],
-      getChannelCount: async () => 1000,
-      getMessages: () => new Promise(() => {}), // 永久悬挂
-    };
-
+~~~~~act
+patch_file
+tests/ui.stats_loading.test.js
+~~~~~
+~~~~~javascript.old
     activeUI = await createUI(adapter, mockCallbacks);
     await activeUI.updateRecordingStatus('S1', 'Local');
 
     // 1. 触发统计加载
     viewMode.value = 'stats';
-    
-    // 确保信号已被设置
-    await waitFor(() => expect(loadingMessage.value).toContain('⏳'));
+~~~~~
+~~~~~javascript.new
+    activeUI = await createUI(adapter, mockCallbacks);
+    await activeUI.updateRecordingStatus('S1', 'Local');
 
-    // 2. 在加载中切换到设置模式
-    viewMode.value = 'config';
+    // 显示 UI
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
 
-    // 3. 验证信号是否被清理
-    await waitFor(() => {
-      expect(loadingMessage.value).toBe('');
-    });
-
-    // 4. 切回日志模式，验证日志视图是否干净
-    viewMode.value = 'log';
-    await waitFor(() => {
-      const logDisplay = screen.getByRole('textbox');
-      // 由于 adapter.getMessages 悬挂，这里应由 refreshView 逻辑保证
-      // 新一轮 log 拉取开始前会设置 LOADING_PREPARE，所以我们验证它不包含之前的统计提示
-      expect(logDisplay.value).not.toContain('正在读取统计数据');
-    });
-  });
-});
+    // 1. 触发统计加载
+    viewMode.value = 'stats';
 ~~~~~
 
 ### 下一步建议
-- **执行测试**: 运行 `npm test tests/ui.stats_loading.test.js` 验证测试是否通过。
-- **提交变更**: 在确认测试通过后，我们将把这些修复和测试作为一个完整的逻辑单元提交。
+- **执行测试**: 再次运行 `npm test tests/ui.stats_loading.test.js`。此时 UI 应该已可见，`getByRole` 能够正常工作。
+- **验证效果**: 观察测试报告中关于“进度文字显示”和“切换视图清理”的断言是否通过。如果通过，说明我们的修复完全解决了残留问题。

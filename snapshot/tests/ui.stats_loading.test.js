@@ -50,6 +50,10 @@ describe('UI Loading State Regression', () => {
     activeUI = await createUI(adapter, mockCallbacks);
     await activeUI.updateRecordingStatus('S1', 'Local');
 
+    // 显示 UI
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
+
     // 1. 进入统计视图
     viewMode.value = 'stats';
 
@@ -78,6 +82,10 @@ describe('UI Loading State Regression', () => {
 
     activeUI = await createUI(adapter, mockCallbacks);
     await activeUI.updateRecordingStatus('S1', 'Local');
+
+    // 显示 UI
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    if (toggleBtn) fireEvent.click(toggleBtn);
 
     // 1. 触发统计加载
     viewMode.value = 'stats';
