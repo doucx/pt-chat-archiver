@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(ui): 添加响应式的异步数据拉取机制并修复滚动测试模拟", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776765374.363377, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] test(ui): 为修改分页大小的集成测试增加异步等待", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776765499.9562678, "duration_ms": 0}}

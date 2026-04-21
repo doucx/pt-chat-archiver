@@ -134,9 +134,11 @@ describe('UI Integration Smoke Tests', () => {
     });
 
     // 5. 验证内容只显示到第 50 条
-    const logDisplay = screen.getByRole('textbox');
-    expect(logDisplay.value).toContain('Message 50');
-    expect(logDisplay.value).not.toContain('Message 51');
+    await waitFor(() => {
+      const logDisplay = screen.getByRole('textbox');
+      expect(logDisplay.value).toContain('Message 50');
+      expect(logDisplay.value).not.toContain('Message 51');
+    });
   });
 
   it('在加载过程中发生的滚动不应触发错误解锁', async () => {
