@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
 import { createUI } from '../src/ui/index.jsx';
+import { viewMode } from '../src/ui/store/uiStore.js';
 import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
@@ -38,6 +39,7 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   beforeEach(async () => {
     document.body.innerHTML = '';
     await storageManager.init();
+    viewMode.value = 'log';
 
     // 1. 构造 Mock 状态
     // 我们在 "Server A" 的 "Local" 频道构造一个爆发期 (25条重复消息)

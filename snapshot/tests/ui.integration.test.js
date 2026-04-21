@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
 import { createUI } from '../src/ui/index.jsx';
+import { viewMode, currentPage, isLockedToBottom } from '../src/ui/store/uiStore.js';
 import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
@@ -57,6 +58,9 @@ describe('UI Integration Smoke Tests', () => {
 
   beforeEach(async () => {
     await storageManager.init();
+    viewMode.value = 'log';
+    currentPage.value = 1;
+    isLockedToBottom.value = false;
     mockAppState = {
       'Test Server': {
         Local: Array.from({ length: 250 }, (_, i) => ({
@@ -88,26 +92,24 @@ describe('UI Integration Smoke Tests', () => {
     await renderUI(mockAppState);
 
     const settingsButton = screen.getByTitle('设置');
-    const logView = document.getElementById('log-archive-log-view');
-    const configView = document.getElementById('log-archive-config-view');
 
-    // 初始状态
-    expect(logView).toBeVisible();
-    expect(configView).not.toBeVisible();
+    // 初始状态 (ConfigPanel 未挂载)
+    expect(document.getElementById('log-archive-log-view')).toBeVisible();
+    expect(document.getElementById('log-archive-config-view')).toBeNull();
 
     // 点击设置 (触发异步刷新)
     fireEvent.click(settingsButton);
 
     // 必须使用 waitFor 等待异步 DOM 变更
     await waitFor(() => {
-      expect(logView).not.toBeVisible();
-      expect(configView).toBeVisible();
+      expect(document.getElementById('log-archive-log-view')).toBeNull();
+      expect(document.getElementById('log-archive-config-view')).toBeVisible();
     });
 
     // 再次点击切回
     fireEvent.click(settingsButton);
     await waitFor(() => {
-      expect(logView).toBeVisible();
+      expect(document.getElementById('log-archive-log-view')).toBeVisible();
     });
   });
 
@@ -117,8 +119,8 @@ describe('UI Integration Smoke Tests', () => {
     // 1. 进入设置
     fireEvent.click(screen.getByTitle('设置'));
 
-    // 2. 找到分页大小输入框并改为 50
-    const pageSizeInput = screen.getByLabelText(/分页大小/);
+    // 2. 找到分页大小输入框并改为 50 (等待渲染完成)
+    const pageSizeInput = await screen.findByLabelText(/分页大小/);
     fireEvent.change(pageSizeInput, { target: { value: '50' } });
 
     // 3. 等待异步设置完成并切回日志视图
@@ -139,7 +141,7 @@ describe('UI Integration Smoke Tests', () => {
 
   it('在加载过程中发生的滚动不应触发错误解锁', async () => {
     await renderUI(mockAppState);
-    const lastBtn = screen.getByText('»');
+    const lastBtn = screen.getByTitle('跳转并锁定到末尾');
     const logDisplay = screen.getByRole('textbox');
 
     // 1. 点击末页进入锁定模式
