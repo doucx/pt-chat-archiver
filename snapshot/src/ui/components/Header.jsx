@@ -1,3 +1,5 @@
+import { useState } from 'preact/hooks';
+import { UI_FEEDBACK_DURATION } from '../../constants.js';
 import { channelCounts, channelList } from '../store/dataStore';
 import {
   activeServer,
@@ -9,12 +11,21 @@ import {
 } from '../store/uiStore';
 
 export function Header({ callbacks }) {
+  const [copyStatus, setCopyStatus] = useState(false);
   const handleToggleView = (mode) => {
     viewMode.value = viewMode.value === mode ? 'log' : mode;
   };
 
   const handleResetServer = () => {
     if (activeServer.value) viewingServer.value = activeServer.value;
+  };
+
+  const handleCopy = async () => {
+    const success = await callbacks.copyCurrentPage();
+    if (success) {
+      setCopyStatus(true);
+      setTimeout(() => setCopyStatus(false), UI_FEEDBACK_DURATION);
+    }
   };
 
   return (
@@ -84,11 +95,11 @@ export function Header({ callbacks }) {
           </button>
           <button
             type="button"
-            className="log-archive-ui-button"
+            className={`log-archive-ui-button ${copyStatus ? 'active' : ''}`}
             title="复制当前页内容"
-            onClick={callbacks.copyCurrentPage}
+            onClick={handleCopy}
           >
-            📋
+            {copyStatus ? '✅' : '📋'}
           </button>
           <button
             type="button"

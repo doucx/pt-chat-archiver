@@ -56,14 +56,14 @@ export function createIOManager({ dataAdapter, appCallbacks, refreshView }) {
 
   const copyJSON = async () => {
     const allData = await dataAdapter.getAllData();
-    navigator.clipboard.writeText(JSON.stringify(allData, null, 2));
-    alert('✅ 已复制 JSON');
+    await navigator.clipboard.writeText(JSON.stringify(allData, null, 2));
+    return true;
   };
 
   const copyTXT = async () => {
     const allData = await dataAdapter.getAllData();
-    navigator.clipboard.writeText(generateFullTextExport(allData));
-    alert('✅ 已复制 TXT');
+    await navigator.clipboard.writeText(generateFullTextExport(allData));
+    return true;
   };
 
   const importAllData = () => {
@@ -93,8 +93,8 @@ export function createIOManager({ dataAdapter, appCallbacks, refreshView }) {
 
           if (confirm(warning)) {
             await appCallbacks.saveMessagesToStorage(importedData);
-            alert('✅ 导入成功');
             refreshView();
+            return true;
           }
         } catch (err) {
           alert(`导入失败: ${err.message}`);
@@ -132,8 +132,8 @@ export function createIOManager({ dataAdapter, appCallbacks, refreshView }) {
 
           if (confirm(msg)) {
             await appCallbacks.mergeMessagesToStorage(importedData);
-            alert('✅ 合并成功');
             refreshView();
+            return true;
           }
         } catch (err) {
           alert(`合并失败: ${err.message}`);

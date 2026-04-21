@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { UI_FEEDBACK_DURATION } from '../../constants.js';
 import { MigrationManager } from '../../migrations.js';
 import { getStorageUsageInMB, storageManager } from '../../storage/index.js';
 import { serverList } from '../store/dataStore';
@@ -23,6 +24,14 @@ export function ConfigPanel({ callbacks }) {
   const [msgCount, setMsgCount] = useState(0);
   const [legacy, setLegacy] = useState({ v4: false, v5: false, v6: false });
   const [hasBackup, setHasBackup] = useState(false);
+  const [feedback, setFeedback] = useState({});
+
+  const triggerFeedback = (key) => {
+    setFeedback((prev) => ({ ...prev, [key]: true }));
+    setTimeout(() => {
+      setFeedback((prev) => ({ ...prev, [key]: false }));
+    }, UI_FEEDBACK_DURATION);
+  };
 
   // 挂载时刷新统计信息
   useEffect(() => {
@@ -253,17 +262,39 @@ export function ConfigPanel({ callbacks }) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <button type="button" class="log-archive-ui-button" onClick={callbacks.copyJSON}>
-              复制 JSON
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              onClick={async () => (await callbacks.copyJSON()) && triggerFeedback('copyJSON')}
+            >
+              {feedback.copyJSON ? '✅ 已复制' : '复制 JSON'}
             </button>
-            <button type="button" class="log-archive-ui-button" onClick={callbacks.copyTXT}>
-              复制 TXT
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              onClick={async () => (await callbacks.copyTXT()) && triggerFeedback('copyTXT')}
+            >
+              {feedback.copyTXT ? '✅ 已复制' : '复制 TXT'}
             </button>
-            <button type="button" class="log-archive-ui-button" onClick={callbacks.downloadJSON}>
-              下载 JSON
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              onClick={async () => {
+                await callbacks.downloadJSON();
+                triggerFeedback('dlJSON');
+              }}
+            >
+              {feedback.dlJSON ? '✅ 开始下载' : '下载 JSON'}
             </button>
-            <button type="button" class="log-archive-ui-button" onClick={callbacks.downloadTXT}>
-              下载 TXT
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              onClick={async () => {
+                await callbacks.downloadTXT();
+                triggerFeedback('dlTXT');
+              }}
+            >
+              {feedback.dlTXT ? '✅ 开始下载' : '下载 TXT'}
             </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -285,16 +316,30 @@ export function ConfigPanel({ callbacks }) {
                         ? '未发现重复'
                         : '清理完毕!'}
             </button>
-            <button type="button" class="log-archive-ui-button" onClick={callbacks.importAllData}>
-              导入 JSON (覆盖)
+            <button
+              type="button"
+              class="log-archive-ui-button"
+              onClick={async () => {
+                // 导入是异步监听文件选择的，回调返回 true 代表触发了逻辑
+                if (await callbacks.importAllData()) triggerFeedback('importAll');
+              }}
+            >
+              {feedback.importAll ? '✅ 导入成功' : '导入 JSON (覆盖)'}
             </button>
             <button
               type="button"
               class="log-archive-ui-button"
-              style={{ gridColumn: 'span 2', backgroundColor: 'var(--color-success)' }}
-              onClick={callbacks.importAndMergeData}
+              style={{
+                gridColumn: 'span 2',
+                backgroundColor: feedback.importMerge
+                  ? 'var(--color-primary)'
+                  : 'var(--color-success)',
+              }}
+              onClick={async () => {
+                if (await callbacks.importAndMergeData()) triggerFeedback('importMerge');
+              }}
             >
-              导入 JSON (合并)
+              {feedback.importMerge ? '✅ 合并成功' : '导入 JSON (合并)'}
             </button>
           </div>
         </div>
@@ -340,8 +385,12 @@ export function ConfigPanel({ callbacks }) {
       {hasBackup && (
         <div class="config-group" style={{ marginTop: '10px' }}>
           <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>兼容性清理</div>
-          <button type="button" class="log-archive-ui-button" onClick={callbacks.deleteV6Backup}>
-            删除旧版 LocalStorage 备份
+          <button
+            type="button"
+            class="log-archive-ui-button"
+            onClick={async () => (await callbacks.deleteV6Backup()) && triggerFeedback('delBackup')}
+          >
+            {feedback.delBackup ? '✅ 备份已清理' : '删除旧版 LocalStorage 备份'}
           </button>
           <div class="info-text-dim" style={{ marginTop: '4px', fontSize: '0.8em' }}>
             迁移至新数据库后生成的备份文件，删除可释放浏览器 LocalStorage 空间。
