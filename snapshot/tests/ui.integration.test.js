@@ -21,9 +21,19 @@ const createMockAdapter = (state) => ({
   getServers: async () => Object.keys(state),
   getChannels: async (server) => Object.keys(state[server] || {}),
   getChannelCount: async (server, channel) => (state[server]?.[channel] || []).length,
-  getMessages: async (server, channel, page, pageSize) => {
+  getMessages: async (server, channel, page, pageSize, onProgress, offsetOverride) => {
     const list = state[server]?.[channel] || [];
-    const start = (page - 1) * pageSize;
+    const start = offsetOverride !== undefined ? offsetOverride : (page - 1) * pageSize;
+    
+    // 如果是请求统计数据，模拟进度回调
+    if (onProgress) {
+      onProgress(Math.floor(pageSize / 2), pageSize);
+      // 检查是否有挂起的 promise 可以用来模拟延迟
+      if (global.__test_delay_promise) {
+        await global.__test_delay_promise;
+      }
+    }
+
     return {
       messages: list.slice(start, start + pageSize),
       total: list.length,
@@ -189,5 +199,42 @@ describe('UI Integration Smoke Tests', () => {
     await waitFor(() => {
       expect(lastBtn).not.toHaveClass('active');
     });
+  });
+
+  it('切换到统计分析时应显示加载信息，且中断加载切回日志时应清理加载状态', async () => {
+    activeUI = await renderUI(mockAppState);
+    const statsBtn = screen.getByTitle('数据统计');
+
+    // 此时日志视图已加载完毕，进入缓存
+    expect(screen.getByRole('textbox').value).toContain('Message 1');
+    expect(loadingMessage.value).toBe('');
+
+    // 1. 设置延迟，拦截 getMessages
+    let resolveDelay;
+    global.__test_delay_promise = new Promise((r) => { resolveDelay = r; });
+
+    // 2. 触发统计分析
+    fireEvent.click(statsBtn);
+
+    // 3. 验证此时 StatsView 显示了 loadingMessage
+    await waitFor(() => {
+      const display = screen.getByRole('textbox');
+      expect(display.value).toContain('正在读取统计数据');
+    });
+
+    // 4. 在加载完成前，再次点击切回 LogView
+    fireEvent.click(statsBtn); // 触发 handleToggleView('stats') -> 'log'
+
+    // 5. 解除延迟，让被废弃的 refreshView 继续执行完毕
+    resolveDelay();
+
+    // 6. 验证切回 LogView 时，因为它命中了缓存，loadingMessage 应被清理
+    await waitFor(() => {
+      const display = screen.getByRole('textbox');
+      expect(display.value).not.toContain('正在读取统计数据');
+      expect(display.value).toContain('Message 1');
+    });
+
+    delete global.__test_delay_promise;
   });
 });

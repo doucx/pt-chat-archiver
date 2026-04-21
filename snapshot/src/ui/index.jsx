@@ -82,6 +82,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       channelCountsSig.value = {};
       currentMessages.value = [];
       totalCountSig.value = 0;
+      loadingMessage.value = '';
       return;
     }
 
@@ -147,6 +148,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       } else {
         if (viewCache.has(fetchPage)) {
           messages = viewCache.get(fetchPage);
+          loadingMessage.value = '';
         } else {
           loadingMessage.value = UI_MESSAGES.LOADING_PREPARE;
           await new Promise((r) => setTimeout(r, 10));
@@ -175,6 +177,10 @@ export async function createUI(dataAdapter, appCallbacks) {
           loadingMessage.value = '';
         }
       }
+    }
+
+    if (stateViewMode === 'config') {
+      loadingMessage.value = '';
     }
 
     const newTotalPages = Math.ceil(totalCount / statePageSize) || 1;
