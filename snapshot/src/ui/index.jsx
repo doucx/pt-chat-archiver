@@ -1,3 +1,4 @@
+import { effect, untracked } from '@preact/signals';
 import { render } from 'preact';
 import { UI_MESSAGES } from '../constants.js';
 import { MigrationManager } from '../migrations.js';
@@ -274,6 +275,25 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   // Initial Data Fetch
   await refreshView();
+
+  let isFirstEffect = true;
+  effect(() => {
+    // 声明状态依赖，当它们改变时触发自动刷新
+    viewingServer.value;
+    selectedChannel.value;
+    currentPage.value;
+    pageSize.value;
+    viewMode.value;
+
+    if (isFirstEffect) {
+      isFirstEffect = false;
+      return;
+    }
+
+    untracked(() => {
+      refreshView();
+    });
+  });
 
   // Return Engine API
   return {

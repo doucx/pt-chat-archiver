@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "Capture: M ConfigPanel.jsx, M ui.integration.test.js, M uiStore.test.js", "type": "capture", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776765167.629727, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(ui): 添加响应式的异步数据拉取机制并修复滚动测试模拟", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776765374.363377, "duration_ms": 0}}

@@ -158,18 +158,22 @@ describe('UI Integration Smoke Tests', () => {
     fireEvent.scroll(logDisplay);
 
     // 3. 验证：由于加载保护存在，锁定状态不应被移除
-    expect(lastBtn).toHaveClass('active');
+    await waitFor(() => {
+      expect(lastBtn).toHaveClass('active');
+    });
 
     // 4. 模拟加载完成
     logDisplay.value = 'Line 1\nLine 2\nLine 3';
     // 模拟向上滚动：手动 mock DOM 属性
     Object.defineProperty(logDisplay, 'scrollHeight', { value: 1000, configurable: true });
-    Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true });
+    Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true, writable: true });
     Object.defineProperty(logDisplay, 'clientHeight', { value: 500, configurable: true });
 
     fireEvent.scroll(logDisplay);
 
     // 5. 验证：此时向上滚动可以正常解锁
-    expect(lastBtn).not.toHaveClass('active');
+    await waitFor(() => {
+      expect(lastBtn).not.toHaveClass('active');
+    });
   });
 });
