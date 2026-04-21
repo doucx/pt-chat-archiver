@@ -265,11 +265,8 @@ export async function createUI(dataAdapter, appCallbacks) {
   // Mount Preact Tree
   render(<App dataAdapter={dataAdapter} appCallbacks={uiCallbacks} />, container);
 
-  // Initial Data Fetch
-  await refreshView();
-
-  // 响应式数据拉取驱动
-  effect(() => {
+  // 响应式数据拉取驱动：effect 会在创建时自动同步触发一次 refreshView
+  const stopEffect = effect(() => {
     // 订阅关键路由信号
     const s = viewingServer.value;
     const c = selectedChannel.value;
@@ -279,14 +276,18 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     // 使用 untracked 避免 refreshView 内部的读取操作造成循环订阅
     untracked(() => {
-      // 首次加载已在上面手动执行，这里只响应后续变化
-      // 通过对比当前状态防止冗余刷新
       refreshView();
     });
   });
 
   // Return Engine API
   return {
+    destroy: () => {
+      stopEffect();
+      render(null, container);
+      container.remove();
+      toggleButton.remove();
+    },
     updateUI: async () => {
       if (!isUIPaused.value) {
         await refreshView();

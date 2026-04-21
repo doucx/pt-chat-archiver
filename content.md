@@ -1,62 +1,163 @@
-通过对失败日志和代码逻辑的深度排查，我发现 `clean_duplicates.test.js` 的卡死（挂起）是由**响应式竞争（Reactive Race）**引起的。
+你的分析非常准确。在 Vitest/JSDOM 环境中，`close timed out` 错误通常是由于测试结束后仍有未清理的**异步句柄**（如 `setTimeout`、未停止的 `MutationObserver` 或未销毁的 Preact `effect`）导致的。
 
+经过对代码的审查，发现以下几个导致泄露和卡死的核心原因：
+1.  **`ConfigPanel` 的定时器泄露**：在 `handleScanDuplicates` 中，当没有重复项时会开启一个 1500ms 的 `setTimeout`。测试用例在断言“未发现重复”后立即结束，但这个定时器仍在运行。
+2.  **Preact Signals `effect` 泄露**：`src/ui/index.jsx` 中创建了一个全局 `effect`。由于没有调用它返回的 `dispose` 函数，即使测试清空了 `document.body`，该效应器依然在后台监听信号并触发 `refreshView`。
+3.  **Preact 树未卸载**：测试中多次调用 `createUI` 并通过 `render()` 挂载 DOM，但从未调用 `render(null, container)` 显式卸载，导致内存中保留了大量的 Preact 实例引用。
 
-1.  **双重触发循环**: 在 `index.jsx` 中，我们手动调用了 `await refreshView()`，同时又设置了一个 `effect` 来监听信号。当 `refreshView` 内部执行“信号标准化”（例如：当服务器为空时设置默认服务器，或由于“锁定底部”自动调整 `currentPage`）时，这些信号的改变会**立刻**再次触发 `effect`。
-2.  **异步竞态**: `refreshView` 是异步的。如果 `effect` 在前一个 `refreshView` 还没结束时（由于 `await` 释放了线程）又启动了一个新的 `refreshView`，虽然有 `currentRenderId` 保护机制，但在高频变化的测试环境下（如模拟服务器状态更新），会产生大量的微任务积压，导致 Vitest 环境下的事件循环卡死。
-3.  **Redundant API Calls**: 在 `createUI` 返回的 API（如 `updateRecordingStatus`）中，既修改了信号又手动 `await refreshView()`，这在 Signals 架构下是多余的，且会加剧上述的竞争。
+我将通过以下计划修复这些问题：
 
+## [WIP] fix(test): 修复测试卡死及环境清理超时的回归问题
 
-1.  **移除 API 中的手动刷新**: 既然有了全局 `effect` 负责同步数据，API 只需负责修改信号（State），让数据拉取（Data Fetching）自动跟随。
-2.  **优化 Effect 触发机制**: 
-    - 移除 `isFirstEffect` 这种不稳定的开关。
-    - 将 `refreshView` 内部的多个信号写操作包裹在 `batch` 中，确保即使有多个标准化更新，也只触发一次渲染。
-    - 确保 `refreshView` 内部逻辑更加幂等。
+### 错误分析
+测试日志显示 `Duration 19.10s` 且 `close timed out after 10000ms`。这说明：
+1.  **资源泄露**：某个测试用例留下了存活的异步任务。在 `ui.clean_duplicates.test.js` 的第三个测试中，点击扫描后触发的 `setTimeout(..., 1500)` 在测试断言完成后仍挂在事件循环中。
+2.  **效应器冲突**：`createUI` 内部的 `effect` 会在每次信号变化时尝试执行 `refreshView`。由于测试环境并发运行，未销毁的旧 `effect` 可能会干扰新测试的数据状态。
+3.  **双重刷新逻辑**：`createUI` 在初始化时手动执行了一次 `await refreshView()`，随后又立即启动了一个会自动执行一次的 `effect`。这在某些环境下会导致竞态条件。
 
-## [WIP] fix(ui): 消除 refreshView 冗余调用并优化响应式同步逻辑
+### 用户需求
+修复 `tests/ui.clean_duplicates.test.js` 中的测试卡死问题，确保测试套件能够稳定、快速地通过。
+
+### 评论
+在基于信号（Signals）和异步渲染的复杂 UI 框架中，显式的销毁逻辑（Teardown）与业务逻辑同样重要。这不仅是为了通过测试，也是为了防止用户在频繁打开/关闭 UI 时产生内存溢出。
+
+### 目标
+1.  在 `ConfigPanel.jsx` 中增加定时器清理逻辑。
+2.  在 `src/ui/index.jsx` 的返回接口中暴露 `destroy` 方法，负责清理 `effect` 和卸载 Preact。
+3.  更新 `tests/ui.clean_duplicates.test.js`，确保每个测试结束后都进行彻底的清理。
+4.  消除 `createUI` 初始化时的冗余 `refreshView` 调用。
+
+### 基本原理
+通过 `useRef` 追踪功能性定时器，并在组件卸载时清理。在 UI 入口处捕获 `effect` 句柄，并将其与 Preact 的卸载过程（`render(null, container)`）封装在一起，确保测试环境能够干净地重置。
 
 ### 标签
-#intent/refine #flow/ready #priority/high #comp/ui #concept/state #scope/core #ai/instruct #task/domain/ui #task/object/reactivity-loop #task/action/refactor #task/state/continue
+#intent/fix #flow/ready #priority/high #comp/tests #comp/ui #concept/navigation #scope/dx #ai/refine #task/domain/testing #task/object/test-leaks #task/action/fix #task/state/begin
 
 ---
 
 ### Script
 
-#### Acts 1: 移除 API 中的冗余刷新调用
+#### Acts 1: 修复 `ConfigPanel.jsx` 的定时器泄露
 
-修改 `createUI` 的返回对象，移除 `updateRecordingStatus` 和 `setState` 中手动调用的 `refreshView`。现在它们将完全依赖 `effect` 自动响应。
+我们将使用 `useRef` 来管理清理任务。
+
+~~~~~act
+patch_file
+src/ui/components/ConfigPanel.jsx
+~~~~~
+~~~~~javascript.old
+import { useEffect, useState } from 'preact/hooks';
+import { MigrationManager } from '../../migrations.js';
+~~~~~
+~~~~~javascript.new
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { MigrationManager } from '../../migrations.js';
+~~~~~
+~~~~~act
+patch_file
+src/ui/components/ConfigPanel.jsx
+~~~~~
+~~~~~javascript.old
+  const [scanState, setScanState] = useState('idle');
+  const [duplicateIds, setDuplicateIds] = useState([]);
+
+  const handleScanDuplicates = async () => {
+    if (scanState === 'idle' || scanState === 'no_duplicates' || scanState === 'done') {
+      setScanState('scanning');
+      try {
+        const ids = await callbacks.scanDuplicates();
+        if (ids.length === 0) {
+          setScanState('no_duplicates');
+          setTimeout(() => setScanState('idle'), 1500);
+        } else {
+          setDuplicateIds(ids);
+          setScanState('pending');
+        }
+      } catch (e) {
+        setScanState('idle');
+      }
+    } else if (scanState === 'pending') {
+      if (
+        confirm(`【确认】将删除 ${duplicateIds.length} 条重复记录。此操作不可逆。确定要继续吗？`)
+      ) {
+        setScanState('cleaning');
+        await callbacks.deleteMessages(duplicateIds);
+        setScanState('done');
+        setDuplicateIds([]);
+        setTimeout(() => setScanState('idle'), 1500);
+      }
+    }
+  };
+~~~~~
+~~~~~javascript.new
+  const [scanState, setScanState] = useState('idle');
+  const [duplicateIds, setDuplicateIds] = useState([]);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const handleScanDuplicates = async () => {
+    if (scanState === 'idle' || scanState === 'no_duplicates' || scanState === 'done') {
+      setScanState('scanning');
+      try {
+        const ids = await callbacks.scanDuplicates();
+        if (ids.length === 0) {
+          setScanState('no_duplicates');
+          timerRef.current = setTimeout(() => setScanState('idle'), 1500);
+        } else {
+          setDuplicateIds(ids);
+          setScanState('pending');
+        }
+      } catch (e) {
+        setScanState('idle');
+      }
+    } else if (scanState === 'pending') {
+      if (
+        confirm(`【确认】将删除 ${duplicateIds.length} 条重复记录。此操作不可逆。确定要继续吗？`)
+      ) {
+        setScanState('cleaning');
+        await callbacks.deleteMessages(duplicateIds);
+        setScanState('done');
+        setDuplicateIds([]);
+        timerRef.current = setTimeout(() => setScanState('idle'), 1500);
+      }
+    }
+  };
+~~~~~
+
+#### Acts 2: 完善 `src/ui/index.jsx` 的清理接口
+
+暴露 `destroy` 方法，并消除初始化时的多余刷新。
 
 ~~~~~act
 patch_file
 src/ui/index.jsx
 ~~~~~
-~~~~~old
-  // Return Engine API
-  return {
-    updateUI: async () => {
-      if (!isUIPaused.value) {
-        await refreshView();
-      }
-    },
-    onNewMessage: (msg) => {
-      viewCache.pushNewMessage(msg);
-    },
-    invalidateCache: () => {
-      viewCache.clear();
-    },
-    setState: async (newState) => {
-      await refreshView();
-    },
-    checkStorageUsage: async () => {}, // Stubs for removed checks
-    isUIPaused: () => isUIPaused.value,
-    getInitDebounceMs: () => initDebounceMs.value,
-    updateRecordingStatus: async (serverName, channelName) => {
-      setRecordingStatus(serverName, channelName);
-      await refreshView();
-    },
-  };
-}
-~~~~~
-~~~~~new
+~~~~~javascript.old
+  // Initial Data Fetch
+  await refreshView();
+
+  // 响应式数据拉取驱动
+  effect(() => {
+    // 订阅关键路由信号
+    const s = viewingServer.value;
+    const c = selectedChannel.value;
+    const p = currentPage.value;
+    const sz = pageSize.value;
+    const m = viewMode.value;
+
+    // 使用 untracked 避免 refreshView 内部的读取操作造成循环订阅
+    untracked(() => {
+      // 首次加载已在上面手动执行，这里只响应后续变化
+      // 通过对比当前状态防止冗余刷新
+      refreshView();
+    });
+  });
+
   // Return Engine API
   return {
     updateUI: async () => {
@@ -83,114 +184,9 @@ src/ui/index.jsx
   };
 }
 ~~~~~
-
-#### Acts 2: 优化全局 Effect 逻辑
-
-改进 `effect` 的声明方式，并为 `refreshView` 内部的信号写操作增加 `batch` 保护。
-
-~~~~~act
-patch_file
-src/ui/index.jsx
-~~~~~
-~~~~~old
-import { effect, untracked } from '@preact/signals';
-import { render } from 'preact';
-~~~~~
-~~~~~new
-import { batch, effect, untracked } from '@preact/signals';
-import { render } from 'preact';
-~~~~~
-
-~~~~~act
-patch_file
-src/ui/index.jsx
-~~~~~
-~~~~~old
-    const newTotalPages = Math.ceil(totalCount / statePageSize) || 1;
-    totalPages.value = newTotalPages;
-
-    if (stateIsLockedToBottom && stateViewMode === 'log' && newTotalPages > stateCurrentPage) {
-      currentPage.value = newTotalPages;
-      if (viewCache.has(newTotalPages)) {
-        messages = viewCache.get(newTotalPages);
-      } else {
-        const followResult = await dataAdapter.getMessages(
-          currentServer,
-          finalSelectedChannel,
-          newTotalPages,
-          statePageSize,
-        );
-        if (renderId !== currentRenderId) return;
-        messages = followResult.messages;
-        viewCache.set(newTotalPages, messages);
-      }
-    }
-
-    if (renderId !== currentRenderId) return;
-
-    // Update Signals
-    serverListSig.value = serverList;
-    channelListSig.value = channelList;
-    channelCountsSig.value = channelCounts;
-    currentMessages.value = messages;
-    totalCountSig.value = totalCount;
-~~~~~
-~~~~~new
-    const newTotalPages = Math.ceil(totalCount / statePageSize) || 1;
-
-    // 使用 batch 确保内部的多次信号修改只触发一次重新渲染
-    batch(() => {
-      totalPages.value = newTotalPages;
-
-      if (stateIsLockedToBottom && stateViewMode === 'log' && newTotalPages > stateCurrentPage) {
-        currentPage.value = newTotalPages;
-        // 注意：这里由于 currentPage 变了，后续会由 effect 再次触发拉取，
-        // 但为了交互平滑，这里我们保持内存中的 messages 更新
-      }
-
-      if (renderId !== currentRenderId) return;
-
-      serverListSig.value = serverList;
-      channelListSig.value = channelList;
-      channelCountsSig.value = channelCounts;
-      currentMessages.value = messages;
-      totalCountSig.value = totalCount;
-    });
-~~~~~
-
-~~~~~act
-patch_file
-src/ui/index.jsx
-~~~~~
-~~~~~old
-  // Initial Data Fetch
-  await refreshView();
-
-  let isFirstEffect = true;
-  effect(() => {
-    // 声明状态依赖，当它们改变时触发自动刷新
-    viewingServer.value;
-    selectedChannel.value;
-    currentPage.value;
-    pageSize.value;
-    viewMode.value;
-
-    if (isFirstEffect) {
-      isFirstEffect = false;
-      return;
-    }
-
-    untracked(() => {
-      refreshView();
-    });
-  });
-~~~~~
-~~~~~new
-  // Initial Data Fetch
-  await refreshView();
-
-  // 响应式数据拉取驱动
-  effect(() => {
+~~~~~javascript.new
+  // 响应式数据拉取驱动：effect 会在创建时自动同步触发一次 refreshView
+  const stopEffect = effect(() => {
     // 订阅关键路由信号
     const s = viewingServer.value;
     const c = selectedChannel.value;
@@ -200,13 +196,142 @@ src/ui/index.jsx
 
     // 使用 untracked 避免 refreshView 内部的读取操作造成循环订阅
     untracked(() => {
-      // 首次加载已在上面手动执行，这里只响应后续变化
-      // 通过对比当前状态防止冗余刷新
       refreshView();
     });
   });
+
+  // Return Engine API
+  return {
+    destroy: () => {
+      stopEffect();
+      render(null, container);
+      container.remove();
+      toggleButton.remove();
+    },
+    updateUI: async () => {
+      if (!isUIPaused.value) {
+        await refreshView();
+      }
+    },
+    onNewMessage: (msg) => {
+      viewCache.pushNewMessage(msg);
+    },
+    invalidateCache: () => {
+      viewCache.clear();
+    },
+    setState: async (newState) => {
+      // 状态由外部修改后，effect 会自动处理刷新
+    },
+    checkStorageUsage: async () => {}, // Stubs for removed checks
+    isUIPaused: () => isUIPaused.value,
+    getInitDebounceMs: () => initDebounceMs.value,
+    updateRecordingStatus: async (serverName, channelName) => {
+      // 仅修改信号，触发全局 effect 刷新数据
+      setRecordingStatus(serverName, channelName);
+    },
+  };
+}
+~~~~~
+
+#### Acts 3: 更新 `ui.clean_duplicates.test.js` 以支持销毁
+
+确保测试环境在每个 `it` 块结束后都重置到干净状态。
+
+~~~~~act
+patch_file
+tests/ui.clean_duplicates.test.js
+~~~~~
+~~~~~javascript.old
+describe('UI Clean Duplicates Regression (V6)', () => {
+  let mockAppState;
+  let mockCallbacks;
+
+  beforeEach(async () => {
+    document.body.innerHTML = '';
+    await storageManager.init();
+~~~~~
+~~~~~javascript.new
+describe('UI Clean Duplicates Regression (V6)', () => {
+  let mockAppState;
+  let mockCallbacks;
+  let activeUI = null;
+
+  afterEach(() => {
+    if (activeUI) {
+      activeUI.destroy();
+      activeUI = null;
+    }
+  });
+
+  beforeEach(async () => {
+    document.body.innerHTML = '';
+    await storageManager.init();
+~~~~~
+~~~~~act
+patch_file
+tests/ui.clean_duplicates.test.js
+~~~~~
+~~~~~javascript.old
+  it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
+    const adapter = createMockAdapter(mockAppState);
+    const ui = await createUI(adapter, mockCallbacks);
+    await ui.updateRecordingStatus('Server A', 'Local');
+~~~~~
+~~~~~javascript.new
+  it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
+    const adapter = createMockAdapter(mockAppState);
+    activeUI = await createUI(adapter, mockCallbacks);
+    await activeUI.updateRecordingStatus('Server A', 'Local');
+~~~~~
+~~~~~act
+patch_file
+tests/ui.clean_duplicates.test.js
+~~~~~
+~~~~~javascript.old
+  it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
+    const adapter = createMockAdapter(mockAppState);
+    const ui = await createUI(adapter, mockCallbacks);
+    await ui.updateRecordingStatus('Server A', 'Local');
+~~~~~
+~~~~~javascript.new
+  it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
+    const adapter = createMockAdapter(mockAppState);
+    activeUI = await createUI(adapter, mockCallbacks);
+    await activeUI.updateRecordingStatus('Server A', 'Local');
+~~~~~
+~~~~~act
+patch_file
+tests/ui.clean_duplicates.test.js
+~~~~~
+~~~~~javascript.old
+  it('当没有重复项时，点击扫描应当重置按钮', async () => {
+    // 覆盖 mock 返回空数组
+    mockCallbacks.scanAllDuplicatesAsync.mockResolvedValueOnce([]);
+
+    const cleanState = {
+      S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
+    };
+    const adapter = createMockAdapter(cleanState);
+    await createUI(adapter, mockCallbacks);
+
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+~~~~~
+~~~~~javascript.new
+  it('当没有重复项时，点击扫描应当重置按钮', async () => {
+    // 覆盖 mock 返回空数组
+    mockCallbacks.scanAllDuplicatesAsync.mockResolvedValueOnce([]);
+
+    const cleanState = {
+      S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
+    };
+    const adapter = createMockAdapter(cleanState);
+    activeUI = await createUI(adapter, mockCallbacks);
+
+    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
 ~~~~~
 
 ### 下一步建议
 
-现在请尝试运行针对 `ui.clean_duplicates.test.js` 和 `ui.integration.test.js` 的测试。由于竞争被消除且手动刷新被移除，测试环境的负载应当会大幅下降，从而解决卡死问题并顺利通过断言。
+1.  **运行测试**：执行 `npm test` 验证 `ui.clean_duplicates.test.js` 是否不再超时。
+2.  **集成测试修复**：注意到 `ui.integration.test.js` 也存在类似的创建 UI 后未销毁的问题，如果该文件之后也出现超时，应采用同样的 `destroy` 模式进行修复。
+3.  **检查 `main.js` 调用**：确认 `main.js` 中对 `createUI` 的调用不需要显式销毁（通常在单页应用生命周期中，只要不频繁重启引擎，保持单一实例是合理的）。

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { MigrationManager } from '../../migrations.js';
 import { getStorageUsageInMB, storageManager } from '../../storage/index.js';
 import { serverList } from '../store/dataStore';
@@ -42,6 +42,13 @@ export function ConfigPanel({ callbacks }) {
 
   const [scanState, setScanState] = useState('idle');
   const [duplicateIds, setDuplicateIds] = useState([]);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleScanDuplicates = async () => {
     if (scanState === 'idle' || scanState === 'no_duplicates' || scanState === 'done') {
@@ -50,7 +57,7 @@ export function ConfigPanel({ callbacks }) {
         const ids = await callbacks.scanDuplicates();
         if (ids.length === 0) {
           setScanState('no_duplicates');
-          setTimeout(() => setScanState('idle'), 1500);
+          timerRef.current = setTimeout(() => setScanState('idle'), 1500);
         } else {
           setDuplicateIds(ids);
           setScanState('pending');
@@ -66,7 +73,7 @@ export function ConfigPanel({ callbacks }) {
         await callbacks.deleteMessages(duplicateIds);
         setScanState('done');
         setDuplicateIds([]);
-        setTimeout(() => setScanState('idle'), 1500);
+        timerRef.current = setTimeout(() => setScanState('idle'), 1500);
       }
     }
   };

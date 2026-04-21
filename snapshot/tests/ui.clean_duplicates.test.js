@@ -35,6 +35,14 @@ const createMockAdapter = (state) => ({
 describe('UI Clean Duplicates Regression (V6)', () => {
   let mockAppState;
   let mockCallbacks;
+  let activeUI = null;
+
+  afterEach(() => {
+    if (activeUI) {
+      activeUI.destroy();
+      activeUI = null;
+    }
+  });
 
   beforeEach(async () => {
     document.body.innerHTML = '';
@@ -90,8 +98,8 @@ describe('UI Clean Duplicates Regression (V6)', () => {
 
   it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
     const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    await ui.updateRecordingStatus('Server A', 'Local');
+    activeUI = await createUI(adapter, mockCallbacks);
+    await activeUI.updateRecordingStatus('Server A', 'Local');
 
     const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
     if (toggleBtn) fireEvent.click(toggleBtn);
@@ -113,8 +121,8 @@ describe('UI Clean Duplicates Regression (V6)', () => {
 
   it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
     const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    await ui.updateRecordingStatus('Server A', 'Local');
+    activeUI = await createUI(adapter, mockCallbacks);
+    await activeUI.updateRecordingStatus('Server A', 'Local');
 
     const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
     if (toggleBtn) fireEvent.click(toggleBtn);
@@ -153,7 +161,7 @@ describe('UI Clean Duplicates Regression (V6)', () => {
       S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
     };
     const adapter = createMockAdapter(cleanState);
-    await createUI(adapter, mockCallbacks);
+    activeUI = await createUI(adapter, mockCallbacks);
 
     const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
     if (toggleBtn) fireEvent.click(toggleBtn);
