@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] refactor: 将服务器录制状态显示从 Header 迁移至 ConfigPanel", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776811613.678218, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[COMMIT] refactor: 迁移录制状态显示至设置面板", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776811659.1488187, "duration_ms": 0}}
