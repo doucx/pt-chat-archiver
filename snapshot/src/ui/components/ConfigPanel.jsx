@@ -225,7 +225,9 @@ export function ConfigPanel({ callbacks }) {
             border: '1px dashed var(--color-warning)',
           }}
         >
-          <div style={{ fontWeight: 'bold', color: 'var(--color-warning)', marginBottom: '4px' }}>发现残留数据!</div>
+          <div style={{ fontWeight: 'bold', color: 'var(--color-warning)', marginBottom: '4px' }}>
+            发现残留数据!
+          </div>
           <div class="info-text-dim" style={{ marginBottom: '8px' }}>
             检测到旧版本数据尚未合并。
           </div>

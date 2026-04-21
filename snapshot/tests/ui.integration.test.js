@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
 import { createUI } from '../src/ui/index.jsx';
-import { viewMode, currentPage, isLockedToBottom } from '../src/ui/store/uiStore.js';
+import { currentPage, isLockedToBottom, viewMode } from '../src/ui/store/uiStore.js';
 import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
@@ -46,10 +46,10 @@ async function renderUI(initialState) {
   const adapter = createMockAdapter(initialState);
   const ui = await createUI(adapter, mockCallbacks);
   await ui.updateRecordingStatus('Test Server', 'Local');
-  
+
   const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
   if (toggleBtn) fireEvent.click(toggleBtn);
-  
+
   return ui;
 }
 

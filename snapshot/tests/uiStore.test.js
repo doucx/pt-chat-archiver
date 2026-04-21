@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
 import {
-  initStore,
-  viewMode,
-  pageSize,
-  updateConfig,
-  viewingServer,
   activeServer,
-  setRecordingStatus
+  initStore,
+  pageSize,
+  setRecordingStatus,
+  updateConfig,
+  viewMode,
+  viewingServer,
 } from '../src/ui/store/uiStore.js';
 
 describe('ui/store/uiStore.js: UI State Manager Logic', () => {
@@ -41,7 +41,7 @@ describe('ui/store/uiStore.js: UI State Manager Logic', () => {
     await updateConfig('autoFollowServer', false);
     viewingServer.value = 'Server-B';
     setRecordingStatus('Server-C', 'Local');
-    
+
     expect(viewingServer.value).toBe('Server-B');
     expect(activeServer.value).toBe('Server-C');
   });
