@@ -1,183 +1,70 @@
-你的分析非常敏锐。这个错误是一个典型的**异步竞态条件**导致的：在测试执行完毕后，JSDOM 环境已经卸载（`document` 变得不可用），但由于 `updateRecordingStatus` 中调用 `refreshView()` 时没有使用 `await`，导致该异步任务成为了一个“漂浮的 Promise”。当它最终执行到 `renderer.render` 尝试操作 DOM 时，环境已经消失了。
+收到，编译错误和规范告警是因为：
+1. Vite 默认对 `.js` 后缀的文件不进行 JSX 转换，所以 `index.js` 内部渲染 `<App />` 时发生了解析失败 (Parse failure)。我们需要将它更名为 `index.jsx`。
+2. Biome Linter 进行着严格的 React A11y (可访问性) 和 Hook 依赖检查。我们需要明确指定按钮的 `type="button"`，并提取出 `useMemo/useEffect` 依赖数组中的属性读取操作。
 
-为了彻底解决这个问题并增强系统的稳定性，我们需要将 `createUI` 返回的公共 API 异步化，确保外部（尤其是测试）可以等待 UI 更新完成。
+让我们立即解决这些问题，确保基础建筑稳固！
 
-## [WIP] fix: 修复 UI 模块中的浮动 Promise 并同步 Preact 挂载逻辑
+## [WIP] fix: 修复 Preact JSX 编译错误与 Biome Linter 告警
 
 ### 错误分析
-在 `src/ui/index.js` 中，`updateUI`、`setState` 和 `updateRecordingStatus` 等方法内部调用了异步的 `refreshView()`，但没有进行 `await` 或返回该 Promise。
-在 `vitest` 环境下，测试用例在调用这些方法后立即结束并销毁了 `document`。随后，先前触发的 `refreshView` 任务尝试访问 `document.createElement`，导致 `ReferenceError: document is not defined`。
+1. **RollupError (Parse failure)**: 发生在 `src/ui/index.js` 中。原因是该文件包含 JSX 语法 (`<App />`)，但在 Vite (配合 `@preact/preset-vite`) 的默认配置下，只有后缀为 `.jsx` 或 `.tsx` 的文件才会被送入 JSX 编译器处理。
+2. **Biome Linter**: 
+    - `lint/a11y/useButtonType`: `<button>` 元素未指定 `type`，在表单中可能会触发意外提交，React 应用中推荐显式写明 `type="button"`。
+    - `lint/suspicious/noAssignInExpressions`: 不允许在箭头函数的返回值表达式中进行赋值，如 `onClick={() => a = b}`，应改为块级作用域 `onClick={() => { a = b; }}`。
+    - `lint/correctness/useExhaustiveDependencies`: `useMemo` 和 `useEffect` 的依赖数组中不推荐直接传入 `obj.value` 这样的表达式。虽然在 Preact Signals 中这是常见的获取值方式，但我们可以通过预先解构为变量来同时满足 Signals 和 Linter 的规范要求。
 
 ### 用户需求
-修复异步调用不规范导致的测试失败，并按照重构路线图，正式将 Preact 应用挂载到 DOM 中。
+修复构建失败的错误和所有 Linter 报错，让测试重新通过。
 
 ### 评论
-这不仅是修复 Bug，更是重构的关键一步。通过将公共 API 异步化，我们让 UI 层的生命周期变得可预测。同时，正式挂载 Preact 标志着新旧渲染引擎开始并存。
+将包含组件装载逻辑的文件改为 `.jsx` 后缀是规范的做法。同时满足严格的 Linter 有助于提升项目的长期可维护性，特别是在接下来的大规模组件拆分阶段。
 
 ### 目标
-1.  将 `createUI` 返回的 API 方法（`updateUI`, `setState`, `updateRecordingStatus`）改为 `async` 并 `await refreshView()`。
-2.  在 `createUI` 中正式挂载 Preact `App` 组件到 UI 容器。
-3.  更新 `ui.clean_duplicates.test.js` 和 `ui.integration.test.js` 以 `await` 状态更新操作，消除未捕获的错误。
+1. 将 `src/ui/index.js` 重命名为 `src/ui/index.jsx`。
+2. 更新主入口和测试文件中引用 `createUI` 的路径。
+3. 修正所有新建组件 (`Header`, `Pagination`, `LogViewer`) 中的规范问题。
+
+### 基本原理
+文件改名能激活 Vite 的 JSX 转换流水线。在 Hook 中将 `.value` 解构为普通 `const` 变量再传入依赖数组，既满足了 ESLint/Biome 的静态分析需求，又能维持 Preact 的响应性。
 
 ### 标签
 #intent/fix #flow/ready #priority/high 
-#comp/ui #comp/tests #concept/state #scope/dx 
-#ai/refine
-#task/domain/ui #task/object/async-reliability #task/action/bug-fix 
+#comp/build #comp/ui #scope/dx 
+#ai/delegate
+#task/domain/ui #task/object/preact-refactor #task/action/bug-fix 
 #task/state/continue #task/status/active
 
 ---
 
 ### Script
 
-#### Acts 1: 异步化公共 API 并挂载 Preact
+#### Acts 1: 重命名装载器并更新引用
 
-我们将修复 `src/ui/index.js` 中的异步调用，并引入 `render` 函数将 Preact 挂载到容器中。
+我们需要将 `index.js` 改为 `index.jsx`。
 
 ~~~~~act
-patch_file
+move_file
 src/ui/index.js
+src/ui/index.jsx
 ~~~~~
-~~~~~javascript.old
-import { getDOMElements, initDOM } from './dom.js';
-import { bindUIEvents } from './events.js';
-~~~~~
-~~~~~javascript.new
-import { render } from 'preact';
-import { App } from './App.jsx';
-import { getDOMElements, initDOM } from './dom.js';
-import { bindUIEvents } from './events.js';
-~~~~~
+
+更新引用该文件的其它模块。
 
 ~~~~~act
 patch_file
-src/ui/index.js
+src/main.js
 ~~~~~
 ~~~~~javascript.old
-  await bindUIEvents({
-    dom,
-    uiState,
-    refreshView,
-    callbacks: uiCallbacks,
-  });
-
-  // 4. Initial Render
-  // 必须等待首屏渲染完成，确保 UI 实例返回时 DOM 已就绪
-  await refreshView();
-
-  // 5. Return the public API
-  return {
-    updateUI: () => {
-      if (!uiState.getState().isUIPaused) {
-        refreshView();
-      }
-    },
-    onNewMessage: (msg) => {
-      viewCache.pushNewMessage(msg);
-    },
-    invalidateCache: () => {
-      viewCache.clear();
-    },
-    setState: (newState) => {
-      refreshView();
-    },
-    checkStorageUsage: async () => await renderer.checkStorageUsage(),
-    isUIPaused: () => uiState.getState().isUIPaused,
-    getInitDebounceMs: () => uiState.getState().initDebounceMs,
-    updateRecordingStatus: (serverName, channelName) => {
-      uiState.setRecordingStatus(serverName, channelName);
-      refreshView();
-    },
-  };
-}
+import { getSyntheticChannelName, mergeAndDeduplicateMessages } from './state.js';
+import { storageManager } from './storage/index.js';
+import { createUI } from './ui/index.js';
+import { generateULID } from './utils.js';
 ~~~~~
 ~~~~~javascript.new
-  await bindUIEvents({
-    dom,
-    uiState,
-    refreshView,
-    callbacks: uiCallbacks,
-  });
-
-  // 4. Preact Mounting
-  // 正式将 Preact 渲染引擎挂载到 DOM 容器中
-  render(<App dataAdapter={dataAdapter} appCallbacks={uiCallbacks} />, dom.uiContainer);
-
-  // 5. Initial Render
-  // 必须等待首屏渲染完成，确保 UI 实例返回时 DOM 已就绪
-  await refreshView();
-
-  // 6. Return the public API
-  return {
-    updateUI: async () => {
-      if (!uiState.getState().isUIPaused) {
-        await refreshView();
-      }
-    },
-    onNewMessage: (msg) => {
-      viewCache.pushNewMessage(msg);
-    },
-    invalidateCache: () => {
-      viewCache.clear();
-    },
-    setState: async (newState) => {
-      await refreshView();
-    },
-    checkStorageUsage: async () => await renderer.checkStorageUsage(),
-    isUIPaused: () => uiState.getState().isUIPaused,
-    getInitDebounceMs: () => uiState.getState().initDebounceMs,
-    updateRecordingStatus: async (serverName, channelName) => {
-      uiState.setRecordingStatus(serverName, channelName);
-      await refreshView();
-    },
-  };
-}
-~~~~~
-
-#### Acts 2: 修正测试用例中的异步调用
-
-为了配合 API 的变更并消除 Vitest 的警告，我们需要在测试中 `await` 状态更新。
-
-~~~~~act
-patch_file
-tests/ui.clean_duplicates.test.js
-~~~~~
-~~~~~javascript.old
-  it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    ui.updateRecordingStatus('Server A', 'Local');
-
-    // 进入设置页面
-~~~~~
-~~~~~javascript.new
-  it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    await ui.updateRecordingStatus('Server A', 'Local');
-
-    // 进入设置页面
-~~~~~
-
-~~~~~act
-patch_file
-tests/ui.clean_duplicates.test.js
-~~~~~
-~~~~~javascript.old
-  it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    ui.updateRecordingStatus('Server A', 'Local');
-
-    fireEvent.click(screen.getByTitle('设置'));
-~~~~~
-~~~~~javascript.new
-  it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    await ui.updateRecordingStatus('Server A', 'Local');
-
-    fireEvent.click(screen.getByTitle('设置'));
+import { getSyntheticChannelName, mergeAndDeduplicateMessages } from './state.js';
+import { storageManager } from './storage/index.js';
+import { createUI } from './ui/index.jsx';
+import { generateULID } from './utils.js';
 ~~~~~
 
 ~~~~~act
@@ -185,27 +72,226 @@ patch_file
 tests/ui.integration.test.js
 ~~~~~
 ~~~~~javascript.old
-async function renderUI(initialState) {
-  document.body.innerHTML = '';
-  const adapter = createMockAdapter(initialState);
-  const ui = await createUI(adapter, mockCallbacks);
-  ui.updateRecordingStatus('Test Server', 'Local');
-  return ui;
-}
+import { storageManager } from '../src/storage/index.js';
+import { createUI } from '../src/ui/index.js';
+import '@testing-library/jest-dom/vitest';
 ~~~~~
 ~~~~~javascript.new
-async function renderUI(initialState) {
-  document.body.innerHTML = '';
-  const adapter = createMockAdapter(initialState);
-  const ui = await createUI(adapter, mockCallbacks);
-  await ui.updateRecordingStatus('Test Server', 'Local');
-  return ui;
-}
+import { storageManager } from '../src/storage/index.js';
+import { createUI } from '../src/ui/index.jsx';
+import '@testing-library/jest-dom/vitest';
+~~~~~
+
+~~~~~act
+patch_file
+tests/ui.clean_duplicates.test.js
+~~~~~
+~~~~~javascript.old
+import { storageManager } from '../src/storage/index.js';
+import { createUI } from '../src/ui/index.js';
+import '@testing-library/jest-dom/vitest';
+~~~~~
+~~~~~javascript.new
+import { storageManager } from '../src/storage/index.js';
+import { createUI } from '../src/ui/index.jsx';
+import '@testing-library/jest-dom/vitest';
+~~~~~
+
+#### Acts 2: 修复组件 Linter 告警
+
+逐一修复组件中的 `button` 类型、内联赋值和 Hook 依赖告警。
+
+~~~~~act
+patch_file
+src/ui/components/Header.jsx
+~~~~~
+~~~~~jsx.old
+        <select 
+          id="log-archive-channel-selector" 
+          className="log-archive-ui-button" 
+          style={{ flexGrow: 1, marginRight: '10px' }}
+          value={selectedChannel.value}
+          onChange={(e) => selectedChannel.value = e.target.value}
+        >
+~~~~~
+~~~~~jsx.new
+        <select 
+          id="log-archive-channel-selector" 
+          className="log-archive-ui-button" 
+          style={{ flexGrow: 1, marginRight: '10px' }}
+          value={selectedChannel.value}
+          onChange={(e) => { selectedChannel.value = e.target.value; }}
+        >
+~~~~~
+
+~~~~~act
+patch_file
+src/ui/components/Header.jsx
+~~~~~
+~~~~~jsx.old
+        <div style={{ display: 'flex', gap: '5px' }}>
+          {isReadOnly.value && (
+            <button className="log-archive-ui-button" title="回到正在记录的服务器" onClick={handleResetServer}>📍</button>
+          )}
+          {!isReadOnly.value && (
+            <button 
+              className={`log-archive-ui-button ${isUIPaused.value ? 'paused' : ''}`} 
+              title="暂停/恢复录制"
+              onClick={() => isUIPaused.value = !isUIPaused.value}
+            >
+              {isUIPaused.value ? '▶️ ' : '⏸️ '}
+            </button>
+          )}
+          <button 
+            className={`log-archive-ui-button ${viewMode.value === 'stats' ? 'active' : ''}`} 
+            title="数据统计"
+            onClick={() => handleToggleView('stats')}
+          >
+            {viewMode.value === 'stats' ? '📜' : '📊'}
+          </button>
+          <button 
+            className={`log-archive-ui-button ${viewMode.value === 'config' ? 'active' : ''}`} 
+            title="设置"
+            onClick={() => handleToggleView('config')}
+          >
+            ⚙️
+          </button>
+          <button className="log-archive-ui-button" title="复制当前页内容" onClick={callbacks.copyCurrentPage}>📋</button>
+          <button className="log-archive-ui-button" title="关闭界面" onClick={callbacks.closeUI}>❌</button>
+        </div>
+~~~~~
+~~~~~jsx.new
+        <div style={{ display: 'flex', gap: '5px' }}>
+          {isReadOnly.value && (
+            <button type="button" className="log-archive-ui-button" title="回到正在记录的服务器" onClick={handleResetServer}>📍</button>
+          )}
+          {!isReadOnly.value && (
+            <button 
+              type="button"
+              className={`log-archive-ui-button ${isUIPaused.value ? 'paused' : ''}`} 
+              title="暂停/恢复录制"
+              onClick={() => { isUIPaused.value = !isUIPaused.value; }}
+            >
+              {isUIPaused.value ? '▶️ ' : '⏸️ '}
+            </button>
+          )}
+          <button 
+            type="button"
+            className={`log-archive-ui-button ${viewMode.value === 'stats' ? 'active' : ''}`} 
+            title="数据统计"
+            onClick={() => handleToggleView('stats')}
+          >
+            {viewMode.value === 'stats' ? '📜' : '📊'}
+          </button>
+          <button 
+            type="button"
+            className={`log-archive-ui-button ${viewMode.value === 'config' ? 'active' : ''}`} 
+            title="设置"
+            onClick={() => handleToggleView('config')}
+          >
+            ⚙️
+          </button>
+          <button type="button" className="log-archive-ui-button" title="复制当前页内容" onClick={callbacks.copyCurrentPage}>📋</button>
+          <button type="button" className="log-archive-ui-button" title="关闭界面" onClick={callbacks.closeUI}>❌</button>
+        </div>
+~~~~~
+
+~~~~~act
+patch_file
+src/ui/components/Pagination.jsx
+~~~~~
+~~~~~jsx.old
+  return (
+    <div id="log-archive-ui-pagination-controls" style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexShrink: 0 }}>
+      <button className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(1)}>«</button>
+      <button className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(currentPage.value - 1)}>‹</button>
+      <span className="info-text-primary">{currentPage.value} / {totalPages.value}</span>
+      <button className="log-archive-ui-button" disabled={isLast} onClick={() => goToPage(currentPage.value + 1)}>›</button>
+      <button 
+        className={`log-archive-ui-button ${isLockedToBottom.value ? 'active' : ''}`} 
+        disabled={isLast && isLockedToBottom.value}
+        onClick={toggleLock}
+        title={isLockedToBottom.value ? "已锁定末尾" : "跳转并锁定到末尾"}
+      >
+        »
+      </button>
+    </div>
+  );
+~~~~~
+~~~~~jsx.new
+  return (
+    <div id="log-archive-ui-pagination-controls" style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexShrink: 0 }}>
+      <button type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(1)}>«</button>
+      <button type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(currentPage.value - 1)}>‹</button>
+      <span className="info-text-primary">{currentPage.value} / {totalPages.value}</span>
+      <button type="button" className="log-archive-ui-button" disabled={isLast} onClick={() => goToPage(currentPage.value + 1)}>›</button>
+      <button 
+        type="button"
+        className={`log-archive-ui-button ${isLockedToBottom.value ? 'active' : ''}`} 
+        disabled={isLast && isLockedToBottom.value}
+        onClick={toggleLock}
+        title={isLockedToBottom.value ? "已锁定末尾" : "跳转并锁定到末尾"}
+      >
+        »
+      </button>
+    </div>
+  );
+~~~~~
+
+~~~~~act
+patch_file
+src/ui/components/LogViewer.jsx
+~~~~~
+~~~~~jsx.old
+export function LogViewer() {
+  const textareaRef = useRef(null);
+
+  // 性能优化：仅当消息列表改变时才重新生成巨型字符串
+  const displayText = useMemo(() => {
+    if (currentMessages.value.length === 0) {
+      return UI_MESSAGES.NO_RECORDS_IN_CHANNEL.replace('%s', selectedChannel.value);
+    }
+    return currentMessages.value.map(formatMessageForDisplay).join('\n');
+  }, [currentMessages.value, selectedChannel.value]);
+
+  // 自动滚动处理
+  useEffect(() => {
+    if (isLockedToBottom.value && currentPage.value === totalPages.value && textareaRef.current) {
+      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    }
+  }, [displayText, isLockedToBottom.value, currentPage.value, totalPages.value]);
+
+  const handleScroll = (e) => {
+~~~~~
+~~~~~jsx.new
+export function LogViewer() {
+  const textareaRef = useRef(null);
+
+  const msgs = currentMessages.value;
+  const channel = selectedChannel.value;
+
+  // 性能优化：仅当消息列表改变时才重新生成巨型字符串
+  const displayText = useMemo(() => {
+    if (msgs.length === 0) {
+      return UI_MESSAGES.NO_RECORDS_IN_CHANNEL.replace('%s', channel);
+    }
+    return msgs.map(formatMessageForDisplay).join('\n');
+  }, [msgs, channel]);
+
+  const locked = isLockedToBottom.value;
+  const curPage = currentPage.value;
+  const totPages = totalPages.value;
+
+  // 自动滚动处理
+  useEffect(() => {
+    if (locked && curPage === totPages && textareaRef.current) {
+      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    }
+  }, [displayText, locked, curPage, totPages]);
+
+  const handleScroll = (e) => {
 ~~~~~
 
 ### 下一步建议
-通过上述修改，测试中的 `document is not defined` 报错应该会消失，因为我们确保了在测试环境销毁前，所有的 UI 更新 Promise 均已完成结算。
-
-接下来，我们将继续完成：
-1.  **实现 `ConfigPanel.jsx`**：利用 Signals 直接绑定设置项。
-2.  **清理 `templates.js`**：由于 Preact 已经挂载并开始接管渲染，我们可以开始逐步移除 `templates.js` 中那些已经组件化的 HTML 字符串。
+通过这几个补丁，Vite 的解析器应当能重新点亮，并且 Biome 也会变绿！
+待测试通过后，我们将回归主线，继续拆解剩下的巨无霸：`ConfigPanel.jsx` 和 `StatsView.jsx`。请继续运行检查！

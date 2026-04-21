@@ -12,7 +12,7 @@ import {
 } from './parser.js';
 import { getSyntheticChannelName, mergeAndDeduplicateMessages } from './state.js';
 import { storageManager } from './storage/index.js';
-import { createUI } from './ui/index.js';
+import { createUI } from './ui/index.jsx';
 import { generateULID } from './utils.js';
 import { debounce, getISOTimestamp } from './utils.js';
 

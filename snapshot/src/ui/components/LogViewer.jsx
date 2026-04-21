@@ -8,20 +8,27 @@ import { Pagination } from './Pagination';
 export function LogViewer() {
   const textareaRef = useRef(null);
 
+  const msgs = currentMessages.value;
+  const channel = selectedChannel.value;
+
   // 性能优化：仅当消息列表改变时才重新生成巨型字符串
   const displayText = useMemo(() => {
-    if (currentMessages.value.length === 0) {
-      return UI_MESSAGES.NO_RECORDS_IN_CHANNEL.replace('%s', selectedChannel.value);
+    if (msgs.length === 0) {
+      return UI_MESSAGES.NO_RECORDS_IN_CHANNEL.replace('%s', channel);
     }
-    return currentMessages.value.map(formatMessageForDisplay).join('\n');
-  }, [currentMessages.value, selectedChannel.value]);
+    return msgs.map(formatMessageForDisplay).join('\n');
+  }, [msgs, channel]);
+
+  const locked = isLockedToBottom.value;
+  const curPage = currentPage.value;
+  const totPages = totalPages.value;
 
   // 自动滚动处理
   useEffect(() => {
-    if (isLockedToBottom.value && currentPage.value === totalPages.value && textareaRef.current) {
+    if (locked && curPage === totPages && textareaRef.current) {
       textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
     }
-  }, [displayText, isLockedToBottom.value, currentPage.value, totalPages.value]);
+  }, [displayText, locked, curPage, totPages]);
 
   const handleScroll = (e) => {
     const el = e.target;
