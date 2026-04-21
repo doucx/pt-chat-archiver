@@ -4,8 +4,7 @@
 
 ### 📝 变更文件摘要:
 ```
-CHANGELOG.md | 4 ++++
- package.json | 2 +-
- src/main.js  | 7 +++++--
- 3 files changed, 10 insertions(+), 3 deletions(-)
+package-lock.json | 734 +++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ package.json      |   4 +
+ 2 files changed, 736 insertions(+), 2 deletions(-)
 ```
