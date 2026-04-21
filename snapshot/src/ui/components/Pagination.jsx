@@ -18,11 +18,12 @@ export function Pagination() {
 
   return (
     <div id="log-archive-ui-pagination-controls" style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexShrink: 0 }}>
-      <button type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(1)}>«</button>
-      <button type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(currentPage.value - 1)}>‹</button>
-      <span className="info-text-primary">{currentPage.value} / {totalPages.value}</span>
-      <button type="button" className="log-archive-ui-button" disabled={isLast} onClick={() => goToPage(currentPage.value + 1)}>›</button>
+      <button id="page-first" type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(1)}>«</button>
+      <button id="page-prev" type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(currentPage.value - 1)}>‹</button>
+      <span id="page-info" className="info-text-primary">{currentPage.value} / {totalPages.value}</span>
+      <button id="page-next" type="button" className="log-archive-ui-button" disabled={isLast} onClick={() => goToPage(currentPage.value + 1)}>›</button>
       <button 
+        id="page-last"
         type="button"
         className={`log-archive-ui-button ${isLockedToBottom.value ? 'active' : ''}`} 
         disabled={isLast && isLockedToBottom.value}

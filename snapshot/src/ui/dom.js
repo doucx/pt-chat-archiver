@@ -23,6 +23,14 @@ export function initDOM(version) {
 }
 
 /**
+ * Resets the DOM elements cache. 
+ * Required when switching between Vanilla and Preact rendering.
+ */
+export function resetDOMCache() {
+  domElements = null;
+}
+
+/**
  * Finds and caches references to all key UI elements.
  * Returns a singleton object containing the element references.
  * @returns {object} An object with references to the UI's DOM elements.

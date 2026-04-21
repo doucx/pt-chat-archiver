@@ -35,6 +35,7 @@ export function Header({ callbacks }) {
   return (
     <div id="log-archive-ui-header">
       <div id="log-archive-ui-controls" style={{ width: '100%', justifyContent: 'space-between', display: 'flex' }}>
+        <div id="log-archive-readonly-indicator" class="readonly-pill" style={{ display: isReadOnly.value ? 'block' : 'none' }}>只读存档模式</div>
         <select 
           id="log-archive-channel-selector" 
           className="log-archive-ui-button" 

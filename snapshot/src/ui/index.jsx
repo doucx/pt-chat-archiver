@@ -3,7 +3,7 @@ import { MigrationManager } from '../migrations.js';
 import { storageManager } from '../storage/index.js';
 import { render } from 'preact';
 import { App } from './App.jsx';
-import { getDOMElements, initDOM } from './dom.js';
+import { getDOMElements, initDOM, resetDOMCache } from './dom.js';
 import { bindUIEvents } from './events.js';
 import { createIOManager } from './io-manager.js';
 import { createRenderer } from './renderer.js';
@@ -326,8 +326,16 @@ export async function createUI(dataAdapter, appCallbacks) {
   });
 
   // 4. Preact Mounting
-  // 正式将 Preact 渲染引擎挂载到 DOM 容器中
+  // [Bridge] 清空容器中的旧静态 HTML，并让 Preact 接管 ID
+  dom.uiContainer.innerHTML = '';
   render(<App dataAdapter={dataAdapter} appCallbacks={uiCallbacks} />, dom.uiContainer);
+  
+  // [Bridge] 重置 getDOMElements 的单例缓存，使 legacy 代码能抓到 Preact 生成的新节点
+  resetDOMCache();
+  const newDom = getDOMElements();
+  // 更新遗留引用
+  dom.logDisplay = newDom.logDisplay;
+  dom.pageInfoSpan = newDom.pageInfoSpan;
 
   // 5. Initial Render
   // 必须等待首屏渲染完成，确保 UI 实例返回时 DOM 已就绪

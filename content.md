@@ -1,199 +1,59 @@
-收到，编译错误和规范告警是因为：
-1. Vite 默认对 `.js` 后缀的文件不进行 JSX 转换，所以 `index.js` 内部渲染 `<App />` 时发生了解析失败 (Parse failure)。我们需要将它更名为 `index.jsx`。
-2. Biome Linter 进行着严格的 React A11y (可访问性) 和 Hook 依赖检查。我们需要明确指定按钮的 `type="button"`，并提取出 `useMemo/useEffect` 依赖数组中的属性读取操作。
+你的分析非常准确！目前的测试失败是因为我们正处于“新旧更替”的混合阶段：`initDOM` 仍然按照旧模板生成了一整套静态 DOM，而 Preact 挂载时又生成了一套几乎一样的组件。这导致页面上出现了重复的 ID 和多个 `textarea`（textbox），令测试工具 `screen.getByRole('textbox')` 感到困惑。
 
-让我们立即解决这些问题，确保基础建筑稳固！
+为了修复这一问题，并让重构继续推进，我们需要执行 **“接管策略”**：
+1.  **ID 同步**：确保 Preact 组件生成的元素具有与旧模板完全一致的 `id`，以便 `getDOMElements()` 能够正确获取它们。
+2.  **容器清空**：在挂载 Preact 之前，清空容器中的旧静态 HTML。
+3.  **缓存重置**：由于 `getDOMElements` 具有单例缓存，我们需要在 Preact 渲染后强制重置缓存，让旧的 `renderer.js` 和 `events.js` 能够“抓到” Preact 生成的新 DOM 节点。
+4.  **实现 `ConfigPanel`**：由于集成测试需要操作设置项，我们必须在此时完成 `ConfigPanel.jsx` 的重构。
 
-## [WIP] fix: 修复 Preact JSX 编译错误与 Biome Linter 告警
+## [WIP] refactor: 开启 Preact 重构 - 修复 DOM 重复并实现 ConfigPanel
 
 ### 错误分析
-1. **RollupError (Parse failure)**: 发生在 `src/ui/index.js` 中。原因是该文件包含 JSX 语法 (`<App />`)，但在 Vite (配合 `@preact/preset-vite`) 的默认配置下，只有后缀为 `.jsx` 或 `.tsx` 的文件才会被送入 JSX 编译器处理。
-2. **Biome Linter**: 
-    - `lint/a11y/useButtonType`: `<button>` 元素未指定 `type`，在表单中可能会触发意外提交，React 应用中推荐显式写明 `type="button"`。
-    - `lint/suspicious/noAssignInExpressions`: 不允许在箭头函数的返回值表达式中进行赋值，如 `onClick={() => a = b}`，应改为块级作用域 `onClick={() => { a = b; }}`。
-    - `lint/correctness/useExhaustiveDependencies`: `useMemo` 和 `useEffect` 的依赖数组中不推荐直接传入 `obj.value` 这样的表达式。虽然在 Preact Signals 中这是常见的获取值方式，但我们可以通过预先解构为变量来同时满足 Signals 和 Linter 的规范要求。
+`tests/ui.integration.test.js` 失败的主要原因是 DOM 树中存在冗余。
+- **Multiple textboxes**: `initDOM` 填充了模板，`LogViewer.jsx` 又渲染了一个 `textarea`。
+- **Visibility & Class errors**: 测试试图操作旧的 DOM 节点（已被隐藏或脱离文档流），而 Preact 渲染的节点虽然可见，但由于 `getDOMElements` 缓存了旧节点，导致逻辑失效。
+- **Missing Inputs**: `ConfigPanel` 尚未实现，测试无法找到 `pageSizeInput`。
 
 ### 用户需求
-修复构建失败的错误和所有 Linter 报错，让测试重新通过。
+消除 DOM 重复，确保重构过程中的集成测试能够通过，并完成配置面板的组件化。
 
 ### 评论
-将包含组件装载逻辑的文件改为 `.jsx` 后缀是规范的做法。同时满足严格的 Linter 有助于提升项目的长期可维护性，特别是在接下来的大规模组件拆分阶段。
+这是重构中最具挑战性的“桥接”时刻。通过让 Preact 渲染具有相同 ID 的元素并重置 DOM 引用缓存，我们可以让那些尚未重构的遗留代码（如 `renderer.js`）无缝地操作 Preact 生成的 DOM。这种“偷梁换柱”的方法是大型项目平滑迁移的常用技巧。
 
 ### 目标
-1. 将 `src/ui/index.js` 重命名为 `src/ui/index.jsx`。
-2. 更新主入口和测试文件中引用 `createUI` 的路径。
-3. 修正所有新建组件 (`Header`, `Pagination`, `LogViewer`) 中的规范问题。
-
-### 基本原理
-文件改名能激活 Vite 的 JSX 转换流水线。在 Hook 中将 `.value` 解构为普通 `const` 变量再传入依赖数组，既满足了 ESLint/Biome 的静态分析需求，又能维持 Preact 的响应性。
+1.  修改 `dom.js`，暴露 `resetDOMCache` 方法。
+2.  在 `index.jsx` 挂载 Preact 前清空容器，并在挂载后重置 DOM 缓存。
+3.  同步 `Header.jsx`, `LogViewer.jsx`, `Pagination.jsx` 中的 ID。
+4.  实现 `ConfigPanel.jsx` 并集成到 `App.jsx`。
 
 ### 标签
-#intent/fix #flow/ready #priority/high 
-#comp/build #comp/ui #scope/dx 
-#ai/delegate
-#task/domain/ui #task/object/preact-refactor #task/action/bug-fix 
+#intent/refine #flow/ready #priority/high 
+#comp/ui #concept/ui #scope/dx #ai/refine
+#task/domain/ui #task/object/preact-refactor #task/action/dom-sync
 #task/state/continue #task/status/active
 
 ---
 
 ### Script
 
-#### Acts 1: 重命名装载器并更新引用
+#### Acts 1: 同步组件 ID 并修正样式逻辑
 
-我们需要将 `index.js` 改为 `index.jsx`。
-
-~~~~~act
-move_file
-src/ui/index.js
-src/ui/index.jsx
-~~~~~
-
-更新引用该文件的其它模块。
-
-~~~~~act
-patch_file
-src/main.js
-~~~~~
-~~~~~javascript.old
-import { getSyntheticChannelName, mergeAndDeduplicateMessages } from './state.js';
-import { storageManager } from './storage/index.js';
-import { createUI } from './ui/index.js';
-import { generateULID } from './utils.js';
-~~~~~
-~~~~~javascript.new
-import { getSyntheticChannelName, mergeAndDeduplicateMessages } from './state.js';
-import { storageManager } from './storage/index.js';
-import { createUI } from './ui/index.jsx';
-import { generateULID } from './utils.js';
-~~~~~
-
-~~~~~act
-patch_file
-tests/ui.integration.test.js
-~~~~~
-~~~~~javascript.old
-import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.js';
-import '@testing-library/jest-dom/vitest';
-~~~~~
-~~~~~javascript.new
-import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.jsx';
-import '@testing-library/jest-dom/vitest';
-~~~~~
-
-~~~~~act
-patch_file
-tests/ui.clean_duplicates.test.js
-~~~~~
-~~~~~javascript.old
-import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.js';
-import '@testing-library/jest-dom/vitest';
-~~~~~
-~~~~~javascript.new
-import { storageManager } from '../src/storage/index.js';
-import { createUI } from '../src/ui/index.jsx';
-import '@testing-library/jest-dom/vitest';
-~~~~~
-
-#### Acts 2: 修复组件 Linter 告警
-
-逐一修复组件中的 `button` 类型、内联赋值和 Hook 依赖告警。
+为了让 `renderer.js` 和 `events.js` 继续工作，我们需要补全缺失的 ID。
 
 ~~~~~act
 patch_file
 src/ui/components/Header.jsx
 ~~~~~
 ~~~~~jsx.old
-        <select 
-          id="log-archive-channel-selector" 
-          className="log-archive-ui-button" 
-          style={{ flexGrow: 1, marginRight: '10px' }}
-          value={selectedChannel.value}
-          onChange={(e) => selectedChannel.value = e.target.value}
-        >
+  return (
+    <div id="log-archive-ui-header">
+      <div id="log-archive-ui-controls" style={{ width: '100%', justifyContent: 'space-between', display: 'flex' }}>
 ~~~~~
 ~~~~~jsx.new
-        <select 
-          id="log-archive-channel-selector" 
-          className="log-archive-ui-button" 
-          style={{ flexGrow: 1, marginRight: '10px' }}
-          value={selectedChannel.value}
-          onChange={(e) => { selectedChannel.value = e.target.value; }}
-        >
-~~~~~
-
-~~~~~act
-patch_file
-src/ui/components/Header.jsx
-~~~~~
-~~~~~jsx.old
-        <div style={{ display: 'flex', gap: '5px' }}>
-          {isReadOnly.value && (
-            <button className="log-archive-ui-button" title="回到正在记录的服务器" onClick={handleResetServer}>📍</button>
-          )}
-          {!isReadOnly.value && (
-            <button 
-              className={`log-archive-ui-button ${isUIPaused.value ? 'paused' : ''}`} 
-              title="暂停/恢复录制"
-              onClick={() => isUIPaused.value = !isUIPaused.value}
-            >
-              {isUIPaused.value ? '▶️ ' : '⏸️ '}
-            </button>
-          )}
-          <button 
-            className={`log-archive-ui-button ${viewMode.value === 'stats' ? 'active' : ''}`} 
-            title="数据统计"
-            onClick={() => handleToggleView('stats')}
-          >
-            {viewMode.value === 'stats' ? '📜' : '📊'}
-          </button>
-          <button 
-            className={`log-archive-ui-button ${viewMode.value === 'config' ? 'active' : ''}`} 
-            title="设置"
-            onClick={() => handleToggleView('config')}
-          >
-            ⚙️
-          </button>
-          <button className="log-archive-ui-button" title="复制当前页内容" onClick={callbacks.copyCurrentPage}>📋</button>
-          <button className="log-archive-ui-button" title="关闭界面" onClick={callbacks.closeUI}>❌</button>
-        </div>
-~~~~~
-~~~~~jsx.new
-        <div style={{ display: 'flex', gap: '5px' }}>
-          {isReadOnly.value && (
-            <button type="button" className="log-archive-ui-button" title="回到正在记录的服务器" onClick={handleResetServer}>📍</button>
-          )}
-          {!isReadOnly.value && (
-            <button 
-              type="button"
-              className={`log-archive-ui-button ${isUIPaused.value ? 'paused' : ''}`} 
-              title="暂停/恢复录制"
-              onClick={() => { isUIPaused.value = !isUIPaused.value; }}
-            >
-              {isUIPaused.value ? '▶️ ' : '⏸️ '}
-            </button>
-          )}
-          <button 
-            type="button"
-            className={`log-archive-ui-button ${viewMode.value === 'stats' ? 'active' : ''}`} 
-            title="数据统计"
-            onClick={() => handleToggleView('stats')}
-          >
-            {viewMode.value === 'stats' ? '📜' : '📊'}
-          </button>
-          <button 
-            type="button"
-            className={`log-archive-ui-button ${viewMode.value === 'config' ? 'active' : ''}`} 
-            title="设置"
-            onClick={() => handleToggleView('config')}
-          >
-            ⚙️
-          </button>
-          <button type="button" className="log-archive-ui-button" title="复制当前页内容" onClick={callbacks.copyCurrentPage}>📋</button>
-          <button type="button" className="log-archive-ui-button" title="关闭界面" onClick={callbacks.closeUI}>❌</button>
-        </div>
+  return (
+    <div id="log-archive-ui-header">
+      <div id="log-archive-ui-controls" style={{ width: '100%', justifyContent: 'space-between', display: 'flex' }}>
+        <div id="log-archive-readonly-indicator" class="readonly-pill" style={{ display: isReadOnly.value ? 'block' : 'none' }}>只读存档模式</div>
 ~~~~~
 
 ~~~~~act
@@ -203,24 +63,6 @@ src/ui/components/Pagination.jsx
 ~~~~~jsx.old
   return (
     <div id="log-archive-ui-pagination-controls" style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexShrink: 0 }}>
-      <button className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(1)}>«</button>
-      <button className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(currentPage.value - 1)}>‹</button>
-      <span className="info-text-primary">{currentPage.value} / {totalPages.value}</span>
-      <button className="log-archive-ui-button" disabled={isLast} onClick={() => goToPage(currentPage.value + 1)}>›</button>
-      <button 
-        className={`log-archive-ui-button ${isLockedToBottom.value ? 'active' : ''}`} 
-        disabled={isLast && isLockedToBottom.value}
-        onClick={toggleLock}
-        title={isLockedToBottom.value ? "已锁定末尾" : "跳转并锁定到末尾"}
-      >
-        »
-      </button>
-    </div>
-  );
-~~~~~
-~~~~~jsx.new
-  return (
-    <div id="log-archive-ui-pagination-controls" style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexShrink: 0 }}>
       <button type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(1)}>«</button>
       <button type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(currentPage.value - 1)}>‹</button>
       <span className="info-text-primary">{currentPage.value} / {totalPages.value}</span>
@@ -228,70 +70,220 @@ src/ui/components/Pagination.jsx
       <button 
         type="button"
         className={`log-archive-ui-button ${isLockedToBottom.value ? 'active' : ''}`} 
-        disabled={isLast && isLockedToBottom.value}
-        onClick={toggleLock}
-        title={isLockedToBottom.value ? "已锁定末尾" : "跳转并锁定到末尾"}
-      >
-        »
-      </button>
+~~~~~
+~~~~~jsx.new
+  return (
+    <div id="log-archive-ui-pagination-controls" style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexShrink: 0 }}>
+      <button id="page-first" type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(1)}>«</button>
+      <button id="page-prev" type="button" className="log-archive-ui-button" disabled={isFirst} onClick={() => goToPage(currentPage.value - 1)}>‹</button>
+      <span id="page-info" className="info-text-primary">{currentPage.value} / {totalPages.value}</span>
+      <button id="page-next" type="button" className="log-archive-ui-button" disabled={isLast} onClick={() => goToPage(currentPage.value + 1)}>›</button>
+      <button 
+        id="page-last"
+        type="button"
+        className={`log-archive-ui-button ${isLockedToBottom.value ? 'active' : ''}`} 
+~~~~~
+
+#### Acts 2: 实现 ConfigPanel.jsx
+
+这是通过集成测试的关键。
+
+~~~~~act
+write_file
+src/ui/components/ConfigPanel.jsx
+~~~~~
+~~~~~jsx
+import { useEffect, useState } from 'preact/hooks';
+import { 
+  pageSize, statsLimit, readChunkSize, initDebounceMs, cachePages, autoFollowServer,
+  viewingServer, activeServer, lastServer, updateConfig
+} from '../store/uiStore';
+import { serverList } from '../store/dataStore';
+import { storageManager, getStorageUsageInMB } from '../../storage/index.js';
+
+export function ConfigPanel({ callbacks }) {
+  const [usage, setUsage] = useState(0);
+  const [totalMsgs, setTotalMsgs] = useState(0);
+
+  useEffect(() => {
+    getStorageUsageInMB().then(setUsage);
+    storageManager.getTotalMessageCount().then(setTotalMsgs);
+  }, []);
+
+  return (
+    <div id="log-archive-config-view" className="config-section" style={{ display: 'flex', flexDirection: 'column' }}>
+       <div style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '15px', marginBottom: '5px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h3 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '1.1em' }}>PT Chat Archiver</h3>
+              <span className="info-text-dim" style={{ fontSize: '0.8em' }}>v{__APP_VERSION__}</span>
+          </div>
+      </div>
+
+      <div className="config-group">
+          <label htmlFor="log-archive-server-view-selector">查看存档服务器</label>
+          <div className="config-input-row">
+              <select 
+                id="log-archive-server-view-selector" 
+                className="log-archive-ui-button" 
+                style={{ flexGrow: 1, minWidth: 0 }}
+                value={viewingServer.value}
+                onChange={(e) => viewingServer.value = e.target.value}
+              >
+                {serverList.value.map(s => (
+                  <option key={s} value={s}>{s === activeServer.value ? `${s} (正在记录)` : s}</option>
+                ))}
+              </select>
+              <button id="log-archive-reset-server-button" type="button" className="log-archive-ui-button" onClick={() => viewingServer.value = activeServer.value}>📍</button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+              <input 
+                type="checkbox" 
+                id="log-archive-auto-follow-input" 
+                checked={autoFollowServer.value} 
+                onChange={(e) => updateConfig('autoFollowServer', e.target.checked)}
+              />
+              <label htmlFor="log-archive-auto-follow-input" style={{ fontWeight: 'normal', color: 'var(--color-text-dim)', fontSize: '0.85em', cursor: 'pointer' }}>跟随游戏服务器切换</label>
+          </div>
+      </div>
+
+      <div className="config-group">
+          <label htmlFor="log-archive-page-size-input">分页大小 (每页消息条数)</label>
+          <input 
+            type="number" id="log-archive-page-size-input" 
+            value={pageSize.value} 
+            onChange={(e) => updateConfig('pageSize', e.target.value)}
+          />
+      </div>
+
+      <div className="config-group">
+          <label>维护操作</label>
+          <div id="log-archive-config-storage-info" className="info-text-dim">估算数据占用: {usage.toFixed(2)} MB</div>
+          <div id="log-archive-config-msg-count" className="info-text-dim" style={{ marginBottom: '8px' }}>存档消息总数: {totalMsgs.toLocaleString()} 条</div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button id="log-archive-clean-button" type="button" className="log-archive-ui-button" onClick={callbacks.scanDuplicates}>扫描重复记录</button>
+              <button id="log-archive-clear-button" type="button" className="log-archive-ui-button" style={{ color: '#ff6666' }} onClick={callbacks.clearAllData}>清空所有存档</button>
+          </div>
+      </div>
     </div>
   );
+}
+~~~~~
+
+#### Acts 3: 改造 App.jsx 组装面板
+
+~~~~~act
+patch_file
+src/ui/App.jsx
+~~~~~
+~~~~~jsx.old
+import { viewMode, isReadOnly } from './store/uiStore';
+import { Header } from './components/Header';
+import { LogViewer } from './components/LogViewer';
+
+export function App({ dataAdapter, appCallbacks }) {
+~~~~~
+~~~~~jsx.new
+import { viewMode, isReadOnly } from './store/uiStore';
+import { Header } from './components/Header';
+import { LogViewer } from './components/LogViewer';
+import { ConfigPanel } from './components/ConfigPanel';
+
+export function App({ dataAdapter, appCallbacks }) {
 ~~~~~
 
 ~~~~~act
 patch_file
-src/ui/components/LogViewer.jsx
+src/ui/App.jsx
 ~~~~~
 ~~~~~jsx.old
-export function LogViewer() {
-  const textareaRef = useRef(null);
-
-  // 性能优化：仅当消息列表改变时才重新生成巨型字符串
-  const displayText = useMemo(() => {
-    if (currentMessages.value.length === 0) {
-      return UI_MESSAGES.NO_RECORDS_IN_CHANNEL.replace('%s', selectedChannel.value);
-    }
-    return currentMessages.value.map(formatMessageForDisplay).join('\n');
-  }, [currentMessages.value, selectedChannel.value]);
-
-  // 自动滚动处理
-  useEffect(() => {
-    if (isLockedToBottom.value && currentPage.value === totalPages.value && textareaRef.current) {
-      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
-    }
-  }, [displayText, isLockedToBottom.value, currentPage.value, totalPages.value]);
-
-  const handleScroll = (e) => {
+      <div id="log-archive-view-container" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {viewMode.value === 'log' && <LogViewer />}
+        {viewMode.value === 'config' && (
+          <div style={{ padding: '20px', color: '#ccc' }}>
+            <h3>Config Panel (In Progress)</h3>
+            <p>正在重构配置面板组件...</p>
+          </div>
+        )}
+        {viewMode.value === 'stats' && (
 ~~~~~
 ~~~~~jsx.new
-export function LogViewer() {
-  const textareaRef = useRef(null);
+      <div id="log-archive-view-container" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {viewMode.value === 'log' && <LogViewer />}
+        {viewMode.value === 'config' && <ConfigPanel callbacks={callbacks} />}
+        {viewMode.value === 'stats' && (
+~~~~~
 
-  const msgs = currentMessages.value;
-  const channel = selectedChannel.value;
+#### Acts 4: 暴露重置缓存接口并执行接管
 
-  // 性能优化：仅当消息列表改变时才重新生成巨型字符串
-  const displayText = useMemo(() => {
-    if (msgs.length === 0) {
-      return UI_MESSAGES.NO_RECORDS_IN_CHANNEL.replace('%s', channel);
-    }
-    return msgs.map(formatMessageForDisplay).join('\n');
-  }, [msgs, channel]);
+~~~~~act
+patch_file
+src/ui/dom.js
+~~~~~
+~~~~~javascript.old
+/**
+ * Finds and caches references to all key UI elements.
+~~~~~
+~~~~~javascript.new
+/**
+ * Resets the DOM elements cache. 
+ * Required when switching between Vanilla and Preact rendering.
+ */
+export function resetDOMCache() {
+  domElements = null;
+}
 
-  const locked = isLockedToBottom.value;
-  const curPage = currentPage.value;
-  const totPages = totalPages.value;
+/**
+ * Finds and caches references to all key UI elements.
+~~~~~
 
-  // 自动滚动处理
-  useEffect(() => {
-    if (locked && curPage === totPages && textareaRef.current) {
-      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
-    }
-  }, [displayText, locked, curPage, totPages]);
+在 `index.jsx` 中执行清空与重置逻辑。
 
-  const handleScroll = (e) => {
+~~~~~act
+patch_file
+src/ui/index.jsx
+~~~~~
+~~~~~javascript.old
+import { render } from 'preact';
+import { App } from './App.jsx';
+import { getDOMElements, initDOM } from './dom.js';
+import { bindUIEvents } from './events.js';
+~~~~~
+~~~~~javascript.new
+import { render } from 'preact';
+import { App } from './App.jsx';
+import { getDOMElements, initDOM, resetDOMCache } from './dom.js';
+import { bindUIEvents } from './events.js';
+~~~~~
+
+~~~~~act
+patch_file
+src/ui/index.jsx
+~~~~~
+~~~~~javascript.old
+  // 4. Preact Mounting
+  // 正式将 Preact 渲染引擎挂载到 DOM 容器中
+  render(<App dataAdapter={dataAdapter} appCallbacks={uiCallbacks} />, dom.uiContainer);
+
+  // 5. Initial Render
+~~~~~
+~~~~~javascript.new
+  // 4. Preact Mounting
+  // [Bridge] 清空容器中的旧静态 HTML，并让 Preact 接管 ID
+  dom.uiContainer.innerHTML = '';
+  render(<App dataAdapter={dataAdapter} appCallbacks={uiCallbacks} />, dom.uiContainer);
+  
+  // [Bridge] 重置 getDOMElements 的单例缓存，使 legacy 代码能抓到 Preact 生成的新节点
+  resetDOMCache();
+  const newDom = getDOMElements();
+  // 更新遗留引用
+  dom.logDisplay = newDom.logDisplay;
+  dom.pageInfoSpan = newDom.pageInfoSpan;
+
+  // 5. Initial Render
 ~~~~~
 
 ### 下一步建议
-通过这几个补丁，Vite 的解析器应当能重新点亮，并且 Biome 也会变绿！
-待测试通过后，我们将回归主线，继续拆解剩下的巨无霸：`ConfigPanel.jsx` 和 `StatsView.jsx`。请继续运行检查！
+通过上述“偷梁换柱”的操作，集成测试中的 `multiple roles` 报错应该会消失，因为静态 HTML 已被彻底清空。同时 `ConfigPanel` 的实现将补齐测试所需的交互输入。
+
+一旦此次测试通过，我们将进入 **阶段四：全面接管**。此时，我们可以放心地删除 `templates.js` 中那些已经废弃的 HTML 字符串，并开始将 `renderer.js` 中的逻辑彻底迁移到 Preact 组件的 `render` 过程中。
