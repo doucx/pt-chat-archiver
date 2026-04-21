@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix(tests): 修复集成测试状态泄露及异步加载状态清理逻辑", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776810974.3411484, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix(tests): 彻底隔离集成测试环境并修复统计视图样式", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1776811036.894214, "duration_ms": 0}}

@@ -84,6 +84,9 @@ describe('UI Integration Smoke Tests', () => {
   });
 
   beforeEach(async () => {
+    // 物理清理存储，防止跨测试的数据污染 (如 pageSize: 50 导致的 Message 201 错误)
+    localStorage.clear();
+
     await storageManager.init();
     // 显式重置所有可能被测试修改的全局信号，防止跨测试污染
     viewMode.value = 'log';

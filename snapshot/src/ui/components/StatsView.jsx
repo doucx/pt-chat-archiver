@@ -21,7 +21,7 @@ export function StatsView() {
         id="log-archive-ui-log-display"
         readOnly
         className="log-archive-ui-log-display"
-        style={{ flexGrow: 1, backgroundColor: 'rgba(0,0,0,0.2)' }}
+        style={{ flexGrow: 1, color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)' }}
         value={loading || statsText}
       />
     </div>
