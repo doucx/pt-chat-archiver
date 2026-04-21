@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storageManager } from '../src/storage/index.js';
 import { createUI } from '../src/ui/index.jsx';
-import { currentPage, isLockedToBottom, viewMode } from '../src/ui/store/uiStore.js';
+import { currentPage, isLockedToBottom, loadingMessage, viewMode } from '../src/ui/store/uiStore.js';
 import '@testing-library/jest-dom/vitest';
 
 global.__APP_VERSION__ = '7.0.0-test';
@@ -55,6 +55,14 @@ async function renderUI(initialState) {
 
 describe('UI Integration Smoke Tests', () => {
   let mockAppState;
+  let activeUI = null;
+
+  afterEach(() => {
+    if (activeUI) {
+      activeUI.destroy();
+      activeUI = null;
+    }
+  });
 
   beforeEach(async () => {
     await storageManager.init();
@@ -75,7 +83,7 @@ describe('UI Integration Smoke Tests', () => {
   });
 
   it('初始加载时应正确渲染数据和默认频道', async () => {
-    await renderUI(mockAppState);
+    activeUI = await renderUI(mockAppState);
 
     // 虽然 renderUI 内部已经 await refreshView，但在复杂的测试环境中
     // 配合 waitFor 是一种更稳健的实践
@@ -89,7 +97,7 @@ describe('UI Integration Smoke Tests', () => {
   });
 
   it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
-    await renderUI(mockAppState);
+    activeUI = await renderUI(mockAppState);
 
     const settingsButton = screen.getByTitle('设置');
 
@@ -114,7 +122,7 @@ describe('UI Integration Smoke Tests', () => {
   });
 
   it('在设置中修改分页大小应能实时改变日志显示条数', async () => {
-    await renderUI(mockAppState);
+    activeUI = await renderUI(mockAppState);
 
     // 1. 进入设置
     fireEvent.click(screen.getByTitle('设置'));
@@ -142,7 +150,7 @@ describe('UI Integration Smoke Tests', () => {
   });
 
   it('在加载过程中发生的滚动不应触发错误解锁', async () => {
-    await renderUI(mockAppState);
+    activeUI = await renderUI(mockAppState);
     const lastBtn = screen.getByTitle('跳转并锁定到末尾');
     const logDisplay = screen.getByRole('textbox');
 
@@ -164,8 +172,12 @@ describe('UI Integration Smoke Tests', () => {
       expect(lastBtn).toHaveClass('active');
     });
 
-    // 4. 模拟加载完成
-    logDisplay.value = 'Line 1\nLine 2\nLine 3';
+    // 4. 等待后台真实的 refreshView 完成
+    // 必须确保 loadingMessage 被清空，否则后续真实的 scroll 会被拦截
+    await waitFor(() => {
+      expect(loadingMessage.value).toBe('');
+    });
+
     // 模拟向上滚动：手动 mock DOM 属性
     Object.defineProperty(logDisplay, 'scrollHeight', { value: 1000, configurable: true });
     Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true, writable: true });

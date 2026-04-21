@@ -1,259 +1,67 @@
-你的分析非常准确。在 Vitest/JSDOM 环境中，`close timed out` 错误通常是由于测试结束后仍有未清理的**异步句柄**（如 `setTimeout`、未停止的 `MutationObserver` 或未销毁的 Preact `effect`）导致的。
+非常感谢你的配合！根据测试输出，我们发现了两点需要进一步修复：
 
-经过对代码的审查，发现以下几个导致泄露和卡死的核心原因：
-1.  **`ConfigPanel` 的定时器泄露**：在 `handleScanDuplicates` 中，当没有重复项时会开启一个 1500ms 的 `setTimeout`。测试用例在断言“未发现重复”后立即结束，但这个定时器仍在运行。
-2.  **Preact Signals `effect` 泄露**：`src/ui/index.jsx` 中创建了一个全局 `effect`。由于没有调用它返回的 `dispose` 函数，即使测试清空了 `document.body`，该效应器依然在后台监听信号并触发 `refreshView`。
-3.  **Preact 树未卸载**：测试中多次调用 `createUI` 并通过 `render()` 挂载 DOM，但从未调用 `render(null, container)` 显式卸载，导致内存中保留了大量的 Preact 实例引用。
+1. **测试逻辑的时序冲突**：在 `ui.integration.test.js` 的“在加载过程中发生的滚动不应触发错误解锁”测试中，由于前一个动作（点击最后一页）触发了异步的数据拉取 (`refreshView`)，它在后台会设置和清除 `loadingMessage`。而测试用例通过手动修改 DOM `value` 来模拟滚动，这与后台真实的信号状态 (`loadingMessage.value`) 发生了竞态。当执行最后一步“正常解锁”时，后台的加载其实还没有结束，导致滚动事件被拦截，按钮依然保有 `active` class。
+2. **需要将清理逻辑应用到所有集成测试**：正如上一次的“下一步建议”所述，`ui.integration.test.js` 中也需要引入 `activeUI.destroy()` 来避免环境污染。
 
-我将通过以下计划修复这些问题：
+下面我们将生成计划来修复这些问题。
 
-## [WIP] fix(test): 修复测试卡死及环境清理超时的回归问题
+## [WIP] fix(test): 修复集成测试中的时序竞态条件及内存泄漏
 
 ### 错误分析
-测试日志显示 `Duration 19.10s` 且 `close timed out after 10000ms`。这说明：
-1.  **资源泄露**：某个测试用例留下了存活的异步任务。在 `ui.clean_duplicates.test.js` 的第三个测试中，点击扫描后触发的 `setTimeout(..., 1500)` 在测试断言完成后仍挂在事件循环中。
-2.  **效应器冲突**：`createUI` 内部的 `effect` 会在每次信号变化时尝试执行 `refreshView`。由于测试环境并发运行，未销毁的旧 `effect` 可能会干扰新测试的数据状态。
-3.  **双重刷新逻辑**：`createUI` 在初始化时手动执行了一次 `await refreshView()`，随后又立即启动了一个会自动执行一次的 `effect`。这在某些环境下会导致竞态条件。
+在 `ui.integration.test.js` 的 `在加载过程中发生的滚动不应触发错误解锁` 测试中，最后断言 `expect(lastBtn).not.toHaveClass('active')` 失败。
+根本原因是：
+测试点击 `lastBtn` 后，虽然测试代码立即手动覆盖了 `logDisplay.value` 并触发了滚动，但后台由 `currentPage.value` 改变引发的 `refreshView` 仍在执行。当测试进行到第 4 步和第 5 步时，全局状态 `loadingMessage.value` 可能依然是真值（例如 `"⏳ 数据加载..."`）。在 `LogViewer` 的 `handleScroll` 中，由于 `loadingMessage.value` 为真，事件被直接 `return` 掉，解锁逻辑未能执行。
 
 ### 用户需求
-修复 `tests/ui.clean_duplicates.test.js` 中的测试卡死问题，确保测试套件能够稳定、快速地通过。
+确保 `tests/ui.integration.test.js` 全部通过，测试环境没有残留。
 
 ### 评论
-在基于信号（Signals）和异步渲染的复杂 UI 框架中，显式的销毁逻辑（Teardown）与业务逻辑同样重要。这不仅是为了通过测试，也是为了防止用户在频繁打开/关闭 UI 时产生内存溢出。
+对于异步的副作用（尤其是涉及延时的 UI 反馈），测试用例必须显式地等待状态平息（settled），再进行下一步断言。这在基于信号和异步流的架构中尤为重要。
 
 ### 目标
-1.  在 `ConfigPanel.jsx` 中增加定时器清理逻辑。
-2.  在 `src/ui/index.jsx` 的返回接口中暴露 `destroy` 方法，负责清理 `effect` 和卸载 Preact。
-3.  更新 `tests/ui.clean_duplicates.test.js`，确保每个测试结束后都进行彻底的清理。
-4.  消除 `createUI` 初始化时的冗余 `refreshView` 调用。
+1.  在 `ui.integration.test.js` 中引入 `loadingMessage` 信号，用于精确等待异步加载完成。
+2.  在所有测试的最后进行 `destroy()` 清理。
 
 ### 基本原理
-通过 `useRef` 追踪功能性定时器，并在组件卸载时清理。在 UI 入口处捕获 `effect` 句柄，并将其与 Preact 的卸载过程（`render(null, container)`）封装在一起，确保测试环境能够干净地重置。
+通过 `waitFor(() => expect(loadingMessage.value).toBe(''))` 确保后台的所有异步读取和渲染都已结束，这时再模拟常规的向上滚动，就不会被 `handleScroll` 中的加载保护机制拦截，从而能够正确验证解锁逻辑。
 
 ### 标签
-#intent/fix #flow/ready #priority/high #comp/tests #comp/ui #concept/navigation #scope/dx #ai/refine #task/domain/testing #task/object/test-leaks #task/action/fix #task/state/begin
+#intent/fix #flow/ready #priority/high #comp/tests #concept/navigation #scope/dx #ai/refine #task/domain/testing #task/object/integration-tests #task/action/fix #task/state/begin
 
 ---
 
 ### Script
 
-#### Acts 1: 修复 `ConfigPanel.jsx` 的定时器泄露
-
-我们将使用 `useRef` 来管理清理任务。
+#### Acts 1: 修复 `ui.integration.test.js`
 
 ~~~~~act
 patch_file
-src/ui/components/ConfigPanel.jsx
+tests/ui.integration.test.js
 ~~~~~
 ~~~~~javascript.old
-import { useEffect, useState } from 'preact/hooks';
-import { MigrationManager } from '../../migrations.js';
+import { storageManager } from '../src/storage/index.js';
+import { createUI } from '../src/ui/index.jsx';
+import { currentPage, isLockedToBottom, viewMode } from '../src/ui/store/uiStore.js';
 ~~~~~
 ~~~~~javascript.new
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { MigrationManager } from '../../migrations.js';
+import { storageManager } from '../src/storage/index.js';
+import { createUI } from '../src/ui/index.jsx';
+import { currentPage, isLockedToBottom, loadingMessage, viewMode } from '../src/ui/store/uiStore.js';
 ~~~~~
 ~~~~~act
 patch_file
-src/ui/components/ConfigPanel.jsx
+tests/ui.integration.test.js
 ~~~~~
 ~~~~~javascript.old
-  const [scanState, setScanState] = useState('idle');
-  const [duplicateIds, setDuplicateIds] = useState([]);
-
-  const handleScanDuplicates = async () => {
-    if (scanState === 'idle' || scanState === 'no_duplicates' || scanState === 'done') {
-      setScanState('scanning');
-      try {
-        const ids = await callbacks.scanDuplicates();
-        if (ids.length === 0) {
-          setScanState('no_duplicates');
-          setTimeout(() => setScanState('idle'), 1500);
-        } else {
-          setDuplicateIds(ids);
-          setScanState('pending');
-        }
-      } catch (e) {
-        setScanState('idle');
-      }
-    } else if (scanState === 'pending') {
-      if (
-        confirm(`【确认】将删除 ${duplicateIds.length} 条重复记录。此操作不可逆。确定要继续吗？`)
-      ) {
-        setScanState('cleaning');
-        await callbacks.deleteMessages(duplicateIds);
-        setScanState('done');
-        setDuplicateIds([]);
-        setTimeout(() => setScanState('idle'), 1500);
-      }
-    }
-  };
-~~~~~
-~~~~~javascript.new
-  const [scanState, setScanState] = useState('idle');
-  const [duplicateIds, setDuplicateIds] = useState([]);
-  const timerRef = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  const handleScanDuplicates = async () => {
-    if (scanState === 'idle' || scanState === 'no_duplicates' || scanState === 'done') {
-      setScanState('scanning');
-      try {
-        const ids = await callbacks.scanDuplicates();
-        if (ids.length === 0) {
-          setScanState('no_duplicates');
-          timerRef.current = setTimeout(() => setScanState('idle'), 1500);
-        } else {
-          setDuplicateIds(ids);
-          setScanState('pending');
-        }
-      } catch (e) {
-        setScanState('idle');
-      }
-    } else if (scanState === 'pending') {
-      if (
-        confirm(`【确认】将删除 ${duplicateIds.length} 条重复记录。此操作不可逆。确定要继续吗？`)
-      ) {
-        setScanState('cleaning');
-        await callbacks.deleteMessages(duplicateIds);
-        setScanState('done');
-        setDuplicateIds([]);
-        timerRef.current = setTimeout(() => setScanState('idle'), 1500);
-      }
-    }
-  };
-~~~~~
-
-#### Acts 2: 完善 `src/ui/index.jsx` 的清理接口
-
-暴露 `destroy` 方法，并消除初始化时的多余刷新。
-
-~~~~~act
-patch_file
-src/ui/index.jsx
-~~~~~
-~~~~~javascript.old
-  // Initial Data Fetch
-  await refreshView();
-
-  // 响应式数据拉取驱动
-  effect(() => {
-    // 订阅关键路由信号
-    const s = viewingServer.value;
-    const c = selectedChannel.value;
-    const p = currentPage.value;
-    const sz = pageSize.value;
-    const m = viewMode.value;
-
-    // 使用 untracked 避免 refreshView 内部的读取操作造成循环订阅
-    untracked(() => {
-      // 首次加载已在上面手动执行，这里只响应后续变化
-      // 通过对比当前状态防止冗余刷新
-      refreshView();
-    });
-  });
-
-  // Return Engine API
-  return {
-    updateUI: async () => {
-      if (!isUIPaused.value) {
-        await refreshView();
-      }
-    },
-    onNewMessage: (msg) => {
-      viewCache.pushNewMessage(msg);
-    },
-    invalidateCache: () => {
-      viewCache.clear();
-    },
-    setState: async (newState) => {
-      // 状态由外部修改后，effect 会自动处理刷新
-    },
-    checkStorageUsage: async () => {}, // Stubs for removed checks
-    isUIPaused: () => isUIPaused.value,
-    getInitDebounceMs: () => initDebounceMs.value,
-    updateRecordingStatus: async (serverName, channelName) => {
-      // 仅修改信号，触发全局 effect 刷新数据
-      setRecordingStatus(serverName, channelName);
-    },
-  };
-}
-~~~~~
-~~~~~javascript.new
-  // 响应式数据拉取驱动：effect 会在创建时自动同步触发一次 refreshView
-  const stopEffect = effect(() => {
-    // 订阅关键路由信号
-    const s = viewingServer.value;
-    const c = selectedChannel.value;
-    const p = currentPage.value;
-    const sz = pageSize.value;
-    const m = viewMode.value;
-
-    // 使用 untracked 避免 refreshView 内部的读取操作造成循环订阅
-    untracked(() => {
-      refreshView();
-    });
-  });
-
-  // Return Engine API
-  return {
-    destroy: () => {
-      stopEffect();
-      render(null, container);
-      container.remove();
-      toggleButton.remove();
-    },
-    updateUI: async () => {
-      if (!isUIPaused.value) {
-        await refreshView();
-      }
-    },
-    onNewMessage: (msg) => {
-      viewCache.pushNewMessage(msg);
-    },
-    invalidateCache: () => {
-      viewCache.clear();
-    },
-    setState: async (newState) => {
-      // 状态由外部修改后，effect 会自动处理刷新
-    },
-    checkStorageUsage: async () => {}, // Stubs for removed checks
-    isUIPaused: () => isUIPaused.value,
-    getInitDebounceMs: () => initDebounceMs.value,
-    updateRecordingStatus: async (serverName, channelName) => {
-      // 仅修改信号，触发全局 effect 刷新数据
-      setRecordingStatus(serverName, channelName);
-    },
-  };
-}
-~~~~~
-
-#### Acts 3: 更新 `ui.clean_duplicates.test.js` 以支持销毁
-
-确保测试环境在每个 `it` 块结束后都重置到干净状态。
-
-~~~~~act
-patch_file
-tests/ui.clean_duplicates.test.js
-~~~~~
-~~~~~javascript.old
-describe('UI Clean Duplicates Regression (V6)', () => {
+describe('UI Integration Smoke Tests', () => {
   let mockAppState;
-  let mockCallbacks;
 
   beforeEach(async () => {
-    document.body.innerHTML = '';
     await storageManager.init();
 ~~~~~
 ~~~~~javascript.new
-describe('UI Clean Duplicates Regression (V6)', () => {
+describe('UI Integration Smoke Tests', () => {
   let mockAppState;
-  let mockCallbacks;
   let activeUI = null;
 
   afterEach(() => {
@@ -264,74 +72,142 @@ describe('UI Clean Duplicates Regression (V6)', () => {
   });
 
   beforeEach(async () => {
-    document.body.innerHTML = '';
     await storageManager.init();
 ~~~~~
 ~~~~~act
 patch_file
-tests/ui.clean_duplicates.test.js
+tests/ui.integration.test.js
 ~~~~~
 ~~~~~javascript.old
-  it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    await ui.updateRecordingStatus('Server A', 'Local');
+  it('初始加载时应正确渲染数据和默认频道', async () => {
+    await renderUI(mockAppState);
+
+    // 虽然 renderUI 内部已经 await refreshView，但在复杂的测试环境中
 ~~~~~
 ~~~~~javascript.new
-  it('点击扫描后应能正确识别重复项并改变按钮状态为清理', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    activeUI = await createUI(adapter, mockCallbacks);
-    await activeUI.updateRecordingStatus('Server A', 'Local');
+  it('初始加载时应正确渲染数据和默认频道', async () => {
+    activeUI = await renderUI(mockAppState);
+
+    // 虽然 renderUI 内部已经 await refreshView，但在复杂的测试环境中
 ~~~~~
 ~~~~~act
 patch_file
-tests/ui.clean_duplicates.test.js
+tests/ui.integration.test.js
 ~~~~~
 ~~~~~javascript.old
-  it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    const ui = await createUI(adapter, mockCallbacks);
-    await ui.updateRecordingStatus('Server A', 'Local');
+  it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
+    await renderUI(mockAppState);
+
+    const settingsButton = screen.getByTitle('设置');
 ~~~~~
 ~~~~~javascript.new
-  it('点击清理按钮应当执行删除逻辑并重置 UI', async () => {
-    const adapter = createMockAdapter(mockAppState);
-    activeUI = await createUI(adapter, mockCallbacks);
-    await activeUI.updateRecordingStatus('Server A', 'Local');
+  it('切换视图按钮应能正确显示/隐藏对应面板', async () => {
+    activeUI = await renderUI(mockAppState);
+
+    const settingsButton = screen.getByTitle('设置');
 ~~~~~
 ~~~~~act
 patch_file
-tests/ui.clean_duplicates.test.js
+tests/ui.integration.test.js
 ~~~~~
 ~~~~~javascript.old
-  it('当没有重复项时，点击扫描应当重置按钮', async () => {
-    // 覆盖 mock 返回空数组
-    mockCallbacks.scanAllDuplicatesAsync.mockResolvedValueOnce([]);
+  it('在设置中修改分页大小应能实时改变日志显示条数', async () => {
+    await renderUI(mockAppState);
 
-    const cleanState = {
-      S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
-    };
-    const adapter = createMockAdapter(cleanState);
-    await createUI(adapter, mockCallbacks);
-
-    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    // 1. 进入设置
 ~~~~~
 ~~~~~javascript.new
-  it('当没有重复项时，点击扫描应当重置按钮', async () => {
-    // 覆盖 mock 返回空数组
-    mockCallbacks.scanAllDuplicatesAsync.mockResolvedValueOnce([]);
+  it('在设置中修改分页大小应能实时改变日志显示条数', async () => {
+    activeUI = await renderUI(mockAppState);
 
-    const cleanState = {
-      S1: { L1: [{ content: 'unique', time: new Date().toISOString(), type: 'say' }] },
-    };
-    const adapter = createMockAdapter(cleanState);
-    activeUI = await createUI(adapter, mockCallbacks);
+    // 1. 进入设置
+~~~~~
+~~~~~act
+patch_file
+tests/ui.integration.test.js
+~~~~~
+~~~~~javascript.old
+  it('在加载过程中发生的滚动不应触发错误解锁', async () => {
+    await renderUI(mockAppState);
+    const lastBtn = screen.getByTitle('跳转并锁定到末尾');
+    const logDisplay = screen.getByRole('textbox');
 
-    const toggleBtn = document.getElementById('log-archive-ui-toggle-button');
+    // 1. 点击末页进入锁定模式
+    fireEvent.click(lastBtn);
+    // 使用 waitFor 确保即使渲染循环有微小延迟也能通过
+    await waitFor(() => expect(lastBtn).toHaveClass('active'));
+
+    // 2. 模拟加载中状态（refreshView 异步流启动）
+    // 直接操作 value 模拟 renderer 的中间态
+    logDisplay.value = '⏳ 数据加载与处理中...';
+
+    // 模拟由内容变短引起的滚动事件
+    // 在锁定状态下，如果 isAtBottom 为假（此时内容只有一行，自然为假），且没有加载保护，会触发解锁
+    fireEvent.scroll(logDisplay);
+
+    // 3. 验证：由于加载保护存在，锁定状态不应被移除
+    await waitFor(() => {
+      expect(lastBtn).toHaveClass('active');
+    });
+
+    // 4. 模拟加载完成
+    logDisplay.value = 'Line 1\nLine 2\nLine 3';
+    // 模拟向上滚动：手动 mock DOM 属性
+    Object.defineProperty(logDisplay, 'scrollHeight', { value: 1000, configurable: true });
+    Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true, writable: true });
+    Object.defineProperty(logDisplay, 'clientHeight', { value: 500, configurable: true });
+
+    fireEvent.scroll(logDisplay);
+
+    // 5. 验证：此时向上滚动可以正常解锁
+    await waitFor(() => {
+      expect(lastBtn).not.toHaveClass('active');
+    });
+  });
+~~~~~
+~~~~~javascript.new
+  it('在加载过程中发生的滚动不应触发错误解锁', async () => {
+    activeUI = await renderUI(mockAppState);
+    const lastBtn = screen.getByTitle('跳转并锁定到末尾');
+    const logDisplay = screen.getByRole('textbox');
+
+    // 1. 点击末页进入锁定模式
+    fireEvent.click(lastBtn);
+    // 使用 waitFor 确保即使渲染循环有微小延迟也能通过
+    await waitFor(() => expect(lastBtn).toHaveClass('active'));
+
+    // 2. 模拟加载中状态（refreshView 异步流启动）
+    // 直接操作 value 模拟 renderer 的中间态
+    logDisplay.value = '⏳ 数据加载与处理中...';
+
+    // 模拟由内容变短引起的滚动事件
+    // 在锁定状态下，如果 isAtBottom 为假（此时内容只有一行，自然为假），且没有加载保护，会触发解锁
+    fireEvent.scroll(logDisplay);
+
+    // 3. 验证：由于加载保护存在，锁定状态不应被移除
+    await waitFor(() => {
+      expect(lastBtn).toHaveClass('active');
+    });
+
+    // 4. 等待后台真实的 refreshView 完成
+    // 必须确保 loadingMessage 被清空，否则后续真实的 scroll 会被拦截
+    await waitFor(() => {
+      expect(loadingMessage.value).toBe('');
+    });
+
+    // 模拟向上滚动：手动 mock DOM 属性
+    Object.defineProperty(logDisplay, 'scrollHeight', { value: 1000, configurable: true });
+    Object.defineProperty(logDisplay, 'scrollTop', { value: 200, configurable: true, writable: true });
+    Object.defineProperty(logDisplay, 'clientHeight', { value: 500, configurable: true });
+
+    fireEvent.scroll(logDisplay);
+
+    // 5. 验证：此时向上滚动可以正常解锁
+    await waitFor(() => {
+      expect(lastBtn).not.toHaveClass('active');
+    });
+  });
 ~~~~~
 
 ### 下一步建议
-
-1.  **运行测试**：执行 `npm test` 验证 `ui.clean_duplicates.test.js` 是否不再超时。
-2.  **集成测试修复**：注意到 `ui.integration.test.js` 也存在类似的创建 UI 后未销毁的问题，如果该文件之后也出现超时，应采用同样的 `destroy` 模式进行修复。
-3.  **检查 `main.js` 调用**：确认 `main.js` 中对 `createUI` 的调用不需要显式销毁（通常在单页应用生命周期中，只要不频繁重启引擎，保持单一实例是合理的）。
+再次运行所有的测试。通过这次修复，我们清理了环境并修正了最后可能的竞态条件，这应该能让测试全面并且稳定地通过。
