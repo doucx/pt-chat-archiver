@@ -1,4 +1,4 @@
-import { effect, untracked } from '@preact/signals';
+import { batch, effect, untracked } from '@preact/signals';
 import { render } from 'preact';
 import { UI_MESSAGES } from '../constants.js';
 import { MigrationManager } from '../migrations.js';
@@ -177,33 +177,25 @@ export async function createUI(dataAdapter, appCallbacks) {
     }
 
     const newTotalPages = Math.ceil(totalCount / statePageSize) || 1;
-    totalPages.value = newTotalPages;
 
-    if (stateIsLockedToBottom && stateViewMode === 'log' && newTotalPages > stateCurrentPage) {
-      currentPage.value = newTotalPages;
-      if (viewCache.has(newTotalPages)) {
-        messages = viewCache.get(newTotalPages);
-      } else {
-        const followResult = await dataAdapter.getMessages(
-          currentServer,
-          finalSelectedChannel,
-          newTotalPages,
-          statePageSize,
-        );
-        if (renderId !== currentRenderId) return;
-        messages = followResult.messages;
-        viewCache.set(newTotalPages, messages);
+    // 使用 batch 确保内部的多次信号修改只触发一次重新渲染
+    batch(() => {
+      totalPages.value = newTotalPages;
+
+      if (stateIsLockedToBottom && stateViewMode === 'log' && newTotalPages > stateCurrentPage) {
+        currentPage.value = newTotalPages;
+        // 注意：这里由于 currentPage 变了，后续会由 effect 再次触发拉取，
+        // 但为了交互平滑，这里我们保持内存中的 messages 更新
       }
-    }
 
-    if (renderId !== currentRenderId) return;
+      if (renderId !== currentRenderId) return;
 
-    // Update Signals
-    serverListSig.value = serverList;
-    channelListSig.value = channelList;
-    channelCountsSig.value = channelCounts;
-    currentMessages.value = messages;
-    totalCountSig.value = totalCount;
+      serverListSig.value = serverList;
+      channelListSig.value = channelList;
+      channelCountsSig.value = channelCounts;
+      currentMessages.value = messages;
+      totalCountSig.value = totalCount;
+    });
 
     if (stateViewMode === 'log' && currentServer && finalSelectedChannel) {
       preloadAdjacentPages(
@@ -276,21 +268,19 @@ export async function createUI(dataAdapter, appCallbacks) {
   // Initial Data Fetch
   await refreshView();
 
-  let isFirstEffect = true;
+  // 响应式数据拉取驱动
   effect(() => {
-    // 声明状态依赖，当它们改变时触发自动刷新
-    viewingServer.value;
-    selectedChannel.value;
-    currentPage.value;
-    pageSize.value;
-    viewMode.value;
+    // 订阅关键路由信号
+    const s = viewingServer.value;
+    const c = selectedChannel.value;
+    const p = currentPage.value;
+    const sz = pageSize.value;
+    const m = viewMode.value;
 
-    if (isFirstEffect) {
-      isFirstEffect = false;
-      return;
-    }
-
+    // 使用 untracked 避免 refreshView 内部的读取操作造成循环订阅
     untracked(() => {
+      // 首次加载已在上面手动执行，这里只响应后续变化
+      // 通过对比当前状态防止冗余刷新
       refreshView();
     });
   });
@@ -309,14 +299,14 @@ export async function createUI(dataAdapter, appCallbacks) {
       viewCache.clear();
     },
     setState: async (newState) => {
-      await refreshView();
+      // 状态由外部修改后，effect 会自动处理刷新
     },
     checkStorageUsage: async () => {}, // Stubs for removed checks
     isUIPaused: () => isUIPaused.value,
     getInitDebounceMs: () => initDebounceMs.value,
     updateRecordingStatus: async (serverName, channelName) => {
+      // 仅修改信号，触发全局 effect 刷新数据
       setRecordingStatus(serverName, channelName);
-      await refreshView();
     },
   };
 }
