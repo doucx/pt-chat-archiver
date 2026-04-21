@@ -1,8 +1,8 @@
 import { useMemo, useRef, useEffect } from 'preact/hooks';
 import { currentMessages } from '../store/dataStore';
-import { selectedChannel, isReadOnly, isLockedToBottom, currentPage, totalPages, isUIPaused } from '../store/uiStore';
+import { selectedChannel, isReadOnly, isLockedToBottom, currentPage, totalPages, isUIPaused, loadingMessage } from '../store/uiStore';
 import { UI_MESSAGES } from '../../constants.js';
-import { formatMessageForDisplay } from '../renderer.js';
+import { formatMessageForDisplay } from '../../utils.js';
 import { Pagination } from './Pagination';
 
 export function LogViewer() {
@@ -32,7 +32,7 @@ export function LogViewer() {
 
   const handleScroll = (e) => {
     const el = e.target;
-    if (displayText.startsWith('⏳')) return;
+    if (el.value.startsWith('⏳') || loadingMessage.value) return;
 
     const threshold = 10;
     const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
@@ -59,7 +59,7 @@ export function LogViewer() {
         id="log-archive-ui-log-display" 
         readOnly 
         style={{ marginTop: '10px', flexGrow: 1 }}
-        value={displayText}
+        value={loadingMessage.value || displayText}
         onScroll={handleScroll}
         onMouseDown={handleMouseDown}
       />

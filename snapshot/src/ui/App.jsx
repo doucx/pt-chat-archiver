@@ -20,14 +20,6 @@ export function App({ dataAdapter, appCallbacks }) {
     }
   };
 
-  // [重构开关]: 临时禁用 Preact 渲染，避免在过渡期与旧版 Vanilla DOM 发生冲突并破坏集成测试。
-  // 在完成 ConfigPanel 和 StatsView 的重构，并准备好移除 templates.js 之前，请保持为 false。
-  const IS_PREACT_READY = false;
-
-  if (!IS_PREACT_READY) {
-    return null;
-  }
-
   return (
     <div 
       className={`log-archive-app-root ${isReadOnly.value ? 'is-readonly' : ''}`}

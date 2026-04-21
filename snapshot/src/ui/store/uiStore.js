@@ -25,6 +25,7 @@ export const initDebounceMs = signal(150);
 export const cachePages = signal(5);
 export const autoFollowServer = signal(true);
 export const selfName = signal('');
+export const loadingMessage = signal('');
 
 // --- 派生状态 (Computed) ---
 export const isReadOnly = computed(() => {
@@ -70,5 +71,17 @@ export const updateConfig = async (key, value) => {
       cachePages: cachePages.value,
       autoFollowServer: autoFollowServer.value
     });
+  }
+};
+
+export const setRecordingStatus = (serverName, channelName) => {
+  activeServer.value = serverName;
+  recordedChannel.value = channelName;
+  if (serverName) {
+    lastServer.value = serverName;
+    storageManager.setLastServer(serverName);
+  }
+  if (autoFollowServer.value || !viewingServer.value) {
+    viewingServer.value = serverName;
   }
 };

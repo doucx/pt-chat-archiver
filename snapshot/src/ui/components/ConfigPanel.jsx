@@ -31,6 +31,35 @@ export function ConfigPanel({ callbacks }) {
     await storageManager.setSelfName(val);
   };
 
+  const [scanState, setScanState] = useState('idle');
+  const [duplicateIds, setDuplicateIds] = useState([]);
+
+  const handleScanDuplicates = async () => {
+    if (scanState === 'idle' || scanState === 'done') {
+      setScanState('scanning');
+      try {
+        const ids = await callbacks.scanDuplicates();
+        if (ids.length === 0) {
+          setScanState('done');
+          setTimeout(() => setScanState('idle'), 1500);
+        } else {
+          setDuplicateIds(ids);
+          setScanState('pending');
+        }
+      } catch (e) {
+        setScanState('idle');
+      }
+    } else if (scanState === 'pending') {
+      if (confirm(`【确认】将删除 ${duplicateIds.length} 条重复记录。此操作不可逆。确定要继续吗？`)) {
+        setScanState('cleaning');
+        await callbacks.deleteMessages(duplicateIds);
+        setScanState('done');
+        setDuplicateIds([]);
+        setTimeout(() => setScanState('idle'), 1500);
+      }
+    }
+  };
+
   return (
     <div id="log-archive-config-view" class="config-section">
       <div style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '15px', marginBottom: '5px' }}>
@@ -91,7 +120,17 @@ export function ConfigPanel({ callbacks }) {
             <button class="log-archive-ui-button" onClick={callbacks.downloadJSON}>下载 JSON</button>
             <button class="log-archive-ui-button" onClick={callbacks.downloadTXT}>下载 TXT</button>
           </div>
-          <button class="log-archive-ui-button" style={{ backgroundColor: 'var(--color-success)' }} onClick={callbacks.importAndMergeData}>导入 JSON (合并)</button>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button class={`log-archive-ui-button ${scanState === 'pending' ? 'active' : ''}`} onClick={handleScanDuplicates} disabled={scanState === 'scanning' || scanState === 'cleaning'}>
+              {scanState === 'idle' ? '扫描重复记录' : 
+               scanState === 'scanning' ? '扫描中...' : 
+               scanState === 'pending' ? `清理重复 (${duplicateIds.length})` : 
+               scanState === 'cleaning' ? '清理中...' : 
+               '清理完毕!'}
+            </button>
+            <button class="log-archive-ui-button" onClick={callbacks.importAllData}>导入 JSON (覆盖)</button>
+            <button class="log-archive-ui-button" style={{ gridColumn: 'span 2', backgroundColor: 'var(--color-success)' }} onClick={callbacks.importAndMergeData}>导入 JSON (合并)</button>
+          </div>
         </div>
       </div>
 

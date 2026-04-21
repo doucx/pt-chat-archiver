@@ -1,46 +1,38 @@
-import { UI_MESSAGES } from '../constants.js';
-import { MigrationManager } from '../migrations.js';
-import { storageManager } from '../storage/index.js';
 import { render } from 'preact';
 import { App } from './App.jsx';
-import { getDOMElements, initDOM } from './dom.js';
-import { bindUIEvents } from './events.js';
 import { createIOManager } from './io-manager.js';
-import { createRenderer } from './renderer.js';
-import { createUIState } from './state.js';
+import { 
+  initStore, isUIPaused, viewingServer, currentPage, pageSize, totalPages, viewMode, 
+  isLockedToBottom, selectedChannel, setRecordingStatus, loadingMessage, initDebounceMs
+} from './store/uiStore.js';
 import { serverList as serverListSig, channelList as channelListSig, channelCounts as channelCountsSig, currentMessages, totalCount as totalCountSig } from './store/dataStore.js';
 import { ViewCache } from './view-cache.js';
+import { storageManager } from '../storage/index.js';
+import { MigrationManager } from '../migrations.js';
+import { UI_MESSAGES, TOGGLE_BUTTON_ICON } from '../constants.js';
 
-/**
- * Initializes and orchestrates the entire UI module.
- * @param {object} dataAdapter - The adapter interface to fetch data (Async).
- * @param {object} appCallbacks - Callbacks for application-level actions.
- * @returns {Promise<object>} Public API for the UI module.
- */
 export async function createUI(dataAdapter, appCallbacks) {
-  // 1. Initialize DOM structure
-  initDOM(__APP_VERSION__);
-  const dom = getDOMElements();
-
-  // 2. Create state and renderer instances
-  const uiState = await createUIState();
-  const renderer = createRenderer(dom, uiState);
+  // 1. Initialize Store
+  await initStore();
   const viewCache = new ViewCache();
+
+  // 2. Setup Container & Toggle Button
+  const container = document.createElement('div');
+  container.id = 'log-archive-ui-container';
+  container.style.display = 'none';
+  document.body.appendChild(container);
+
+  const toggleButton = document.createElement('div');
+  toggleButton.id = 'log-archive-ui-toggle-button';
+  toggleButton.textContent = TOGGLE_BUTTON_ICON;
+  document.body.appendChild(toggleButton);
 
   let currentRenderId = 0;
 
-  /**
-   * 预加载当前页的相邻页面。
-   * 采用静默加载模式，不触发 UI 状态更新。
-   */
   const preloadAdjacentPages = async (page, total, server, channel, size) => {
-    // 仅预加载 1 页半径内的未命中页面
     const targets = [page - 1, page + 1].filter((p) => p >= 1 && p <= total && !viewCache.has(p));
-
     for (const p of targets) {
-      // 异步抓取，不使用 await 以免阻塞
       dataAdapter.getMessages(server, channel, p, size).then((result) => {
-        // 校验上下文，确保在异步返回时用户没有切换频道
         if (viewCache.server === server && viewCache.channel === channel) {
           viewCache.set(p, result.messages);
         }
@@ -48,190 +40,128 @@ export async function createUI(dataAdapter, appCallbacks) {
     }
   };
 
-  // --- Async Controller Logic ---
-
-  /**
-   * 核心控制器方法：异步刷新视图
-   * 1. 获取 UI 状态 (当前服务器、页码等)
-   * 2. 调用 Adapter 获取数据 (消息列表、总数等)
-   * 3. 计算派生状态 (TotalPages)
-   * 4. 调用 Renderer 更新 DOM
-   */
+  // The core reactive cycle bridging the dataAdapter and Preact Signals
   const refreshView = async () => {
     const renderId = ++currentRenderId;
-    const {
-      viewingServer,
-      currentPage,
-      pageSize,
-      totalPages,
-      viewMode,
-      isLockedToBottom,
-      selectedChannel: stateChannel,
-    } = uiState.getState();
-
-    // 乐观更新分页指示器：在进行任何异步操作前，立即反馈页码变化
-    if (viewMode === 'log') {
-      dom.pageInfoSpan.textContent = `${currentPage} / ${totalPages}`;
-      const isFirst = currentPage === 1;
-      const isLast = currentPage === totalPages;
-      dom.pageFirstBtn.disabled = dom.pagePrevBtn.disabled = isFirst;
-      dom.pageNextBtn.disabled = isLast;
-    }
+    
+    // Capture state snapshots
+    const stateViewingServer = viewingServer.value;
+    const stateCurrentPage = currentPage.value;
+    const statePageSize = pageSize.value;
+    const stateViewMode = viewMode.value;
+    const stateIsLockedToBottom = isLockedToBottom.value;
+    const stateSelectedChannel = selectedChannel.value;
 
     const serverList = await dataAdapter.getServers();
-
-    // 确保 viewingServer 有效
-    if (!viewingServer && serverList.length > 0) {
-      uiState.setViewingServer(serverList[0]);
+    if (!stateViewingServer && serverList.length > 0) {
+      viewingServer.value = serverList[0];
     }
-    const currentServer = uiState.getState().viewingServer;
+    const currentServer = viewingServer.value;
 
     if (!currentServer) {
-      // 如果没有任何服务器数据，渲染空上下文
-      return renderer.render(
-        {
-          serverList,
-          channelList: [],
-          channelCounts: {},
-          messages: [],
-          totalCount: 0,
-        },
-        uiCallbacks,
-      );
+      serverListSig.value = [];
+      channelListSig.value = [];
+      channelCountsSig.value = {};
+      currentMessages.value = [];
+      totalCountSig.value = 0;
+      return;
     }
 
-    // 获取当前服务器的频道列表和统计信息
     const channelList = await dataAdapter.getChannels(currentServer);
     const channelCounts = {};
-
-    // 使用 Promise.all 并行获取各个频道的总数，极大提升刷新速度
+    
     await Promise.all(
       channelList.map(async (ch) => {
         if (dataAdapter.getChannelCount) {
           channelCounts[ch] = await dataAdapter.getChannelCount(currentServer, ch);
         } else {
-          // 降级方案：如果适配器未实现此接口，回落到查询第一页来获取 total
           const { total } = await dataAdapter.getMessages(currentServer, ch, 1, 1);
           channelCounts[ch] = total;
         }
-      }),
+      })
     );
 
-    // 确定当前选中的 Channel
-    let selectedChannel = stateChannel;
-
-    // 如果未选择或列表变动导致原选择失效，修正它并同步回 uiState
-    if (!selectedChannel && channelList.length > 0) {
-      selectedChannel = channelList[0];
-      uiState.setSelectedChannel(selectedChannel);
-    } else if (selectedChannel && !channelList.includes(selectedChannel)) {
-      selectedChannel = channelList[0];
-      uiState.setSelectedChannel(selectedChannel);
+    let finalSelectedChannel = stateSelectedChannel;
+    if (!finalSelectedChannel && channelList.length > 0) {
+      finalSelectedChannel = channelList[0];
+      selectedChannel.value = finalSelectedChannel;
+    } else if (finalSelectedChannel && !channelList.includes(finalSelectedChannel)) {
+      finalSelectedChannel = channelList[0];
+      selectedChannel.value = finalSelectedChannel;
     }
 
-    // 获取消息数据
     let messages = [];
-    let totalCount = selectedChannel ? channelCounts[selectedChannel] || 0 : 0;
+    let totalCount = finalSelectedChannel ? (channelCounts[finalSelectedChannel] || 0) : 0;
 
-    // 初始化并同步缓存上下文
-    const maxCachePages = uiState.getState().cachePages || 5;
-    viewCache.init(currentServer, selectedChannel, pageSize, maxCachePages);
+    viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
     viewCache.setTotalCount(totalCount);
 
-    // 当且仅当非 config 模式下才去抓取具体消息体
-    if (currentServer && selectedChannel && viewMode !== 'config') {
-      let fetchSize = pageSize;
-      let fetchPage = currentPage;
+    if (currentServer && finalSelectedChannel && stateViewMode !== 'config') {
+      let fetchSize = statePageSize;
+      let fetchPage = stateCurrentPage;
       let offset = undefined;
 
-      if (viewMode === 'stats') {
-        const { statsLimit } = uiState.getState();
-        fetchSize = statsLimit;
-        offset = Math.max(0, totalCount - statsLimit);
+      if (stateViewMode === 'stats') {
+        const stateStatsLimit = 5000;
+        fetchSize = stateStatsLimit;
+        offset = Math.max(0, totalCount - stateStatsLimit);
         fetchPage = 1;
 
-        // stats 模式特殊，绕过分页缓存，全量拉取
-        dom.logDisplay.value = UI_MESSAGES.LOADING_PREPARE;
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        loadingMessage.value = UI_MESSAGES.LOADING_PREPARE;
+        await new Promise((r) => setTimeout(r, 10));
         if (renderId !== currentRenderId) return;
 
         const result = await dataAdapter.getMessages(
-          currentServer,
-          selectedChannel,
-          fetchPage,
-          fetchSize,
+          currentServer, finalSelectedChannel, fetchPage, fetchSize,
           (current, total) => {
             if (renderId !== currentRenderId) return;
-            const width = 20;
             const percentage = current / total;
-            const filled = Math.round(width * percentage);
-            const empty = width - filled;
-            const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
-            dom.logDisplay.value = `${UI_MESSAGES.LOADING_STATS}\n\n    ${bar} ${Math.round(
-              percentage * 100,
-            )}%\n    已读取: ${current} / ${total} 条`;
+            loadingMessage.value = `${UI_MESSAGES.LOADING_STATS}\n    已读取: ${current} / ${total} 条 (${Math.round(percentage * 100)}%)`;
           },
-          offset,
+          offset
         );
         if (renderId !== currentRenderId) return;
         messages = result.messages;
+        loadingMessage.value = '';
       } else {
-        // 核心渲染路径：检查 LRU 缓存
         if (viewCache.has(fetchPage)) {
-          messages = viewCache.get(fetchPage); // 零延迟命中！
+          messages = viewCache.get(fetchPage);
         } else {
-          // 缓存未命中，执行完整 DB 提取生命周期
-          dom.logDisplay.value = UI_MESSAGES.LOADING_PREPARE;
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          loadingMessage.value = UI_MESSAGES.LOADING_PREPARE;
+          await new Promise((r) => setTimeout(r, 10));
           if (renderId !== currentRenderId) return;
 
           const result = await dataAdapter.getMessages(
-            currentServer,
-            selectedChannel,
-            fetchPage,
-            fetchSize,
+            currentServer, finalSelectedChannel, fetchPage, fetchSize,
             (current, total) => {
               if (renderId !== currentRenderId) return;
-              const width = 20;
               const percentage = current / total;
-              const filled = Math.round(width * percentage);
-              const empty = width - filled;
-              const bar = `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
-              dom.logDisplay.value = `${UI_MESSAGES.LOADING_HISTORY}\n\n    ${bar} ${Math.round(percentage * 100)}%\n    已读取: ${current} / ${total} 条`;
-            },
+              loadingMessage.value = `${UI_MESSAGES.LOADING_HISTORY}\n    已读取: ${current} / ${total} 条 (${Math.round(percentage * 100)}%)`;
+            }
           );
 
           if (renderId !== currentRenderId) return;
-
           messages = result.messages;
-          totalCount = result.total; // 确保一致性
-
+          totalCount = result.total;
           viewCache.setTotalCount(totalCount);
-          viewCache.set(fetchPage, messages); // 存入缓存
-
-          // 过渡状态
-          dom.logDisplay.value = UI_MESSAGES.LOADING_BUILDING;
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          viewCache.set(fetchPage, messages);
+          
+          loadingMessage.value = UI_MESSAGES.LOADING_BUILDING;
+          await new Promise((r) => setTimeout(r, 10));
+          loadingMessage.value = '';
         }
       }
     }
 
-    // 更新分页状态
-    const newTotalPages = Math.ceil(totalCount / pageSize) || 1;
-    uiState.setTotalPages(newTotalPages);
+    const newTotalPages = Math.ceil(totalCount / statePageSize) || 1;
+    totalPages.value = newTotalPages;
 
-    // 自动吸附逻辑
-    if (isLockedToBottom && viewMode === 'log' && newTotalPages > currentPage) {
-      uiState.setPage(newTotalPages);
+    if (stateIsLockedToBottom && stateViewMode === 'log' && newTotalPages > stateCurrentPage) {
+      currentPage.value = newTotalPages;
       if (viewCache.has(newTotalPages)) {
         messages = viewCache.get(newTotalPages);
       } else {
-        const followResult = await dataAdapter.getMessages(
-          currentServer,
-          selectedChannel,
-          newTotalPages,
-          pageSize,
-        );
+        const followResult = await dataAdapter.getMessages(currentServer, finalSelectedChannel, newTotalPages, statePageSize);
         if (renderId !== currentRenderId) return;
         messages = followResult.messages;
         viewCache.set(newTotalPages, messages);
@@ -240,43 +170,28 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     if (renderId !== currentRenderId) return;
 
-    const context = {
-      serverList,
-      channelList,
-      channelCounts,
-      messages,
-      totalCount,
-      selectedChannel, // 显式传递经过控制器校验的选中状态
-    };
-
-    // [Bridge] 同步数据到 Preact Signals，为即将到来的组件化供电
+    // Update Signals
     serverListSig.value = serverList;
     channelListSig.value = channelList;
     channelCountsSig.value = channelCounts;
     currentMessages.value = messages;
     totalCountSig.value = totalCount;
 
-    renderer.render(context, uiCallbacks);
-
-    // [性能优化] 启动后台预加载
-    if (viewMode === 'log' && currentServer && selectedChannel) {
-      preloadAdjacentPages(currentPage, newTotalPages, currentServer, selectedChannel, pageSize);
+    if (stateViewMode === 'log' && currentServer && finalSelectedChannel) {
+      preloadAdjacentPages(stateCurrentPage, newTotalPages, currentServer, finalSelectedChannel, statePageSize);
     }
   };
 
-  const ioManager = createIOManager({
-    dom,
-    dataAdapter,
-    appCallbacks,
-    refreshView: () => refreshView(),
+  // Setup DOM Interactions for toggle
+  toggleButton.addEventListener('click', () => {
+    const isVisible = container.style.display === 'flex';
+    if (!isVisible) refreshView();
+    container.style.display = isVisible ? 'none' : 'flex';
   });
 
+  // Action Handlers
   const clearAllData = async () => {
-    if (
-      confirm(
-        '【严重警告】此操作将清空所有本地存储的聊天存档，并以当前屏幕可见记录重置。此操作不可恢复！确定要执行吗？',
-      )
-    ) {
+    if (confirm('【严重警告】此操作将清空所有本地存储的聊天存档。此操作不可恢复！确定要执行吗？')) {
       appCallbacks.deactivateLogger();
       await storageManager.clearAllData();
       viewCache.clear();
@@ -287,15 +202,16 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const deleteV6Backup = async () => {
     await storageManager.deleteV6Backup();
+    alert('旧版备份已删除。');
   };
 
   const recoverLegacyData = async (targetServer) => {
     try {
-      // 修正接口名：dataAdapter.getRawState -> dataAdapter.getAllData
       const rawState = await dataAdapter.getAllData();
       const newState = await MigrationManager.recoverAndMergeAll(rawState, targetServer);
       await appCallbacks.saveMessagesToStorage(newState);
       alert('数据恢复合并完成！已自动清理旧版残留。');
+      refreshView();
     } catch (err) {
       console.error('[Recovery] Failed:', err);
       alert('恢复失败，详情请查看控制台。');
@@ -306,6 +222,8 @@ export async function createUI(dataAdapter, appCallbacks) {
     MigrationManager.clearAllLegacyData();
     alert('旧版残留数据已清理。');
   };
+
+  const ioManager = createIOManager({ dataAdapter, appCallbacks, refreshView });
 
   const uiCallbacks = {
     ...appCallbacks,
@@ -318,25 +236,16 @@ export async function createUI(dataAdapter, appCallbacks) {
     clearLegacyData,
   };
 
-  await bindUIEvents({
-    dom,
-    uiState,
-    refreshView,
-    callbacks: uiCallbacks,
-  });
+  // Mount Preact Tree
+  render(<App dataAdapter={dataAdapter} appCallbacks={uiCallbacks} />, container);
 
-  // 4. Preact Mounting
-  // 正式将 Preact 渲染引擎挂载到 DOM 容器中
-  render(<App dataAdapter={dataAdapter} appCallbacks={uiCallbacks} />, dom.uiContainer);
-
-  // 5. Initial Render
-  // 必须等待首屏渲染完成，确保 UI 实例返回时 DOM 已就绪
+  // Initial Data Fetch
   await refreshView();
 
-  // 6. Return the public API
+  // Return Engine API
   return {
     updateUI: async () => {
-      if (!uiState.getState().isUIPaused) {
+      if (!isUIPaused.value) {
         await refreshView();
       }
     },
@@ -349,11 +258,11 @@ export async function createUI(dataAdapter, appCallbacks) {
     setState: async (newState) => {
       await refreshView();
     },
-    checkStorageUsage: async () => await renderer.checkStorageUsage(),
-    isUIPaused: () => uiState.getState().isUIPaused,
-    getInitDebounceMs: () => uiState.getState().initDebounceMs,
+    checkStorageUsage: async () => {}, // Stubs for removed checks
+    isUIPaused: () => isUIPaused.value,
+    getInitDebounceMs: () => initDebounceMs.value,
     updateRecordingStatus: async (serverName, channelName) => {
-      uiState.setRecordingStatus(serverName, channelName);
+      setRecordingStatus(serverName, channelName);
       await refreshView();
     },
   };
