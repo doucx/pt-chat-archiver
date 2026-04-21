@@ -1,106 +1,75 @@
-虽然我们已经在 `beforeEach` 中重置了信号，但由于 **`localStorage` 的持久性**，`storageManager.init()` 会在信号重置之前或过程中把旧测试保存的 `pageSize: 50` 和 `currentPage: 5`（来自“跳转到末尾”测试）加载回来。
+这一结果非常具有启发性：`expected '--- 在频道 [Local] 中没有记录 ---' to contain 'Message 1'`。
 
-这次我们彻底清理测试环境，并在 `StatsView` 的状态切换中增加更严谨的保护。
+这说明：
+1.  `loadingMessage` 确实被成功清除了（否则我们会看到“正在读取...”）。
+2.  但此时 `currentMessages` 却是空的。
+3.  **根源在于 `viewCache.has` 的逻辑错误**：在 `view-cache.js` 中，我之前引入的 `isLastPage` 判断逻辑有误（`page === ... || 1` 永远返回真），导致缓存系统误认为一个空的或过期的缓存项是有效的。
+4.  **异步竞态**：我在 `refreshView` 顶部过早地清除了 `loadingMessage`。由于 `refreshView` 内部有多个 `await` 点（如 `getServers`, `getChannels`），在这些 `await` 期间，UI 会因为 `viewMode` 改变而重新渲染，此时加载信息已失踪，但新数据尚未填入 `currentMessages`，导致用户（或测试脚本）看到了瞬时的“无记录”空状态。
 
-## [WIP] fix(tests): 彻底隔离集成测试环境并修复统计视图样式
+我将生成最终的修复计划。
+
+## [WIP] fix(ui): 修复缓存逻辑漏洞、异步状态同步及集成测试隔离性
 
 ### 错误分析
 
-1.  **LocalStorage 污染**: 在 `jsdom` 环境中，`localStorage` 在同一个文件的不同测试之间是共享的。前一个测试通过 `updateConfig` 将 `pageSize` 改为 50 并保存到了磁盘。下一个测试启动时，`initStore` 重新读取了这个 50，导致分页计算产生偏移。
-2.  **信号竞争**: 虽然我们在 `beforeEach` 底部手动重置了信号，但 `createUI` 内部的 `effect` 可能已经在信号重置完成前，利用从 `localStorage` 读取到的旧数据触发了第一次渲染。
-3.  **统计视图样式**: `StatsView.jsx` 需要确保在加载状态下也挂载正确的 `id`，以保证字体颜色。
+1.  **缓存有效性误判**: `view-cache.js` 中的 `has()` 方法逻辑错误，导致它在某些情况下（如分页大小变化后）对陈旧或空的缓存页返回 `true`。
+2.  **过早清理加载状态**: `src/ui/index.jsx` 在异步数据流尚未到达 `batch` 更新点时就清除了 `loadingMessage`，造成了 UI 闪烁出“无记录”提示的中间态。
+3.  **测试环境污染**: 虽然在 `beforeEach` 中重置了信号，但由于 `storageManager.init()` 会在信号重置后再次从 `localStorage` 加载旧数据，导致 `pageSize` 等关键配置在测试间产生了漂移。
 
 ### 用户需求
 
-确保集成测试不再受到上一个测试运行结果的影响（“Message 201”错误），同时确保统计页面的文字颜色正确。
-
-### 评论
-
-在编写涉及持久化存储的集成测试时，仅仅重置内存状态（Signals）是不够的，必须同时重置底层存储（LocalStorage/IndexedDB）。这是保证测试可重复性的金科玉律。
+彻底修复统计页面点击导致进度残留、颜色不对以及切回日志时偶现“无记录”的 Bug。确保集成测试环境完全隔离。
 
 ### 目标
 
-1.  修改 `tests/ui.integration.test.js`：在 `beforeEach` 中首先执行 `localStorage.clear()`。
-2.  修改 `src/ui/components/StatsView.jsx`：确保样式绑定无误。
-3.  优化 `src/ui/index.jsx`：确保在从异步任务切回同步任务（缓存命中的日志视图）时，加载状态被物理清除。
+1.  **修复 `ViewCache`**: 正确实现 `has()` 逻辑，严谨判断最后一页的完整性。
+2.  **原子化状态更新**: 将 `loadingMessage` 的重置移回 `batch` 块或紧邻数据赋值处，消除 UI 中间态。
+3.  **强化测试隔离**: 在 `tests/ui.integration.test.js` 的 `beforeEach` 中，确保在所有逻辑启动前物理清空 `localStorage`。
+
+### 基本原理
+
+通过确保 UI 状态的“推”过程是原子的（即：要么显示旧页面的加载中，要么显示新页面的数据，而不允许出现“非加载且无数据”的真空期），我们可以消除所有竞态引起的显示异常。同时，通过修复缓存断言，确保系统在分页配置变化时能正确触发重新拉取。
 
 ### 标签
 
 #intent/fix #flow/ready #priority/high
-#comp/tests #comp/ui #concept/state
+#comp/ui #comp/tests #concept/state #concept/cache
 #ai/refine
-#task/domain/testing #task/object/test-isolation #task/action/clear-storage #task/state/continue
+#task/domain/ui #task/object/view-cache #task/action/synchronization-fix #task/state/end
 
 ---
 
 ### Script
 
-#### Acts 1: 物理清理测试环境
+#### Acts 1: 修复 `ViewCache` 逻辑漏洞
 
-在每个测试开始前，物理抹除 `localStorage`，确保 `initStore` 总是加载默认值。
-
-~~~~~act
-patch_file
-tests/ui.integration.test.js
-~~~~~
-~~~~~javascript.old
-  beforeEach(async () => {
-    await storageManager.init();
-    // 显式重置所有可能被测试修改的全局信号，防止跨测试污染
-~~~~~
-~~~~~javascript.new
-  beforeEach(async () => {
-    // 物理清理存储，防止跨测试的数据污染 (如 pageSize: 50 导致的 Message 201 错误)
-    localStorage.clear();
-
-    await storageManager.init();
-    // 显式重置所有可能被测试修改的全局信号，防止跨测试污染
-~~~~~
-
-#### Acts 2: 完善 `StatsView` 样式绑定
-
-确保 `StatsView` 在任何状态下都持有正确的 `id`。
+确保缓存系统能准确识别最后一页，并防止非法的缓存命中。
 
 ~~~~~act
 patch_file
-src/ui/components/StatsView.jsx
+src/ui/view-cache.js
 ~~~~~
 ~~~~~javascript.old
-  return (
-    <div
-      id="log-archive-stats-view"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '10px' }}
-    >
-      <textarea
-        id="log-archive-ui-log-display"
-        readOnly
-        className="log-archive-ui-log-display"
-        style={{ flexGrow: 1, backgroundColor: 'rgba(0,0,0,0.2)' }}
-        value={loading || statsText}
-      />
-    </div>
-  );
+  has(page) {
+    if (!this.pages.has(page)) return false;
+    const msgs = this.pages.get(page);
+    const isLastPage = page === Math.ceil(this.totalCount / this.pageSize) || 1;
+    return msgs.length === this.pageSize || isLastPage;
+  }
 ~~~~~
 ~~~~~javascript.new
-  return (
-    <div
-      id="log-archive-stats-view"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '10px' }}
-    >
-      <textarea
-        id="log-archive-ui-log-display"
-        readOnly
-        className="log-archive-ui-log-display"
-        style={{ flexGrow: 1, color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)' }}
-        value={loading || statsText}
-      />
-    </div>
-  );
+  has(page) {
+    if (!this.pages.has(page)) return false;
+    const msgs = this.pages.get(page);
+    const totalPages = Math.ceil(this.totalCount / this.pageSize) || 1;
+    const isLastPage = page === totalPages;
+    return msgs.length === this.pageSize || isLastPage;
+  }
 ~~~~~
 
-#### Acts 3: 优化 `refreshView` 状态清理逻辑
+#### Acts 2: 修正 `refreshView` 中的状态同步时序
 
-在进入主逻辑前，对 `loadingMessage` 进行初始化，确保非异步路径不留残留。
+移除危险的抢跑式清理逻辑，将 `loadingMessage` 的重置与数据更新绑定。
 
 ~~~~~act
 patch_file
@@ -110,24 +79,71 @@ src/ui/index.jsx
     viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
     viewCache.setTotalCount(totalCount);
 
-    // 默认假设不需要显示加载信息，除非进入下方的异步逻辑
-    if (stateViewMode !== 'config' && !viewCache.has(stateCurrentPage)) {
-      // 保持现状，让下方的逻辑决定 loadingMessage
-    } else {
-      loadingMessage.value = '';
-    }
-~~~~~
-~~~~~javascript.new
-    viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
-    viewCache.setTotalCount(totalCount);
-
     // 状态清理：如果当前是配置模式，或者日志页面命中了缓存，
     // 我们必须立即清除可能存在的旧加载状态。
     if (stateViewMode === 'config' || (stateViewMode === 'log' && viewCache.has(stateCurrentPage))) {
       loadingMessage.value = '';
     }
+
+    if (currentServer && finalSelectedChannel && stateViewMode !== 'config') {
+~~~~~
+~~~~~javascript.new
+    viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
+    viewCache.setTotalCount(totalCount);
+
+    if (currentServer && finalSelectedChannel && stateViewMode !== 'config') {
+~~~~~
+
+#### Acts 3: 强化集成测试的物理隔离
+
+确保 `localStorage.clear()` 发生在一切初始化之前，彻底杜绝数据泄露。
+
+~~~~~act
+patch_file
+tests/ui.integration.test.js
+~~~~~
+~~~~~javascript.old
+describe('UI Integration Smoke Tests', () => {
+  let mockAppState;
+  let activeUI = null;
+
+  afterEach(() => {
+    if (activeUI) {
+      activeUI.destroy();
+      activeUI = null;
+    }
+  });
+
+  beforeEach(async () => {
+    // 物理清理存储，防止跨测试的数据污染 (如 pageSize: 50 导致的 Message 201 错误)
+    localStorage.clear();
+
+    await storageManager.init();
+~~~~~
+~~~~~javascript.new
+describe('UI Integration Smoke Tests', () => {
+  let mockAppState;
+  let activeUI = null;
+
+  beforeEach(() => {
+    // 物理清理存储必须是同步且最优先的
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    if (activeUI) {
+      activeUI.destroy();
+      activeUI = null;
+    }
+  });
+
+  beforeEach(async () => {
+    await storageManager.init();
 ~~~~~
 
 ### 下一步建议
 
-由于添加了 `localStorage.clear()`，现在 `initStore` 应该能稳定加载 `pageSize: 1000`。请再次运行 `npm run test`。如果测试通过，意味着我们成功解决了 **状态泄露** 和 **样式丢失** 两个核心问题。
+由于我们已经完成了代码逻辑的原子化重构并增加了严谨的物理隔离，现在运行 `npm run test` 应该会得到全绿的结果。
+
+如果仍有微小波动，建议检查 `tests/ui.integration.test.js` 中 `waitFor` 的超时设置。但在当前的优化下，缓存命中的 `refreshView` 虽然仍有 `await` 点，但已不再会因为 `loadingMessage` 被提前清理而暴露空状态。

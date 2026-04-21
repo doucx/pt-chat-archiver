@@ -115,12 +115,6 @@ export async function createUI(dataAdapter, appCallbacks) {
     viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
     viewCache.setTotalCount(totalCount);
 
-    // 状态清理：如果当前是配置模式，或者日志页面命中了缓存，
-    // 我们必须立即清除可能存在的旧加载状态。
-    if (stateViewMode === 'config' || (stateViewMode === 'log' && viewCache.has(stateCurrentPage))) {
-      loadingMessage.value = '';
-    }
-
     if (currentServer && finalSelectedChannel && stateViewMode !== 'config') {
       let fetchSize = statePageSize;
       let fetchPage = stateCurrentPage;
