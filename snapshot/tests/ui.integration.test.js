@@ -76,20 +76,9 @@ describe('UI Integration Smoke Tests', () => {
   let mockAppState;
   let activeUI = null;
 
-  beforeEach(() => {
-    // 物理清理存储必须是同步且最优先的
+  beforeEach(async () => {
     localStorage.clear();
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    if (activeUI) {
-      activeUI.destroy();
-      activeUI = null;
-    }
-  });
-
-  beforeEach(async () => {
     await storageManager.init();
     // 显式重置所有可能被测试修改的全局信号，防止跨测试污染
     viewMode.value = 'log';
@@ -111,7 +100,13 @@ describe('UI Integration Smoke Tests', () => {
         Party: [{ time: new Date().toISOString(), content: 'Party Message', type: 'party' }],
       },
     };
-    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    if (activeUI) {
+      activeUI.destroy();
+      activeUI = null;
+    }
   });
 
   it('初始加载时应正确渲染数据和默认频道', async () => {
@@ -232,7 +227,9 @@ describe('UI Integration Smoke Tests', () => {
     const statsBtn = screen.getByTitle('数据统计');
 
     // 此时日志视图已加载完毕，进入缓存
-    expect(screen.getByRole('textbox').value).toContain('Message 1');
+    await waitFor(() => {
+      expect(screen.getByRole('textbox').value).toContain('Message 1');
+    });
     expect(loadingMessage.value).toBe('');
 
     // 1. 设置延迟，拦截 getMessages

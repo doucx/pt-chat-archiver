@@ -1,130 +1,46 @@
-这一结果非常具有启发性：`expected '--- 在频道 [Local] 中没有记录 ---' to contain 'Message 1'`。
+你的分析非常准确。
 
-这说明：
-1.  `loadingMessage` 确实被成功清除了（否则我们会看到“正在读取...”）。
-2.  但此时 `currentMessages` 却是空的。
-3.  **根源在于 `viewCache.has` 的逻辑错误**：在 `view-cache.js` 中，我之前引入的 `isLastPage` 判断逻辑有误（`page === ... || 1` 永远返回真），导致缓存系统误认为一个空的或过期的缓存项是有效的。
-4.  **异步竞态**：我在 `refreshView` 顶部过早地清除了 `loadingMessage`。由于 `refreshView` 内部有多个 `await` 点（如 `getServers`, `getChannels`），在这些 `await` 期间，UI 会因为 `viewMode` 改变而重新渲染，此时加载信息已失踪，但新数据尚未填入 `currentMessages`，导致用户（或测试脚本）看到了瞬时的“无记录”空状态。
+`tests/ui.integration.test.js` 中存在两个问题：
+1.  **Lint 错误**: 在同一个 `describe` 块中定义了两个 `beforeEach` 钩子，这违反了 Biome 的 `noDuplicateTestHooks` 规则。
+2.  **测试失败**: 在切换到统计分析的测试中，检查 `textbox` 是否包含 "Message 1" 时没有使用 `waitFor`。由于 `refreshView` 是异步的（涉及数据抓取和信号更新），直接检查可能在数据加载完成前就触发了断言，从而导致查看到的是“无记录”提示。
 
-我将生成最终的修复计划。
+我将合并 `beforeEach` 钩子，并为失败的断言添加异步等待逻辑。
 
-## [WIP] fix(ui): 修复缓存逻辑漏洞、异步状态同步及集成测试隔离性
+## [WIP] fix(tests): 修复集成测试中的 lint 错误和异步竞争问题
 
 ### 错误分析
-
-1.  **缓存有效性误判**: `view-cache.js` 中的 `has()` 方法逻辑错误，导致它在某些情况下（如分页大小变化后）对陈旧或空的缓存页返回 `true`。
-2.  **过早清理加载状态**: `src/ui/index.jsx` 在异步数据流尚未到达 `batch` 更新点时就清除了 `loadingMessage`，造成了 UI 闪烁出“无记录”提示的中间态。
-3.  **测试环境污染**: 虽然在 `beforeEach` 中重置了信号，但由于 `storageManager.init()` 会在信号重置后再次从 `localStorage` 加载旧数据，导致 `pageSize` 等关键配置在测试间产生了漂移。
+- **Lint (noDuplicateTestHooks)**: 在 `UI Integration Smoke Tests` 描述块中，第 82 行和第 92 行分别定义了 `beforeEach`。这不仅导致静态检查报错，也使得测试逻辑变得冗余（例如 `vi.clearAllMocks()` 被调用了两次）。
+- **AssertionError**: `expect(screen.getByRole('textbox').value).toContain('Message 1')` 失败。在测试环境中，`renderUI` 虽然设置了服务器和频道信号，但 `LogViewer` 的内容渲染依赖于 `refreshView` 的异步完成。如果没有 `waitFor`，测试主循环会在 `messages` 数组还是空的时候就读取 `textarea` 的值，此时 `displayText` 计算结果为 `UI_MESSAGES.NO_RECORDS_IN_CHANNEL` 对应的提示语，而非预期的消息列表。
 
 ### 用户需求
+修复测试代码中的 lint 警告和运行期失败，确保 CI 环境能够通过。
 
-彻底修复统计页面点击导致进度残留、颜色不对以及切回日志时偶现“无记录”的 Bug。确保集成测试环境完全隔离。
+### 评论
+随着系统向异步数据流（IndexedDB + Signals）迁移，集成测试必须更加依赖 `testing-library` 的 `waitFor` 机制，以确保 UI 已经对数据变更做出了反应。
 
 ### 目标
-
-1.  **修复 `ViewCache`**: 正确实现 `has()` 逻辑，严谨判断最后一页的完整性。
-2.  **原子化状态更新**: 将 `loadingMessage` 的重置移回 `batch` 块或紧邻数据赋值处，消除 UI 中间态。
-3.  **强化测试隔离**: 在 `tests/ui.integration.test.js` 的 `beforeEach` 中，确保在所有逻辑启动前物理清空 `localStorage`。
+1.  合并 `tests/ui.integration.test.js` 中的 `beforeEach` 钩子。
+2.  在 `切换到统计分析时应显示加载信息` 测试用例中，为基准数据检查添加 `waitFor`。
 
 ### 基本原理
-
-通过确保 UI 状态的“推”过程是原子的（即：要么显示旧页面的加载中，要么显示新页面的数据，而不允许出现“非加载且无数据”的真空期），我们可以消除所有竞态引起的显示异常。同时，通过修复缓存断言，确保系统在分页配置变化时能正确触发重新拉取。
+通过合并钩子，我们将初始化逻辑原子化。通过引入 `waitFor`，我们允许虚拟 DOM 在断言执行前完成异步渲染循环。
 
 ### 标签
-
-#intent/fix #flow/ready #priority/high
-#comp/ui #comp/tests #concept/state #concept/cache
-#ai/refine
-#task/domain/ui #task/object/view-cache #task/action/synchronization-fix #task/state/end
+#intent/fix #flow/ready #priority/high #comp/tests #scope/dx #ai/delegate #task/domain/testing #task/object/integration-tests #task/action/bug-fix #task/state/begin
 
 ---
 
 ### Script
 
-#### Acts 1: 修复 `ViewCache` 逻辑漏洞
+#### Acts 1: 优化集成测试的生命周期与异步断言
 
-确保缓存系统能准确识别最后一页，并防止非法的缓存命中。
-
-~~~~~act
-patch_file
-src/ui/view-cache.js
-~~~~~
-~~~~~javascript.old
-  has(page) {
-    if (!this.pages.has(page)) return false;
-    const msgs = this.pages.get(page);
-    const isLastPage = page === Math.ceil(this.totalCount / this.pageSize) || 1;
-    return msgs.length === this.pageSize || isLastPage;
-  }
-~~~~~
-~~~~~javascript.new
-  has(page) {
-    if (!this.pages.has(page)) return false;
-    const msgs = this.pages.get(page);
-    const totalPages = Math.ceil(this.totalCount / this.pageSize) || 1;
-    const isLastPage = page === totalPages;
-    return msgs.length === this.pageSize || isLastPage;
-  }
-~~~~~
-
-#### Acts 2: 修正 `refreshView` 中的状态同步时序
-
-移除危险的抢跑式清理逻辑，将 `loadingMessage` 的重置与数据更新绑定。
-
-~~~~~act
-patch_file
-src/ui/index.jsx
-~~~~~
-~~~~~javascript.old
-    viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
-    viewCache.setTotalCount(totalCount);
-
-    // 状态清理：如果当前是配置模式，或者日志页面命中了缓存，
-    // 我们必须立即清除可能存在的旧加载状态。
-    if (stateViewMode === 'config' || (stateViewMode === 'log' && viewCache.has(stateCurrentPage))) {
-      loadingMessage.value = '';
-    }
-
-    if (currentServer && finalSelectedChannel && stateViewMode !== 'config') {
-~~~~~
-~~~~~javascript.new
-    viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
-    viewCache.setTotalCount(totalCount);
-
-    if (currentServer && finalSelectedChannel && stateViewMode !== 'config') {
-~~~~~
-
-#### Acts 3: 强化集成测试的物理隔离
-
-确保 `localStorage.clear()` 发生在一切初始化之前，彻底杜绝数据泄露。
+我们将合并重复的钩子，并修正导致测试失败的竞态条件。
 
 ~~~~~act
 patch_file
 tests/ui.integration.test.js
 ~~~~~
 ~~~~~javascript.old
-describe('UI Integration Smoke Tests', () => {
-  let mockAppState;
-  let activeUI = null;
-
-  afterEach(() => {
-    if (activeUI) {
-      activeUI.destroy();
-      activeUI = null;
-    }
-  });
-
-  beforeEach(async () => {
-    // 物理清理存储，防止跨测试的数据污染 (如 pageSize: 50 导致的 Message 201 错误)
-    localStorage.clear();
-
-    await storageManager.init();
-~~~~~
-~~~~~javascript.new
-describe('UI Integration Smoke Tests', () => {
-  let mockAppState;
-  let activeUI = null;
-
   beforeEach(() => {
     // 物理清理存储必须是同步且最优先的
     localStorage.clear();
@@ -140,10 +56,89 @@ describe('UI Integration Smoke Tests', () => {
 
   beforeEach(async () => {
     await storageManager.init();
+    // 显式重置所有可能被测试修改的全局信号，防止跨测试污染
+    viewMode.value = 'log';
+    currentPage.value = 1;
+    pageSize.value = 1000;
+    statsLimit.value = 5000;
+    selectedChannel.value = 'Local';
+    viewingServer.value = null;
+    isLockedToBottom.value = false;
+    loadingMessage.value = '';
+
+    mockAppState = {
+      'Test Server': {
+        Local: Array.from({ length: 250 }, (_, i) => ({
+          time: new Date().toISOString(),
+          content: `Message ${i + 1}`,
+          type: 'say',
+        })),
+        Party: [{ time: new Date().toISOString(), content: 'Party Message', type: 'party' }],
+      },
+    };
+    vi.clearAllMocks();
+  });
+~~~~~
+~~~~~javascript.new
+  beforeEach(async () => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    await storageManager.init();
+    // 显式重置所有可能被测试修改的全局信号，防止跨测试污染
+    viewMode.value = 'log';
+    currentPage.value = 1;
+    pageSize.value = 1000;
+    statsLimit.value = 5000;
+    selectedChannel.value = 'Local';
+    viewingServer.value = null;
+    isLockedToBottom.value = false;
+    loadingMessage.value = '';
+
+    mockAppState = {
+      'Test Server': {
+        Local: Array.from({ length: 250 }, (_, i) => ({
+          time: new Date().toISOString(),
+          content: `Message ${i + 1}`,
+          type: 'say',
+        })),
+        Party: [{ time: new Date().toISOString(), content: 'Party Message', type: 'party' }],
+      },
+    };
+  });
+
+  afterEach(() => {
+    if (activeUI) {
+      activeUI.destroy();
+      activeUI = null;
+    }
+  });
+~~~~~
+
+~~~~~act
+patch_file
+tests/ui.integration.test.js
+~~~~~
+~~~~~javascript.old
+    activeUI = await renderUI(mockAppState);
+    const statsBtn = screen.getByTitle('数据统计');
+
+    // 此时日志视图已加载完毕，进入缓存
+    expect(screen.getByRole('textbox').value).toContain('Message 1');
+    expect(loadingMessage.value).toBe('');
+~~~~~
+~~~~~javascript.new
+    activeUI = await renderUI(mockAppState);
+    const statsBtn = screen.getByTitle('数据统计');
+
+    // 此时日志视图已加载完毕，进入缓存
+    await waitFor(() => {
+      expect(screen.getByRole('textbox').value).toContain('Message 1');
+    });
+    expect(loadingMessage.value).toBe('');
 ~~~~~
 
 ### 下一步建议
 
-由于我们已经完成了代码逻辑的原子化重构并增加了严谨的物理隔离，现在运行 `npm run test` 应该会得到全绿的结果。
-
-如果仍有微小波动，建议检查 `tests/ui.integration.test.js` 中 `waitFor` 的超时设置。但在当前的优化下，缓存命中的 `refreshView` 虽然仍有 `await` 点，但已不再会因为 `loadingMessage` 被提前清理而暴露空状态。
+- **运行测试**: 执行 `npm test` 验证此修复是否解决了所有问题。
+- **全量 Lint**: 执行 `npm run check` 确保没有其他的规则冲突。
+- **重构建议**: 考虑到 `renderUI` 几乎在每个测试中都被使用，且都涉及异步加载，可以考虑在 `renderUI` 内部封装一个通用的 `await waitFor(() => expect(currentMessages.value.length).toBeGreaterThan(0))` 逻辑，从根本上解决测试中的不确定性。
