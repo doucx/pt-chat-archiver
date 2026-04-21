@@ -235,7 +235,7 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const deleteV6Backup = async () => {
     await storageManager.deleteV6Backup();
-    alert('旧版备份已删除。');
+    return true;
   };
 
   const recoverLegacyData = async (targetServer) => {
@@ -243,17 +243,18 @@ export async function createUI(dataAdapter, appCallbacks) {
       const rawState = await dataAdapter.getAllData();
       const newState = await MigrationManager.recoverAndMergeAll(rawState, targetServer);
       await appCallbacks.saveMessagesToStorage(newState);
-      alert('数据恢复合并完成！已自动清理旧版残留。');
       refreshView();
+      return true;
     } catch (err) {
       console.error('[Recovery] Failed:', err);
       alert('恢复失败，详情请查看控制台。');
+      return false;
     }
   };
 
   const clearLegacyData = async () => {
     MigrationManager.clearAllLegacyData();
-    alert('旧版残留数据已清理。');
+    return true;
   };
 
   const ioManager = createIOManager({ dataAdapter, appCallbacks, refreshView });

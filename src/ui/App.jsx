@@ -11,12 +11,13 @@ export function App({ dataAdapter, appCallbacks }) {
       const container = document.getElementById('log-archive-ui-container');
       if (container) container.style.display = 'none';
     },
-    copyCurrentPage: () => {
+    copyCurrentPage: async () => {
       const display = document.getElementById('log-archive-ui-log-display');
       if (display?.value) {
-        navigator.clipboard.writeText(display.value);
-        alert('✅ 已复制到剪贴板');
+        await navigator.clipboard.writeText(display.value);
+        return true;
       }
+      return false;
     },
   };
 
