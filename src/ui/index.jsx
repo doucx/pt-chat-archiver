@@ -1,7 +1,6 @@
 import { batch, effect, untracked } from '@preact/signals';
 import { render } from 'preact';
 import { UI_MESSAGES } from '../constants.js';
-import { MigrationManager } from '../migrations.js';
 import { storageManager } from '../storage/index.js';
 import { App } from './App.jsx';
 import { createIOManager } from './io-manager.js';
@@ -233,30 +232,6 @@ export async function createUI(dataAdapter, appCallbacks) {
     }
   };
 
-  const deleteV6Backup = async () => {
-    await storageManager.deleteV6Backup();
-    return true;
-  };
-
-  const recoverLegacyData = async (targetServer) => {
-    try {
-      const rawState = await dataAdapter.getAllData();
-      const newState = await MigrationManager.recoverAndMergeAll(rawState, targetServer);
-      await appCallbacks.saveMessagesToStorage(newState);
-      refreshView();
-      return true;
-    } catch (err) {
-      console.error('[Recovery] Failed:', err);
-      alert('恢复失败，详情请查看控制台。');
-      return false;
-    }
-  };
-
-  const clearLegacyData = async () => {
-    MigrationManager.clearAllLegacyData();
-    return true;
-  };
-
   const ioManager = createIOManager({ dataAdapter, appCallbacks, refreshView });
 
   const uiCallbacks = {
@@ -265,9 +240,6 @@ export async function createUI(dataAdapter, appCallbacks) {
     scanDuplicates: () => appCallbacks.scanAllDuplicatesAsync(dataAdapter),
     deleteMessages: appCallbacks.deleteMessages,
     clearAllData,
-    deleteV6Backup,
-    recoverLegacyData,
-    clearLegacyData,
   };
 
   // Mount Preact Tree

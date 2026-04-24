@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { UI_FEEDBACK_DURATION } from '../../constants.js';
-import { MigrationManager } from '../../migrations.js';
 import { getStorageUsageInMB, storageManager } from '../../storage/index.js';
 import { serverList } from '../store/dataStore';
 import {
@@ -22,8 +21,6 @@ import {
 export function ConfigPanel({ callbacks }) {
   const [usage, setUsage] = useState(0);
   const [msgCount, setMsgCount] = useState(0);
-  const [legacy, setLegacy] = useState({ v4: false, v5: false, v6: false });
-  const [hasBackup, setHasBackup] = useState(false);
   const [feedback, setFeedback] = useState({});
 
   const triggerFeedback = (key) => {
@@ -37,8 +34,6 @@ export function ConfigPanel({ callbacks }) {
   useEffect(() => {
     getStorageUsageInMB().then(setUsage);
     storageManager.getTotalMessageCount().then(setMsgCount);
-    setLegacy(MigrationManager.scanForLegacyData());
-    setHasBackup(storageManager.hasV6Backup());
   }, []);
 
   const handleUpdate = (key, val) => {
@@ -66,9 +61,7 @@ export function ConfigPanel({ callbacks }) {
     }
     if (!isReadOnly.value) {
       return (
-        <div
-          style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em', marginTop: '8px' }}
-        >
+        <div style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em', marginTop: '8px' }}>
           ✅ 正在记录: {activeServer.value}
           {recordedChannel.value ? `::${recordedChannel.value}` : ''}
         </div>
@@ -344,59 +337,6 @@ export function ConfigPanel({ callbacks }) {
           </div>
         </div>
       </div>
-
-      {(legacy.v4 || legacy.v5 || legacy.v6) && (
-        <div
-          class="config-group"
-          style={{
-            marginTop: '10px',
-            padding: '10px',
-            background: 'rgba(200, 150, 50, 0.1)',
-            border: '1px dashed var(--color-warning)',
-          }}
-        >
-          <div style={{ fontWeight: 'bold', color: 'var(--color-warning)', marginBottom: '4px' }}>
-            发现残留数据!
-          </div>
-          <div class="info-text-dim" style={{ marginBottom: '8px' }}>
-            检测到旧版本数据尚未合并。
-          </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              type="button"
-              class="log-archive-ui-button"
-              style={{ backgroundColor: 'var(--color-warning)', color: '#000', flexGrow: 1 }}
-              onClick={() => callbacks.recoverLegacyData(viewingServer.value)}
-            >
-              尝试合并
-            </button>
-            <button
-              type="button"
-              class="log-archive-ui-button"
-              style={{ backgroundColor: 'var(--color-danger)', color: '#fff', flexGrow: 1 }}
-              onClick={callbacks.clearLegacyData}
-            >
-              放弃并清理
-            </button>
-          </div>
-        </div>
-      )}
-
-      {hasBackup && (
-        <div class="config-group" style={{ marginTop: '10px' }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>兼容性清理</div>
-          <button
-            type="button"
-            class="log-archive-ui-button"
-            onClick={async () => (await callbacks.deleteV6Backup()) && triggerFeedback('delBackup')}
-          >
-            {feedback.delBackup ? '✅ 备份已清理' : '删除旧版 LocalStorage 备份'}
-          </button>
-          <div class="info-text-dim" style={{ marginTop: '4px', fontSize: '0.8em' }}>
-            迁移至新数据库后生成的备份文件，删除可释放浏览器 LocalStorage 空间。
-          </div>
-        </div>
-      )}
 
       <div
         class="config-group"

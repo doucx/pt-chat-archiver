@@ -57,7 +57,7 @@ const createMockAdapter = (state) => ({
     }
     return list.slice(startIndex, startIndex + limit);
   },
-  getAllData: async () => state,
+  exportFullArchive: async () => state,
 });
 
 async function renderUI(initialState) {

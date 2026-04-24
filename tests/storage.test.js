@@ -7,11 +7,11 @@ describe('Storage Module (Async Manager)', () => {
     localStorage.clear();
   });
 
-  it('应当能正确保存和读取 V6 消息数据', async () => {
+  it('应当能正确保存和读取存档数据', async () => {
     await storageManager.init(); // 必须显式初始化
     const mockData = { 'Main Server': { Local: [{ content: 'hello' }] } };
-    await storageManager.saveAllV6(mockData);
-    const loadedData = await storageManager.loadAllV6();
+    await storageManager.overwriteFullArchive(mockData);
+    const loadedData = await storageManager.exportFullArchive();
     expect(loadedData).toEqual(mockData);
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY_V6))).toEqual(mockData);
   });
@@ -46,9 +46,9 @@ describe('Storage Module (Async Manager)', () => {
 
   it('清空操作应当移除相关 key', async () => {
     await storageManager.init();
-    await storageManager.saveAllV6({ a: 1 });
+    await storageManager.overwriteFullArchive({ a: 1 });
     await storageManager.clearAllData();
-    const loadedData = await storageManager.loadAllV6();
+    const loadedData = await storageManager.exportFullArchive();
     expect(loadedData).toEqual({});
   });
 });

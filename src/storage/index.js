@@ -1,4 +1,3 @@
-import { MigrationManager } from '../migrations.js';
 import { IndexedDBAdapter } from './indexed-db-adapter.js';
 import { LocalStorageAdapter } from './local-storage.adapter.js';
 
@@ -26,16 +25,6 @@ class StorageManager {
     if (useIndexedDB) {
       const targetAdapter = new IndexedDBAdapter();
       await targetAdapter.init();
-
-      // --- 迁移逻辑集成 ---
-      // 在正式切换到 IndexedDB 之前，检查是否需要迁移
-      // 我们创建一个临时的 LocalStorageAdapter 来读取旧数据
-      const sourceAdapter = new LocalStorageAdapter();
-      // LocalStorageAdapter 不需要 await init() 因为它是同步模拟的，但为了接口一致性...
-      await sourceAdapter.init();
-
-      await MigrationManager.runSilentMigrations(sourceAdapter, targetAdapter);
-
       this.adapter = targetAdapter;
     } else {
       this.adapter = new LocalStorageAdapter();
@@ -95,16 +84,16 @@ class StorageManager {
     return Promise.resolve();
   }
 
-  loadAllV6() {
-    return this.adapter.loadAllV6();
+  exportFullArchive() {
+    return this.adapter.exportFullArchive();
   }
 
-  saveAllV6(state) {
-    return this.adapter.saveAllV6(state);
+  overwriteFullArchive(state) {
+    return this.adapter.overwriteFullArchive(state);
   }
 
-  mergeAllV6(state) {
-    return this.adapter.mergeAllV6(state);
+  mergeFullArchive(state) {
+    return this.adapter.mergeFullArchive(state);
   }
 
   getConfig() {
@@ -144,33 +133,6 @@ class StorageManager {
       return this.adapter.getTotalMessageCount();
     }
     return Promise.resolve(0);
-  }
-
-  hasV6Backup() {
-    // 只有 LocalStorageAdapter 有此方法，这里需要判断
-    const ls = new LocalStorageAdapter();
-    return ls.hasV6Backup();
-  }
-
-  deleteV6Backup() {
-    const ls = new LocalStorageAdapter();
-    return ls.deleteV6Backup();
-  }
-
-  loadAllV4() {
-    return this.adapter.loadAllV4();
-  }
-
-  removeV4Data() {
-    return this.adapter.removeV4Data();
-  }
-
-  loadAllV5() {
-    return this.adapter.loadAllV5();
-  }
-
-  removeV5Data() {
-    return this.adapter.removeV5Data();
   }
 }
 

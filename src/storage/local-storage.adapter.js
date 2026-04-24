@@ -1,10 +1,4 @@
-import {
-  CONFIG_KEY,
-  OLD_STORAGE_KEY_V4,
-  SELF_NAME_KEY,
-  STORAGE_KEY_V5,
-  STORAGE_KEY_V6,
-} from '../constants.js';
+import { CONFIG_KEY, SELF_NAME_KEY, STORAGE_KEY_V6 } from '../constants.js';
 
 /**
  * An adapter that implements the IStorageAdapter interface for localStorage.
@@ -16,21 +10,21 @@ export class LocalStorageAdapter {
     return Promise.resolve();
   }
 
-  loadAllV6() {
+  exportFullArchive() {
     try {
       const data = localStorage.getItem(STORAGE_KEY_V6);
       return Promise.resolve(data ? JSON.parse(data) : {});
     } catch (e) {
-      console.error('[Storage] Failed to parse V6 archive:', e);
+      console.error('[Storage] Failed to parse archive from LocalStorage:', e);
       return Promise.resolve({});
     }
   }
 
-  saveAllV6(state) {
+  overwriteFullArchive(state) {
     try {
       localStorage.setItem(STORAGE_KEY_V6, JSON.stringify(state));
     } catch (e) {
-      console.error('[Storage] Failed to save V6 archive:', e);
+      console.error('[Storage] Failed to save archive to LocalStorage:', e);
     }
     return Promise.resolve();
   }
@@ -70,45 +64,12 @@ export class LocalStorageAdapter {
 
   clearAllData() {
     localStorage.removeItem(STORAGE_KEY_V6);
-    localStorage.removeItem(STORAGE_KEY_V5);
     return Promise.resolve();
   }
 
   getRawSize() {
     const dataV6 = localStorage.getItem(STORAGE_KEY_V6) || '';
-    const dataV5 = localStorage.getItem(STORAGE_KEY_V5) || '';
-    const size = new Blob([dataV6]).size + new Blob([dataV5]).size;
+    const size = new Blob([dataV6]).size;
     return Promise.resolve(size);
-  }
-
-  // --- Legacy Migration Support ---
-
-  loadAllV4() {
-    const data = localStorage.getItem(OLD_STORAGE_KEY_V4);
-    return Promise.resolve(data ? JSON.parse(data) : null);
-  }
-
-  removeV4Data() {
-    localStorage.removeItem(OLD_STORAGE_KEY_V4);
-    return Promise.resolve();
-  }
-
-  loadAllV5() {
-    const data = localStorage.getItem(STORAGE_KEY_V5);
-    return Promise.resolve(data ? JSON.parse(data) : null);
-  }
-
-  removeV5Data() {
-    localStorage.removeItem(STORAGE_KEY_V5);
-    return Promise.resolve();
-  }
-
-  hasV6Backup() {
-    return localStorage.getItem(`${STORAGE_KEY_V6}_backup`) !== null;
-  }
-
-  deleteV6Backup() {
-    localStorage.removeItem(`${STORAGE_KEY_V6}_backup`);
-    return Promise.resolve();
   }
 }
