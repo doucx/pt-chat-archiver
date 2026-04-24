@@ -134,7 +134,6 @@ class StorageManager {
     }
     return Promise.resolve(0);
   }
-
 }
 
 // Export a singleton instance
