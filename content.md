@@ -4,6 +4,7 @@
 
 ### 📝 变更文件摘要:
 ```
-src/storage/index.js | 1 -
- 1 file changed, 1 deletion(-)
+CHANGELOG.md | 4 ++++
+ package.json | 2 +-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
 ```
