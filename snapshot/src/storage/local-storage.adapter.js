@@ -1,8 +1,4 @@
-import {
-  CONFIG_KEY,
-  SELF_NAME_KEY,
-  STORAGE_KEY_V6,
-} from '../constants.js';
+import { CONFIG_KEY, SELF_NAME_KEY, STORAGE_KEY_V6 } from '../constants.js';
 
 /**
  * An adapter that implements the IStorageAdapter interface for localStorage.
