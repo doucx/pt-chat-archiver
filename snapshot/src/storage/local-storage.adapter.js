@@ -76,39 +76,7 @@ export class LocalStorageAdapter {
 
   getRawSize() {
     const dataV6 = localStorage.getItem(STORAGE_KEY_V6) || '';
-    const dataV5 = localStorage.getItem(STORAGE_KEY_V5) || '';
-    const size = new Blob([dataV6]).size + new Blob([dataV5]).size;
+    const size = new Blob([dataV6]).size;
     return Promise.resolve(size);
-  }
-
-  // --- Legacy Migration Support ---
-
-  loadAllV4() {
-    const data = localStorage.getItem(OLD_STORAGE_KEY_V4);
-    return Promise.resolve(data ? JSON.parse(data) : null);
-  }
-
-  removeV4Data() {
-    localStorage.removeItem(OLD_STORAGE_KEY_V4);
-    return Promise.resolve();
-  }
-
-  loadAllV5() {
-    const data = localStorage.getItem(STORAGE_KEY_V5);
-    return Promise.resolve(data ? JSON.parse(data) : null);
-  }
-
-  removeV5Data() {
-    localStorage.removeItem(STORAGE_KEY_V5);
-    return Promise.resolve();
-  }
-
-  hasV6Backup() {
-    return localStorage.getItem(`${STORAGE_KEY_V6}_backup`) !== null;
-  }
-
-  deleteV6Backup() {
-    localStorage.removeItem(`${STORAGE_KEY_V6}_backup`);
-    return Promise.resolve();
   }
 }

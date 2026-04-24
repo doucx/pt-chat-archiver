@@ -503,18 +503,4 @@ export class IndexedDBAdapter {
       return 0;
     }
   }
-
-  // --- Legacy Support ---
-  loadAllV4() {
-    return Promise.resolve(null);
-  }
-  removeV4Data() {
-    return Promise.resolve();
-  }
-  loadAllV5() {
-    return Promise.resolve(null);
-  }
-  removeV5Data() {
-    return Promise.resolve();
-  }
 }

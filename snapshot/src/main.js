@@ -2,7 +2,6 @@ import './ui/style.css';
 import { scanAllDuplicatesAsync } from './analysis.js';
 import { SELF_NAME_KEY } from './constants.js';
 import { EngineStates, engineMachine } from './machine.js';
-import { MigrationManager } from './migrations.js';
 import { ChatMonitor } from './monitor.js';
 import {
   extractServerFromDOM,
@@ -167,17 +166,6 @@ import { debounce, getISOTimestamp } from './utils.js';
             chatMonitor ? chatMonitor.currentActiveChannel : null,
           );
         }
-
-        // 检查并触发交互式迁移 (如 v5 -> v6)
-        const currentState = await storageManager.loadAllV6();
-        await MigrationManager.checkAndTriggerInteractiveMigrations(
-          storageManager,
-          server,
-          currentState,
-          (newState) => {
-            if (uiControls.setState) uiControls.setState(newState);
-          },
-        );
       }
     };
 
