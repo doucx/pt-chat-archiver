@@ -61,9 +61,7 @@ export function ConfigPanel({ callbacks }) {
     }
     if (!isReadOnly.value) {
       return (
-        <div
-          style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em', marginTop: '8px' }}
-        >
+        <div style={{ color: 'var(--color-primary-hover)', fontSize: '0.85em', marginTop: '8px' }}>
           ✅ 正在记录: {activeServer.value}
           {recordedChannel.value ? `::${recordedChannel.value}` : ''}
         </div>
