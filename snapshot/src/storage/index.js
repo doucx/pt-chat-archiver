@@ -135,13 +135,6 @@ class StorageManager {
     return Promise.resolve(0);
   }
 
-  removeV4Data() {
-    return Promise.resolve();
-  }
-
-  removeV5Data() {
-    return Promise.resolve();
-  }
 }
 
 // Export a singleton instance

@@ -64,7 +64,6 @@ export class LocalStorageAdapter {
 
   clearAllData() {
     localStorage.removeItem(STORAGE_KEY_V6);
-    localStorage.removeItem(STORAGE_KEY_V5);
     return Promise.resolve();
   }
 
