@@ -29,10 +29,10 @@ const createMockAdapter = (state) => ({
     }
     return list.slice(startIndex, startIndex + limit);
   },
-  getAllData: async () => state,
+  exportFullArchive: async () => state,
 });
 
-describe('UI Clean Duplicates Regression (V6)', () => {
+describe('UI Clean Duplicates Regression', () => {
   let mockAppState;
   let mockCallbacks;
   let activeUI = null;

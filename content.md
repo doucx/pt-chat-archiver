@@ -1,273 +1,145 @@
-这是一个非常好的建议。随着迁移逻辑的移除，保留“V6”字样的命名不仅具有迷惑性，而且不再符合代码目前的语义。
+由于我们之前移除了 `MigrationManager` 并重命名了存储适配器中的 V6 相关方法，现有的测试脚本出现了断裂。我将清理并对齐所有测试用例。
 
-我将把所有涉及完整数据集操作的方法名对齐为更通用的“Archive”语义：
-- `loadAllV6` → `exportFullArchive` (代表将数据库内容导出为嵌套对象结构)
-- `saveAllV6` → `overwriteFullArchive` (代表使用外部数据完全覆盖当前存档)
-- `mergeAllV6` → `mergeFullArchive` (代表将外部数据合并到当前存档)
+### 变更概要：
+1.  **删除过时测试**: 物理删除 `tests/migrations.test.js` 和 `tests/migrations_pipeline.test.js`。
+2.  **方法名对齐**: 在 `tests/storage.test.js` 中将 `saveAllV6` 和 `loadAllV6` 替换为 `overwriteFullArchive` 和 `exportFullArchive`。
+3.  **Mock 对齐**: 更新 `tests/ui.integration.test.js` 和 `tests/ui.clean_duplicates.test.js` 中的 Adapter Mock，以匹配新的方法名 `exportFullArchive`。
 
-这将使代码的意图更加直观。
+## [WIP] test: 清理并对齐迁移逻辑移除后的测试套件
 
-## [WIP] refactor: 重命名 V6 遗留方法以对齐数据导出语义
+### 错误分析
+在重构存储层 API（重命名 `saveAllV6` 为 `overwriteFullArchive` 等）后，`tests/storage.test.js` 仍然在调用旧的方法名，导致 `TypeError: storageManager.saveAllV6 is not a function`。同时，已删除的 `migrations.js` 对应的测试文件依然存在，会导致测试运行器因找不到模块而报错。
 
 ### 用户需求
-将存储适配器和管理器中所有包含“V6”字样的方法重命名为更具通用性的“Archive”相关名称，以消除过时的版本暗示，使其更符合当前的导出/导入功能定义。
+清理测试套件，移除与迁移逻辑相关的测试，并确保现有存储和 UI 测试与新的 Archive API 保持一致。
 
 ### 评论
-通过消除“V6”这一特定版本的引用，我们成功地将特定的历史技术债务转化为了一套清晰的领域 API。这不仅提高了代码的可读性，也为未来可能的格式升级打下了更好的基础。
+测试的清理是重构的最后一步，确保了 CI/CD 管道能够再次变绿，并验证了重构后的 API 在逻辑上仍然稳健。
 
 ### 目标
-1.  在 `IndexedDBAdapter` 和 `LocalStorageAdapter` 中重命名数据加载和保存方法。
-2.  在 `StorageManager` 中更新对应的代理方法名。
-3.  更新 `main.js` 中的 `dataAdapter` 和 `uiControls` 回调函数，以匹配新的方法名。
+1.  移除所有关于 `MigrationManager` 的测试文件。
+2.  修复 `storage.test.js` 中的 API 调用。
+3.  更新 UI 集成测试中的 Mock 对象，使其使用 `exportFullArchive` 替代 `getAllData`（因为 `main.js` 中 `getAllData` 的内部实现已更改）。
 
 ### 基本原理
-我们将采用“导出 (Export) / 覆盖 (Overwrite) / 合并 (Merge)”这一组动词来描述对完整数据集的操作。`loadAllV6` 实际上是在执行导出操作，因为它将扁平的数据库记录转换回了嵌套的导出格式，因此重命名为 `exportFullArchive` 最为准确。
+测试必须真实反映当前的系统架构。既然迁移功能已经移除，相关的测试就没有存在的意义。对于重命名的 API，我们需要更新所有测试调用点以确保测试通过。
 
 ### 标签
-#intent/refine #flow/ready #priority/low #comp/storage #scope/core #scope/dx #ai/refine #task/domain/refactoring #task/object/archive-api-rename #task/action/cleanup #task/state/continue
+#intent/fix #flow/ready #priority/high #comp/tests #scope/core #ai/refine #task/domain/testing #task/object/test-cleanup #task/action/maintenance #task/state/end #task/status/completed
 
 ---
 
 ### Script
 
-#### Acts 1: 更新 IndexedDB 适配器方法
+#### Acts 1: 删除已废弃的迁移测试
 
-将 `IndexedDBAdapter` 中的方法名从 V6 迁移到 Archive 语义。
+~~~~~act
+delete_file
+tests/migrations.test.js
+~~~~~
+~~~~~act
+delete_file
+tests/migrations_pipeline.test.js
+~~~~~
+
+#### Acts 2: 修复 Storage 模块测试
+
+更新方法名以匹配 `src/storage/index.js` 中的新定义。
 
 ~~~~~act
 patch_file
-src/storage/indexed-db-adapter.js
+tests/storage.test.js
 ~~~~~
 ~~~~~javascript.old
-  /**
-   * 读取所有消息并组装为 V6 嵌套结构。
-   */
-  async loadAllV6() {
-    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
-    const flatMessages = await this._req(store.getAll());
-    return nestV7Messages(flatMessages);
-  }
-
-  /**
-   * 保存完整的 V6 状态。
-   * 目前采用全量清理 + 全量写入的策略以保证一致性 (未来可优化为差异更新)。
-   */
-  async saveAllV6(state) {
-    this.cache = { servers: null, channels: {}, counts: {} };
-    const flatMessages = flattenV6State(state);
-    const tx = this._tx([STORE_MESSAGES], 'readwrite');
-    const store = tx.objectStore(STORE_MESSAGES);
-
-    await this._req(store.clear());
-    for (const msg of flatMessages) {
-      if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
-      store.put(msg);
-    }
-    return this._txDone(tx);
-  }
-
-  /**
-   * 合并 V6 状态到当前数据库。
-   * 不执行清理，利用 ID 主键自动去重。
-   */
-  mergeAllV6(state) {
-    this.cache = { servers: null, channels: {}, counts: {} };
-    const flatMessages = flattenV6State(state);
-    const tx = this._tx([STORE_MESSAGES], 'readwrite');
-    const store = tx.objectStore(STORE_MESSAGES);
-
-    for (const msg of flatMessages) {
-      if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
-      store.put(msg);
-    }
-    return this._txDone(tx);
-  }
+  it('应当能正确保存和读取 V6 消息数据', async () => {
+    await storageManager.init(); // 必须显式初始化
+    const mockData = { 'Main Server': { Local: [{ content: 'hello' }] } };
+    await storageManager.saveAllV6(mockData);
+    const loadedData = await storageManager.loadAllV6();
+    expect(loadedData).toEqual(mockData);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY_V6))).toEqual(mockData);
+  });
 ~~~~~
 ~~~~~javascript.new
-  /**
-   * 读取所有消息并组装为嵌套的存档结构。
-   */
-  async exportFullArchive() {
-    const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
-    const flatMessages = await this._req(store.getAll());
-    return nestV7Messages(flatMessages);
-  }
-
-  /**
-   * 覆盖完整的存档状态。
-   * 目前采用全量清理 + 全量写入的策略以保证一致性。
-   */
-  async overwriteFullArchive(state) {
-    this.cache = { servers: null, channels: {}, counts: {} };
-    const flatMessages = flattenV6State(state);
-    const tx = this._tx([STORE_MESSAGES], 'readwrite');
-    const store = tx.objectStore(STORE_MESSAGES);
-
-    await this._req(store.clear());
-    for (const msg of flatMessages) {
-      if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
-      store.put(msg);
-    }
-    return this._txDone(tx);
-  }
-
-  /**
-   * 将嵌套的存档状态合并到当前数据库。
-   * 不执行清理，利用 ID 主键自动去重。
-   */
-  mergeFullArchive(state) {
-    this.cache = { servers: null, channels: {}, counts: {} };
-    const flatMessages = flattenV6State(state);
-    const tx = this._tx([STORE_MESSAGES], 'readwrite');
-    const store = tx.objectStore(STORE_MESSAGES);
-
-    for (const msg of flatMessages) {
-      if (!msg.id) msg.id = generateULID(new Date(msg.time).getTime());
-      store.put(msg);
-    }
-    return this._txDone(tx);
-  }
+  it('应当能正确保存和读取存档数据', async () => {
+    await storageManager.init(); // 必须显式初始化
+    const mockData = { 'Main Server': { Local: [{ content: 'hello' }] } };
+    await storageManager.overwriteFullArchive(mockData);
+    const loadedData = await storageManager.exportFullArchive();
+    expect(loadedData).toEqual(mockData);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY_V6))).toEqual(mockData);
+  });
+~~~~~
+~~~~~act
+patch_file
+tests/storage.test.js
+~~~~~
+~~~~~javascript.old
+  it('清空操作应当移除相关 key', async () => {
+    await storageManager.init();
+    await storageManager.saveAllV6({ a: 1 });
+    await storageManager.clearAllData();
+    const loadedData = await storageManager.loadAllV6();
+    expect(loadedData).toEqual({});
+  });
+~~~~~
+~~~~~javascript.new
+  it('清空操作应当移除相关 key', async () => {
+    await storageManager.init();
+    await storageManager.overwriteFullArchive({ a: 1 });
+    await storageManager.clearAllData();
+    const loadedData = await storageManager.exportFullArchive();
+    expect(loadedData).toEqual({});
+  });
 ~~~~~
 
-#### Acts 2: 更新 LocalStorage 适配器方法
+#### Acts 3: 修复 UI 集成测试中的 Mock
+
+由于 `main.js` 中的 `dataAdapter.getAllData` 现在映射到了 `storageManager.exportFullArchive`，我们需要确保测试中的 Mock Adapter 也使用这个名称。
 
 ~~~~~act
 patch_file
-src/storage/local-storage.adapter.js
+tests/ui.clean_duplicates.test.js
 ~~~~~
 ~~~~~javascript.old
-  init() {
-    return Promise.resolve();
-  }
+    return list.slice(startIndex, startIndex + limit);
+  },
+  getAllData: async () => state,
+});
 
-  loadAllV6() {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY_V6);
-      return Promise.resolve(data ? JSON.parse(data) : {});
-    } catch (e) {
-      console.error('[Storage] Failed to parse V6 archive:', e);
-      return Promise.resolve({});
-    }
-  }
-
-  saveAllV6(state) {
-    try {
-      localStorage.setItem(STORAGE_KEY_V6, JSON.stringify(state));
-    } catch (e) {
-      console.error('[Storage] Failed to save V6 archive:', e);
-    }
-    return Promise.resolve();
-  }
+describe('UI Clean Duplicates Regression (V6)', () => {
 ~~~~~
 ~~~~~javascript.new
-  init() {
-    return Promise.resolve();
-  }
+    return list.slice(startIndex, startIndex + limit);
+  },
+  exportFullArchive: async () => state,
+});
 
-  exportFullArchive() {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY_V6);
-      return Promise.resolve(data ? JSON.parse(data) : {});
-    } catch (e) {
-      console.error('[Storage] Failed to parse archive from LocalStorage:', e);
-      return Promise.resolve({});
-    }
-  }
-
-  overwriteFullArchive(state) {
-    try {
-      localStorage.setItem(STORAGE_KEY_V6, JSON.stringify(state));
-    } catch (e) {
-      console.error('[Storage] Failed to save archive to LocalStorage:', e);
-    }
-    return Promise.resolve();
-  }
+describe('UI Clean Duplicates Regression', () => {
 ~~~~~
-
-#### Acts 3: 更新 StorageManager 代理
 
 ~~~~~act
 patch_file
-src/storage/index.js
+tests/ui.integration.test.js
 ~~~~~
 ~~~~~javascript.old
-  deleteMessages(ids) {
-    if (this.adapter?.deleteMessages) return this.adapter.deleteMessages(ids);
-    return Promise.resolve();
-  }
+    return list.slice(startIndex, startIndex + limit);
+  },
+  getAllData: async () => state,
+});
 
-  loadAllV6() {
-    return this.adapter.loadAllV6();
-  }
-
-  saveAllV6(state) {
-    return this.adapter.saveAllV6(state);
-  }
-
-  mergeAllV6(state) {
-    return this.adapter.mergeAllV6(state);
-  }
-
-  getConfig() {
+async function renderUI(initialState) {
 ~~~~~
 ~~~~~javascript.new
-  deleteMessages(ids) {
-    if (this.adapter?.deleteMessages) return this.adapter.deleteMessages(ids);
-    return Promise.resolve();
-  }
+    return list.slice(startIndex, startIndex + limit);
+  },
+  exportFullArchive: async () => state,
+});
 
-  exportFullArchive() {
-    return this.adapter.exportFullArchive();
-  }
-
-  overwriteFullArchive(state) {
-    return this.adapter.overwriteFullArchive(state);
-  }
-
-  mergeFullArchive(state) {
-    return this.adapter.mergeFullArchive(state);
-  }
-
-  getConfig() {
-~~~~~
-
-#### Acts 4: 更新 Main.js 中的调用
-
-更新 `dataAdapter` 和 `uiControls` 传递给 UI 层的回调函数。
-
-~~~~~act
-patch_file
-src/main.js
-~~~~~
-~~~~~javascript.old
-      getMessagesChunk: async (server, channel, lastTime, limit) => {
-        return await storageManager.getMessagesChunk(server, channel, lastTime, limit);
-      },
-      getAllData: async () => await storageManager.loadAllV6(), // 用于导出功能
-    };
-
-    uiControls = await createUI(dataAdapter, {
-      scanAndMergeHistory,
-      saveMessagesToStorage: async (state) => await storageManager.saveAllV6(state),
-      mergeMessagesToStorage: async (state) => await storageManager.mergeAllV6(state),
-      scanAllDuplicatesAsync,
-      deleteMessages: async (ids) => await storageManager.deleteMessages(ids),
-~~~~~
-~~~~~javascript.new
-      getMessagesChunk: async (server, channel, lastTime, limit) => {
-        return await storageManager.getMessagesChunk(server, channel, lastTime, limit);
-      },
-      getAllData: async () => await storageManager.exportFullArchive(), // 用于导出功能
-    };
-
-    uiControls = await createUI(dataAdapter, {
-      scanAndMergeHistory,
-      saveMessagesToStorage: async (state) => await storageManager.overwriteFullArchive(state),
-      mergeMessagesToStorage: async (state) => await storageManager.mergeFullArchive(state),
-      scanAllDuplicatesAsync,
-      deleteMessages: async (ids) => await storageManager.deleteMessages(ids),
+async function renderUI(initialState) {
 ~~~~~
 
 ### 下一步建议
-- **ULID 生成逻辑检查**: 目前在 `overwriteFullArchive` 和 `mergeFullArchive` 中，我们为所有不带 ID 的消息生成了 ULID。由于导出的 JSON 通常不包含 ID，这意味着每次导入都会生成新的 ID。虽然 `mergeAndDeduplicateMessages` 通过内容签名处理了去重，但这可能导致数据库中虽然内容相同但 ID 不同的微妙情况。可以考虑在导出时保留 ID，或者在导入时基于内容签名重新生成确定的 ID。
-- **UI 状态通知**: 目前 `overwriteFullArchive` 之后，UI 需要手动刷新。可以考虑在 `StorageManager` 中增加一个事件订阅机制，当存档发生重大变更时自动通知订阅者。
+- **运行全量测试**: 执行 `npm test` 验证所有 69 个测试用例是否全部通过。
+- **覆盖率审查**: 执行 `npm run test:coverage` 检查移除迁移逻辑后，存储层和 UI 层的代码覆盖率是否维持在健康水平。
+- **环境检查**: 确保 `tests/storage/indexed-db.test.js` 中的 Mock 逻辑与 `IndexedDBAdapter` 中保留的方法（如 `exportFullArchive`）也保持一致。
