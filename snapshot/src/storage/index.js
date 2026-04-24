@@ -84,16 +84,16 @@ class StorageManager {
     return Promise.resolve();
   }
 
-  loadAllV6() {
-    return this.adapter.loadAllV6();
+  exportFullArchive() {
+    return this.adapter.exportFullArchive();
   }
 
-  saveAllV6(state) {
-    return this.adapter.saveAllV6(state);
+  overwriteFullArchive(state) {
+    return this.adapter.overwriteFullArchive(state);
   }
 
-  mergeAllV6(state) {
-    return this.adapter.mergeAllV6(state);
+  mergeFullArchive(state) {
+    return this.adapter.mergeFullArchive(state);
   }
 
   getConfig() {

@@ -192,13 +192,13 @@ import { debounce, getISOTimestamp } from './utils.js';
       getMessagesChunk: async (server, channel, lastTime, limit) => {
         return await storageManager.getMessagesChunk(server, channel, lastTime, limit);
       },
-      getAllData: async () => await storageManager.loadAllV6(), // 用于导出功能
+      getAllData: async () => await storageManager.exportFullArchive(), // 用于导出功能
     };
 
     uiControls = await createUI(dataAdapter, {
       scanAndMergeHistory,
-      saveMessagesToStorage: async (state) => await storageManager.saveAllV6(state),
-      mergeMessagesToStorage: async (state) => await storageManager.mergeAllV6(state),
+      saveMessagesToStorage: async (state) => await storageManager.overwriteFullArchive(state),
+      mergeMessagesToStorage: async (state) => await storageManager.mergeFullArchive(state),
       scanAllDuplicatesAsync,
       deleteMessages: async (ids) => await storageManager.deleteMessages(ids),
       deactivateLogger,

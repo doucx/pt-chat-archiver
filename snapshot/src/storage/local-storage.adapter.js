@@ -16,21 +16,21 @@ export class LocalStorageAdapter {
     return Promise.resolve();
   }
 
-  loadAllV6() {
+  exportFullArchive() {
     try {
       const data = localStorage.getItem(STORAGE_KEY_V6);
       return Promise.resolve(data ? JSON.parse(data) : {});
     } catch (e) {
-      console.error('[Storage] Failed to parse V6 archive:', e);
+      console.error('[Storage] Failed to parse archive from LocalStorage:', e);
       return Promise.resolve({});
     }
   }
 
-  saveAllV6(state) {
+  overwriteFullArchive(state) {
     try {
       localStorage.setItem(STORAGE_KEY_V6, JSON.stringify(state));
     } catch (e) {
-      console.error('[Storage] Failed to save V6 archive:', e);
+      console.error('[Storage] Failed to save archive to LocalStorage:', e);
     }
     return Promise.resolve();
   }

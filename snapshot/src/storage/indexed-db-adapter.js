@@ -360,19 +360,19 @@ export class IndexedDBAdapter {
   }
 
   /**
-   * 读取所有消息并组装为 V6 嵌套结构。
+   * 读取所有消息并组装为嵌套的存档结构。
    */
-  async loadAllV6() {
+  async exportFullArchive() {
     const store = this._tx([STORE_MESSAGES], 'readonly').objectStore(STORE_MESSAGES);
     const flatMessages = await this._req(store.getAll());
     return nestV7Messages(flatMessages);
   }
 
   /**
-   * 保存完整的 V6 状态。
-   * 目前采用全量清理 + 全量写入的策略以保证一致性 (未来可优化为差异更新)。
+   * 覆盖完整的存档状态。
+   * 目前采用全量清理 + 全量写入的策略以保证一致性。
    */
-  async saveAllV6(state) {
+  async overwriteFullArchive(state) {
     this.cache = { servers: null, channels: {}, counts: {} };
     const flatMessages = flattenV6State(state);
     const tx = this._tx([STORE_MESSAGES], 'readwrite');
@@ -387,10 +387,10 @@ export class IndexedDBAdapter {
   }
 
   /**
-   * 合并 V6 状态到当前数据库。
+   * 将嵌套的存档状态合并到当前数据库。
    * 不执行清理，利用 ID 主键自动去重。
    */
-  mergeAllV6(state) {
+  mergeFullArchive(state) {
     this.cache = { servers: null, channels: {}, counts: {} };
     const flatMessages = flattenV6State(state);
     const tx = this._tx([STORE_MESSAGES], 'readwrite');
