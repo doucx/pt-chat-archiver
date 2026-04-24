@@ -135,20 +135,12 @@ class StorageManager {
     return Promise.resolve(0);
   }
 
-  loadAllV4() {
-    return this.adapter.loadAllV4();
-  }
-
   removeV4Data() {
-    return this.adapter.removeV4Data();
-  }
-
-  loadAllV5() {
-    return this.adapter.loadAllV5();
+    return Promise.resolve();
   }
 
   removeV5Data() {
-    return this.adapter.removeV5Data();
+    return Promise.resolve();
   }
 }
 

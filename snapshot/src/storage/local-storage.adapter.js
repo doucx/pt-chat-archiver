@@ -1,8 +1,6 @@
 import {
   CONFIG_KEY,
-  OLD_STORAGE_KEY_V4,
   SELF_NAME_KEY,
-  STORAGE_KEY_V5,
   STORAGE_KEY_V6,
 } from '../constants.js';
 
