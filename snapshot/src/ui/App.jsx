@@ -8,8 +8,7 @@ export function App({ dataAdapter, appCallbacks }) {
   // 定义桥接到 UI 外部的回调
   const callbacks = {
     closeUI: () => {
-      const container = document.getElementById('log-archive-ui-container');
-      if (container) container.style.display = 'none';
+      appCallbacks.closeUI();
     },
     copyCurrentPage: async () => {
       const display = document.getElementById('log-archive-ui-log-display');

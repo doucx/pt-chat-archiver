@@ -26,6 +26,7 @@ export const cachePages = signal(5);
 export const autoFollowServer = signal(true);
 export const selfName = signal('');
 export const loadingMessage = signal('');
+export const isUIVisible = signal(false);
 
 // --- 派生状态 (Computed) ---
 export const isReadOnly = computed(() => {
