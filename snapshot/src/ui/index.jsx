@@ -17,6 +17,7 @@ import {
   initStore,
   isLockedToBottom,
   isUIPaused,
+  isUIVisible,
   loadingMessage,
   pageSize,
   selectedChannel,

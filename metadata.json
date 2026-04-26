@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] fix: 修复界面重新打开后新消息不显示的反应性失效问题", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1777167317.3262904, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix: 补全 index.jsx 中缺失的 isUIVisible 信号导入", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1777167365.8655183, "duration_ms": 0}}
