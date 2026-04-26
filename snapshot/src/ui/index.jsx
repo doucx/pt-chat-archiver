@@ -13,6 +13,7 @@ import {
 } from './store/dataStore.js';
 import {
   currentPage,
+  defaultToLastPage,
   initDebounceMs,
   initStore,
   isLockedToBottom,
@@ -46,6 +47,7 @@ export async function createUI(dataAdapter, appCallbacks) {
   document.body.appendChild(toggleButton);
 
   let currentRenderId = 0;
+  let hasPerformedInitialJump = false;
 
   const preloadAdjacentPages = async (page, total, server, channel, size) => {
     const targets = [page - 1, page + 1].filter((p) => p >= 1 && p <= total && !viewCache.has(p));
@@ -112,6 +114,19 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     let messages = [];
     let totalCount = finalSelectedChannel ? channelCounts[finalSelectedChannel] || 0 : 0;
+
+    // 处理首次打开时的自动跳转逻辑
+    if (!hasPerformedInitialJump && defaultToLastPage.value && totalCount > 0) {
+      const initialTotalPages = Math.ceil(totalCount / statePageSize) || 1;
+      batch(() => {
+        currentPage.value = initialTotalPages;
+        isLockedToBottom.value = true;
+      });
+      hasPerformedInitialJump = true;
+      // 重新捕获跳转后的状态 snapshot
+      stateCurrentPage = initialTotalPages;
+      stateIsLockedToBottom = true;
+    }
 
     viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
     viewCache.setTotalCount(totalCount);
