@@ -1,1 +1,1 @@
-{"meta_version": "1.0", "summary": "[WIP] feat: 增加首次打开 UI 自动跳转到末尾的功能及配置项", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1777167582.3502238, "duration_ms": 0}}
+{"meta_version": "1.0", "summary": "[WIP] fix: 修正 index.jsx 中的变量声明错误以通过生产环境构建", "type": "plan", "generator": {"id": "manual", "tool": "pyquipu-cli"}, "env": {"quipu": "0.1.0", "python": "3.13.5", "os": "linux"}, "exec": {"start": 1777167682.2641256, "duration_ms": 0}}

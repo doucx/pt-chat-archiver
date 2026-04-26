@@ -67,10 +67,10 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     // Capture state snapshots
     const stateViewingServer = viewingServer.value;
-    const stateCurrentPage = currentPage.value;
+    let stateCurrentPage = currentPage.value;
     const statePageSize = pageSize.value;
     const stateViewMode = viewMode.value;
-    const stateIsLockedToBottom = isLockedToBottom.value;
+    let stateIsLockedToBottom = isLockedToBottom.value;
     const stateSelectedChannel = selectedChannel.value;
 
     const serverList = await dataAdapter.getServers();
