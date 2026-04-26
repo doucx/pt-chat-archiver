@@ -6,6 +6,7 @@ import {
   activeServer,
   autoFollowServer,
   cachePages,
+  defaultToLastPage,
   initDebounceMs,
   isReadOnly,
   lastServer,
@@ -16,7 +17,6 @@ import {
   statsLimit,
   updateConfig,
   viewingServer,
-  defaultToLastPage,
 } from '../store/uiStore';
 
 export function ConfigPanel({ callbacks }) {
