@@ -6,6 +6,7 @@ import {
   activeServer,
   autoFollowServer,
   cachePages,
+  defaultToLastPage,
   initDebounceMs,
   isReadOnly,
   lastServer,
@@ -169,6 +170,26 @@ export function ConfigPanel({ callbacks }) {
             }}
           >
             跟随游戏服务器切换
+          </label>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+          <input
+            id="config-default-to-last"
+            type="checkbox"
+            checked={defaultToLastPage.value}
+            onChange={(e) => handleUpdate('defaultToLastPage', e.target.checked)}
+            style={{ width: 'auto', margin: 0 }}
+          />
+          <label
+            htmlFor="config-default-to-last"
+            style={{
+              fontWeight: 'normal',
+              color: 'var(--color-text-dim)',
+              fontSize: '0.85em',
+              cursor: 'pointer',
+            }}
+          >
+            首次打开 UI 时跳转到末尾
           </label>
         </div>
       </div>

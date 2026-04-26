@@ -13,10 +13,12 @@ import {
 } from './store/dataStore.js';
 import {
   currentPage,
+  defaultToLastPage,
   initDebounceMs,
   initStore,
   isLockedToBottom,
   isUIPaused,
+  isUIVisible,
   loadingMessage,
   pageSize,
   selectedChannel,
@@ -45,6 +47,7 @@ export async function createUI(dataAdapter, appCallbacks) {
   document.body.appendChild(toggleButton);
 
   let currentRenderId = 0;
+  let hasPerformedInitialJump = false;
 
   const preloadAdjacentPages = async (page, total, server, channel, size) => {
     const targets = [page - 1, page + 1].filter((p) => p >= 1 && p <= total && !viewCache.has(p));
@@ -59,14 +62,15 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   // The core reactive cycle bridging the dataAdapter and Preact Signals
   const refreshView = async () => {
+    if (!isUIVisible.value) return;
     const renderId = ++currentRenderId;
 
     // Capture state snapshots
     const stateViewingServer = viewingServer.value;
-    const stateCurrentPage = currentPage.value;
+    let stateCurrentPage = currentPage.value;
     const statePageSize = pageSize.value;
     const stateViewMode = viewMode.value;
-    const stateIsLockedToBottom = isLockedToBottom.value;
+    let stateIsLockedToBottom = isLockedToBottom.value;
     const stateSelectedChannel = selectedChannel.value;
 
     const serverList = await dataAdapter.getServers();
@@ -110,6 +114,19 @@ export async function createUI(dataAdapter, appCallbacks) {
 
     let messages = [];
     let totalCount = finalSelectedChannel ? channelCounts[finalSelectedChannel] || 0 : 0;
+
+    // 处理首次打开时的自动跳转逻辑
+    if (!hasPerformedInitialJump && defaultToLastPage.value && totalCount > 0) {
+      const initialTotalPages = Math.ceil(totalCount / statePageSize) || 1;
+      batch(() => {
+        currentPage.value = initialTotalPages;
+        isLockedToBottom.value = true;
+      });
+      hasPerformedInitialJump = true;
+      // 重新捕获跳转后的状态 snapshot
+      stateCurrentPage = initialTotalPages;
+      stateIsLockedToBottom = true;
+    }
 
     viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
     viewCache.setTotalCount(totalCount);
@@ -199,7 +216,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       serverListSig.value = serverList;
       channelListSig.value = channelList;
       channelCountsSig.value = channelCounts;
-      currentMessages.value = messages;
+      currentMessages.value = [...messages]; // 强制创建新引用以触发布局重绘
       totalCountSig.value = totalCount;
     });
 
@@ -216,9 +233,11 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   // Setup DOM Interactions for toggle
   toggleButton.addEventListener('click', () => {
-    const isVisible = container.style.display === 'flex';
-    if (!isVisible) refreshView();
-    container.style.display = isVisible ? 'none' : 'flex';
+    isUIVisible.value = !isUIVisible.value;
+  });
+
+  effect(() => {
+    container.style.display = isUIVisible.value ? 'flex' : 'none';
   });
 
   // Action Handlers
@@ -234,9 +253,14 @@ export async function createUI(dataAdapter, appCallbacks) {
 
   const ioManager = createIOManager({ dataAdapter, appCallbacks, refreshView });
 
+  const closeUI = () => {
+    isUIVisible.value = false;
+  };
+
   const uiCallbacks = {
     ...appCallbacks,
     ...ioManager,
+    closeUI,
     scanDuplicates: () => appCallbacks.scanAllDuplicatesAsync(dataAdapter),
     deleteMessages: appCallbacks.deleteMessages,
     clearAllData,
@@ -248,16 +272,19 @@ export async function createUI(dataAdapter, appCallbacks) {
   // 响应式数据拉取驱动：effect 会在创建时自动同步触发一次 refreshView
   const stopEffect = effect(() => {
     // 订阅关键路由信号
+    const v = isUIVisible.value;
     const s = viewingServer.value;
     const c = selectedChannel.value;
     const p = currentPage.value;
     const sz = pageSize.value;
     const m = viewMode.value;
 
-    // 使用 untracked 避免 refreshView 内部的读取操作造成循环订阅
-    untracked(() => {
-      refreshView();
-    });
+    // 仅在界面可见时执行昂贵的同步
+    if (v) {
+      untracked(() => {
+        refreshView();
+      });
+    }
   });
 
   // Return Engine API
@@ -269,7 +296,7 @@ export async function createUI(dataAdapter, appCallbacks) {
       toggleButton.remove();
     },
     updateUI: async () => {
-      if (!isUIPaused.value) {
+      if (!isUIPaused.value && isUIVisible.value) {
         await refreshView();
       }
     },
