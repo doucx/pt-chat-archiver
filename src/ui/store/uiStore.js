@@ -5,6 +5,7 @@ import { storageManager } from '../../storage/index.js';
 export const viewMode = signal('log'); // 'log' | 'stats' | 'config'
 export const isUIPaused = signal(false);
 export const isLockedToBottom = signal(false);
+export const lastScrollTop = signal(0);
 
 // --- 存档查看状态 ---
 export const viewingServer = signal(null);

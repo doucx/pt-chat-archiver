@@ -7,6 +7,7 @@ import {
   isLockedToBottom,
   isReadOnly,
   isUIPaused,
+  lastScrollTop,
   loadingMessage,
   selectedChannel,
   totalPages,
@@ -31,10 +32,14 @@ export function LogViewer() {
   const curPage = currentPage.value;
   const totPages = totalPages.value;
 
-  // 自动滚动处理
+  // 自动滚动与位置恢复处理
   useEffect(() => {
-    if (displayText !== undefined && locked && curPage === totPages && textareaRef.current) {
+    if (displayText === undefined || !textareaRef.current) return;
+
+    if (locked && curPage === totPages) {
       textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    } else if (!locked && lastScrollTop.value > 0) {
+      textareaRef.current.scrollTop = lastScrollTop.value;
     }
   }, [displayText, locked, curPage, totPages]);
 
@@ -49,6 +54,10 @@ export function LogViewer() {
       isLockedToBottom.value = false;
     } else if (!isLockedToBottom.value && isAtBottom && currentPage.value === totalPages.value) {
       isLockedToBottom.value = true;
+    }
+
+    if (!isLockedToBottom.value) {
+      lastScrollTop.value = el.scrollTop;
     }
   };
 

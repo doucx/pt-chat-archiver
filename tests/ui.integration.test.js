@@ -5,6 +5,8 @@ import { createUI } from '../src/ui/index.jsx';
 import {
   currentPage,
   isLockedToBottom,
+  isUIVisible,
+  lastScrollTop,
   loadingMessage,
   pageSize,
   selectedChannel,
@@ -89,6 +91,8 @@ describe('UI Integration Smoke Tests', () => {
     viewingServer.value = null;
     isLockedToBottom.value = false;
     loadingMessage.value = '';
+    isUIVisible.value = false;
+    lastScrollTop.value = 0;
 
     mockAppState = {
       'Test Server': {

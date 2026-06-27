@@ -1,4 +1,4 @@
-import { currentPage, isLockedToBottom, totalPages } from '../store/uiStore';
+import { currentPage, isLockedToBottom, lastScrollTop, totalPages } from '../store/uiStore';
 
 export function Pagination() {
   const isFirst = currentPage.value === 1;
@@ -7,11 +7,13 @@ export function Pagination() {
   const goToPage = (p) => {
     isLockedToBottom.value = false;
     currentPage.value = Math.max(1, Math.min(p, totalPages.value));
+    lastScrollTop.value = 0;
   };
 
   const toggleLock = () => {
     if (!isLast) {
       currentPage.value = totalPages.value;
+      lastScrollTop.value = 0;
     }
     isLockedToBottom.value = !isLockedToBottom.value;
   };

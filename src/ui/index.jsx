@@ -19,6 +19,7 @@ import {
   isLockedToBottom,
   isUIPaused,
   isUIVisible,
+  lastScrollTop,
   loadingMessage,
   pageSize,
   selectedChannel,
@@ -57,6 +58,47 @@ export async function createUI(dataAdapter, appCallbacks) {
           viewCache.set(p, result.messages);
         }
       });
+    }
+  };
+
+  const preloadCurrentView = async () => {
+    const server = viewingServer.value;
+    if (!server) return;
+
+    const channels = await dataAdapter.getChannels(server);
+    let channel = selectedChannel.value;
+    if (!channel && channels.length > 0) {
+      channel = channels[0];
+    }
+    if (!channel) return;
+
+    let totalCount = 0;
+    if (dataAdapter.getChannelCount) {
+      totalCount = await dataAdapter.getChannelCount(server, channel);
+    } else {
+      const { total } = await dataAdapter.getMessages(server, channel, 1, 1);
+      totalCount = total;
+    }
+
+    if (totalCount === 0) return;
+
+    const size = pageSize.value;
+    let targetPage = 1;
+    if (defaultToLastPage.value) {
+      targetPage = Math.ceil(totalCount / size) || 1;
+    }
+
+    viewCache.init(server, channel, size, 5);
+    viewCache.setTotalCount(totalCount);
+
+    if (!viewCache.has(targetPage)) {
+      try {
+        const result = await dataAdapter.getMessages(server, channel, targetPage, size);
+        viewCache.set(targetPage, result.messages);
+        preloadAdjacentPages(targetPage, Math.ceil(totalCount / size) || 1, server, channel, size);
+      } catch (e) {
+        console.warn('[Preload] Failed to preload messages:', e);
+      }
     }
   };
 
@@ -115,17 +157,25 @@ export async function createUI(dataAdapter, appCallbacks) {
     let messages = [];
     let totalCount = finalSelectedChannel ? channelCounts[finalSelectedChannel] || 0 : 0;
 
-    // 处理首次打开时的自动跳转逻辑
-    if (!hasPerformedInitialJump && defaultToLastPage.value && totalCount > 0) {
-      const initialTotalPages = Math.ceil(totalCount / statePageSize) || 1;
+    // 处理首次打开或切换频道/服务器时的自动跳转逻辑
+    const isContextSwitched =
+      !hasPerformedInitialJump ||
+      viewCache.server !== currentServer ||
+      viewCache.channel !== finalSelectedChannel;
+
+    if (isContextSwitched && totalCount > 0) {
+      const targetInitialPage = defaultToLastPage.value
+        ? Math.ceil(totalCount / statePageSize) || 1
+        : 1;
       batch(() => {
-        currentPage.value = initialTotalPages;
-        isLockedToBottom.value = true;
+        currentPage.value = targetInitialPage;
+        isLockedToBottom.value = defaultToLastPage.value;
+        lastScrollTop.value = 0;
       });
       hasPerformedInitialJump = true;
       // 重新捕获跳转后的状态 snapshot
-      stateCurrentPage = initialTotalPages;
-      stateIsLockedToBottom = true;
+      stateCurrentPage = targetInitialPage;
+      stateIsLockedToBottom = defaultToLastPage.value;
     }
 
     viewCache.init(currentServer, finalSelectedChannel, statePageSize, 5);
@@ -209,6 +259,8 @@ export async function createUI(dataAdapter, appCallbacks) {
         currentPage.value = newTotalPages;
         // 注意：这里由于 currentPage 变了，后续会由 effect 再次触发拉取，
         // 但为了交互平滑，这里我们保持内存中的 messages 更新
+      } else if (currentPage.value > newTotalPages) {
+        currentPage.value = newTotalPages;
       }
 
       if (renderId !== currentRenderId) return;
@@ -287,10 +339,24 @@ export async function createUI(dataAdapter, appCallbacks) {
     }
   });
 
+  // 仅在界面不可见、且检测到服务器时进行后台静默加载
+  const stopPreloadEffect = effect(() => {
+    const v = isUIVisible.value;
+    const s = viewingServer.value;
+    const c = selectedChannel.value;
+
+    if (!v && s) {
+      untracked(() => {
+        preloadCurrentView();
+      });
+    }
+  });
+
   // Return Engine API
   return {
     destroy: () => {
       stopEffect();
+      stopPreloadEffect();
       render(null, container);
       container.remove();
       toggleButton.remove();
